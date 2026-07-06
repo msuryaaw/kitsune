@@ -117,31 +117,37 @@ class MainActivity : ComponentActivity() {
             val isOled = settings?.oledBlack ?: false
             
             KitsuneTheme(isOled = isOled) {
-                val navController = rememberNavController()
-                
-                NavHost(navController = navController, startDestination = Screen.Splash.route) {
-                    composable(Screen.Splash.route) {
-                        SplashScreen(
-                            viewModel = splashViewModelInstance,
-                            storageHelper = storageHelper,
-                            onNavigateToMain = {
-                                navController.navigate(Screen.Main.route) {
-                                    popUpTo(Screen.Splash.route) { inclusive = true }
+                // ADDITION: Global Surface to ensure theme consistency across all screens
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    val navController = rememberNavController()
+                    
+                    NavHost(navController = navController, startDestination = Screen.Splash.route) {
+                        composable(Screen.Splash.route) {
+                            SplashScreen(
+                                viewModel = splashViewModelInstance,
+                                storageHelper = storageHelper,
+                                onNavigateToMain = {
+                                    navController.navigate(Screen.Main.route) {
+                                        popUpTo(Screen.Splash.route) { inclusive = true }
+                                    }
                                 }
-                            }
-                        )
-                    }
-                    composable(Screen.Main.route) {
-                        MainContainer(
-                            libraryViewModel = libraryViewModelInstance,
-                            scannerRepository = scannerRepository,
-                            settingsRepository = settingsRepository,
-                            readerRepository = readerRepository,
-                            progressRepository = progressRepository,
-                            bookmarkRepository = bookmarkRepository,
-                            playlistRepository = playlistRepository,
-                            storageHelper = storageHelper
-                        )
+                            )
+                        }
+                        composable(Screen.Main.route) {
+                            MainContainer(
+                                libraryViewModel = libraryViewModelInstance,
+                                scannerRepository = scannerRepository,
+                                settingsRepository = settingsRepository,
+                                readerRepository = readerRepository,
+                                progressRepository = progressRepository,
+                                bookmarkRepository = bookmarkRepository,
+                                playlistRepository = playlistRepository,
+                                storageHelper = storageHelper
+                            )
+                        }
                     }
                 }
             }

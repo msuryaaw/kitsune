@@ -34,30 +34,44 @@ fun SplashScreen(
         }
     }
 
-    Box(
+    Surface(
         modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
+        color = MaterialTheme.colorScheme.background
     ) {
-        when (uiState) {
-            is SplashUiState.Loading -> CircularProgressIndicator()
-            is SplashUiState.NeedsSetup -> {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Welcome to Kitsune", style = MaterialTheme.typography.headlineMedium)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Button(onClick = { launcher.launch(null) }) {
-                        Text("Select Library Folder")
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            when (uiState) {
+                is SplashUiState.Loading -> CircularProgressIndicator()
+                is SplashUiState.NeedsSetup -> {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "Welcome to Kitsune",
+                            style = MaterialTheme.typography.headlineMedium,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(onClick = { launcher.launch(null) }) {
+                            Text("Select Library Folder")
+                        }
                     }
                 }
-            }
-            is SplashUiState.Error -> {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text((uiState as SplashUiState.Error).message, color = MaterialTheme.colorScheme.error)
-                    Button(onClick = { launcher.launch(null) }) {
-                        Text("Try Again")
+                is SplashUiState.Error -> {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = (uiState as SplashUiState.Error).message,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(onClick = { launcher.launch(null) }) {
+                            Text("Try Again")
+                        }
                     }
                 }
+                else -> {}
             }
-            else -> {}
         }
     }
 }

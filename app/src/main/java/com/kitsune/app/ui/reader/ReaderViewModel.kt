@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.*
 /**
  * ViewModel untuk mengelola logika layar Reader.
  * Mendukung pembacaan progres per chapter, pemantauan pengaturan mode baca, dan navigasi antar chapter.
+ * Dioptimasi untuk transisi chapter yang mulus (Phase 6.7.4).
  */
 class ReaderViewModel(
     private val comicRelativePath: String,
@@ -29,9 +30,6 @@ class ReaderViewModel(
 
     private val _uiState = MutableStateFlow<ReaderUiState>(ReaderUiState.Loading)
     val uiState: StateFlow<ReaderUiState> = _uiState.asStateFlow()
-
-    private var _chapterUri = MutableStateFlow<Uri?>(null)
-    val chapterUri: StateFlow<Uri?> = _chapterUri.asStateFlow()
 
     private val _currentPage = MutableStateFlow(1)
     val currentPage: StateFlow<Int> = _currentPage.asStateFlow()
@@ -59,6 +57,8 @@ class ReaderViewModel(
             // Force save progres chapter sebelumnya secara sinkron (suspend) sebelum pindah
             forceSaveSync()
 
+            // OPTIMIZATION (Phase 6.7.4): Jangan reset ke Loading jika kita berpindah antar chapter.
+            // Biarkan UI menampilkan chapter lama sampai data chapter baru siap (seamless transition).
             val isInitialLoad = _uiState.value !is ReaderUiState.Success
             
             val targetChapterName = chapterPath.substringAfterLast('/').removeSuffix(".cbz")
@@ -92,7 +92,6 @@ class ReaderViewModel(
                 }
 
                 val uri = chapterDoc.uri
-                _chapterUri.value = uri
                 
                 val cacheKey = "${chapterPath}:${chapterDoc.lastModified()}"
                 val pages = readerRepository.getPages(uri, cacheKey)
@@ -106,10 +105,14 @@ class ReaderViewModel(
                     
                     _currentPage.value = startPage
 
+                    // Update UI State secara atomik dengan data chapter baru.
+                    // Penambahan chapterUri ke dalam Success state memungkinkan UI melakukan transisi 
+                    // tanpa flicker atau reset state navigasi yang prematur.
                     _uiState.value = ReaderUiState.Success(
                         pages = pages,
                         chapterName = targetChapterName,
-                        readingMode = readingMode
+                        readingMode = readingMode,
+                        chapterUri = uri
                     )
                     
                     // Initial save untuk posisi awal di chapter baru

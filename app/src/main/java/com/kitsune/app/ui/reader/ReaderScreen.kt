@@ -37,7 +37,7 @@ import kotlin.math.abs
 
 /**
  * Layar utama Reader untuk membaca komik.
- * Dioptimasi untuk meminimalkan recomposition (Phase 6.6.4.3).
+ * Dioptimasi untuk meminimalkan recomposition (Phase 6.6.4.3) dan transisi mulus (Phase 6.7.4).
  */
 @Composable
 fun ReaderScreen(
@@ -45,7 +45,6 @@ fun ReaderScreen(
     onBackClick: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val chapterUri by viewModel.chapterUri.collectAsState()
     
     // OPTIMIZATION: showControls is isolated to control overlays
     var showControls by remember { mutableStateOf(false) }
@@ -82,7 +81,6 @@ fun ReaderScreen(
         // CONTENT AREA: Isolated from showControls and root currentPage recomposition
         ReaderContent(
             uiState = uiState,
-            chapterUri = chapterUri,
             viewModel = viewModel,
             onBackClick = currentOnBackClick
         )
@@ -103,7 +101,6 @@ fun ReaderScreen(
 @Composable
 private fun ReaderContent(
     uiState: ReaderUiState,
-    chapterUri: Uri?,
     viewModel: ReaderViewModel,
     onBackClick: () -> Unit
 ) {
@@ -140,14 +137,12 @@ private fun ReaderContent(
             }
         }
         is ReaderUiState.Success -> {
-            if (chapterUri != null) {
-                key(chapterUri) {
-                    when (state.readingMode) {
-                        "LTR" -> HorizontalReader(viewModel, state, chapterUri, false, onPageChange, onNextChapter, onPrevChapter)
-                        "RTL" -> HorizontalReader(viewModel, state, chapterUri, true, onPageChange, onNextChapter, onPrevChapter)
-                        else -> VerticalReader(viewModel, state, chapterUri, onPageChange, onNextChapter)
-                    }
-                }
+            // OPTIMIZATION (Phase 6.7.4): Remove key(chapterUri) to allow smooth data updates 
+            // without destroying LazyList/Pager state.
+            when (state.readingMode) {
+                "LTR" -> HorizontalReader(viewModel, state, state.chapterUri, false, onPageChange, onNextChapter, onPrevChapter)
+                "RTL" -> HorizontalReader(viewModel, state, state.chapterUri, true, onPageChange, onNextChapter, onPrevChapter)
+                else -> VerticalReader(viewModel, state, state.chapterUri, onPageChange, onNextChapter)
             }
         }
     }
@@ -395,6 +390,7 @@ fun ReaderBottomBar(
     onPrevChapter: () -> Unit
 ) {
     Surface(color = Color.Black.copy(alpha = 0.8f), contentColor = Color.White) {
+        val currentPage by viewModel.currentPage.collectAsState()
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -402,7 +398,7 @@ fun ReaderBottomBar(
                 .navigationBarsPadding()
         ) {
             // Isolated Page Position UI
-            PagePositionControls(viewModel, totalPages, onPageJump)
+            PagePositionControls(currentPage, totalPages, onPageJump)
             
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -427,12 +423,10 @@ fun ReaderBottomBar(
  */
 @Composable
 private fun PagePositionControls(
-    viewModel: ReaderViewModel,
+    currentPage: Int,
     totalPages: Int,
     onPageJump: (Int) -> Unit
 ) {
-    val currentPage by viewModel.currentPage.collectAsState()
-    
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically

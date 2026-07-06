@@ -6,6 +6,7 @@ import androidx.documentfile.provider.DocumentFile
 import com.kitsune.app.core.NaturalOrderComparator
 import com.kitsune.app.domain.model.Chapter
 import com.kitsune.app.domain.model.Comic
+import com.kitsune.app.reader.CbzParser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -17,6 +18,7 @@ class ComicScanner(private val context: Context) {
 
     private val naturalOrderComparator = NaturalOrderComparator()
     private val allowedImageExtensions = listOf("jpg", "jpeg", "png", "webp")
+    private val cbzParser = CbzParser(context)
 
     // Folder Cache
     private var cachedRootUri: Uri? = null
@@ -78,6 +80,7 @@ class ComicScanner(private val context: Context) {
 
     /**
      * Memindai folder 'Comics' di dalam root URI yang diberikan.
+     * Mendukung pembuatan cover otomatis jika file cover tidak ditemukan (Phase 6.7.1).
      */
     suspend fun scanComics(
         rootUri: Uri,
@@ -99,7 +102,16 @@ class ComicScanner(private val context: Context) {
             val currentLastModified = folder.lastModified()
             
             val cachedCover = getExistingCover(relativePath, currentLastModified)
-            val coverUri = cachedCover ?: findCover(folder)?.toString()
+            
+            // Urutan Pencarian Cover:
+            // 1. Ambil dari Cache DB (jika lastModified folder sama)
+            // 2. Cari file cover.* di filesystem
+            // 3. Generate otomatis dari chapter pertama jika tidak ditemukan
+            var coverUri = cachedCover ?: findCover(folder)?.toString()
+            
+            if (coverUri == null) {
+                coverUri = generateCover(folder)?.toString()
+            }
             
             Comic(
                 title = title,
@@ -108,6 +120,47 @@ class ComicScanner(private val context: Context) {
                 lastModified = currentLastModified
             )
         }
+    }
+
+    /**
+     * Menghasilkan file cover.jpg secara otomatis dari chapter pertama.
+     * Mengikuti aturan Natural Sorting untuk pemilihan chapter dan halaman.
+     */
+    private suspend fun generateCover(folder: DocumentFile): Uri? = withContext(Dispatchers.IO) {
+        // Cari semua file .cbz dan urutkan secara natural
+        val cbzFiles = folder.listFiles()
+            .filter { it.isFile && it.name?.lowercase()?.endsWith(".cbz") == true }
+            .sortedWith { f1, f2 ->
+                naturalOrderComparator.compare(f1.name ?: "", f2.name ?: "")
+            }
+
+        // Iterasi chapter untuk mencari yang valid
+        for (cbzFile in cbzFiles) {
+            try {
+                val cbzUri = cbzFile.uri
+                // Ambil daftar halaman (CbzParser sudah menggunakan Natural Sorting secara internal)
+                val pages = cbzParser.getPages(cbzUri)
+                if (pages.isEmpty()) continue
+
+                val firstPage = pages.first()
+                val inputStream = cbzParser.getEntryInputStream(cbzUri, firstPage.entryPath) ?: continue
+
+                // Buat file cover.jpg di folder komik
+                val coverFile = folder.createFile("image/jpeg", "cover.jpg") ?: continue
+                
+                context.contentResolver.openOutputStream(coverFile.uri)?.use { outputStream ->
+                    inputStream.use { input ->
+                        input.copyTo(outputStream)
+                    }
+                }
+                
+                return@withContext coverFile.uri
+            } catch (e: Exception) {
+                // Jika satu chapter bermasalah (corrupt/empty), lanjut ke chapter berikutnya
+                e.printStackTrace()
+            }
+        }
+        null
     }
 
     /**

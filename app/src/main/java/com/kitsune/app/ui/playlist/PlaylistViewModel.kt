@@ -8,6 +8,7 @@ import com.kitsune.app.data.repository.ScannerRepository
 import com.kitsune.app.data.repository.SettingsRepository
 import com.kitsune.app.domain.model.Comic
 import com.kitsune.app.database.entity.PlaylistEntity
+import com.kitsune.app.ui.library.CollectionSortOrder
 import com.kitsune.app.ui.library.ComicStatus
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
@@ -16,6 +17,7 @@ import kotlinx.coroutines.launch
 
 /**
  * ViewModel untuk mengelola seluruh ekosistem Playlist (Kategori & Konten).
+ * Mendukung in-memory sorting kategori (Phase 6.7.5).
  */
 class PlaylistViewModel(
     private val playlistRepository: PlaylistRepository,
@@ -26,6 +28,9 @@ class PlaylistViewModel(
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
+
+    private val _sortOrder = MutableStateFlow(CollectionSortOrder.NAME_ASC)
+    val sortOrder: StateFlow<CollectionSortOrder> = _sortOrder.asStateFlow()
 
     /**
      * Optimasi pencarian untuk mencegah recomputation berlebih saat user mengetik.
@@ -47,21 +52,27 @@ class PlaylistViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     /**
-     * Daftar seluruh kategori playlist yang ada.
+     * Daftar seluruh kategori playlist yang ada, diurutkan di memory (Phase 6.7.5).
      */
-    val categories: StateFlow<List<PlaylistEntity>> = playlistRepository.getAllPlaylistsWithCount()
-        .map { list -> list.map { it.playlist } }
-        .onEach { list ->
-            val currentId = _selectedCategoryId.value
-            if (list.isNotEmpty()) {
-                if (currentId == null || list.none { it.id == currentId }) {
-                    _selectedCategoryId.value = list.first().id
-                }
-            } else {
-                _selectedCategoryId.value = null
-            }
+    val categories: StateFlow<List<PlaylistEntity>> = combine(
+        playlistRepository.getAllPlaylistsWithCount(),
+        _sortOrder
+    ) { list, order ->
+        val sorted = when (order) {
+            CollectionSortOrder.NAME_ASC -> list.sortedBy { it.playlist.name.lowercase() }
+            CollectionSortOrder.NAME_DESC -> list.sortedByDescending { it.playlist.name.lowercase() }
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        sorted.map { it.playlist }
+    }.onEach { list ->
+        val currentId = _selectedCategoryId.value
+        if (list.isNotEmpty()) {
+            if (currentId == null || list.none { it.id == currentId }) {
+                _selectedCategoryId.value = list.first().id
+            }
+        } else {
+            _selectedCategoryId.value = null
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     /**
      * StateFlow untuk mendapatkan seluruh path komik yang dibookmark.
@@ -122,7 +133,6 @@ class PlaylistViewModel(
 
     /**
      * Tahap 4: Perakitan Final UI State.
-     * Mengikutsertakan categoryId untuk sinkronisasi rendering di HorizontalPager (Phase 6.7.3).
      */
     val uiState: StateFlow<PlaylistUiState> = combine(
         filteredComics,
@@ -152,6 +162,10 @@ class PlaylistViewModel(
 
     fun onSearchQueryChange(newQuery: String) {
         _searchQuery.value = newQuery
+    }
+
+    fun setSortOrder(order: CollectionSortOrder) {
+        _sortOrder.value = order
     }
 
     fun selectCategory(id: Long?) {

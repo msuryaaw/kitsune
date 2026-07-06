@@ -8,6 +8,7 @@ import com.kitsune.app.data.repository.ScannerRepository
 import com.kitsune.app.data.repository.SettingsRepository
 import com.kitsune.app.domain.model.Comic
 import com.kitsune.app.database.entity.BookmarkEntity
+import com.kitsune.app.ui.library.CollectionSortOrder
 import com.kitsune.app.ui.library.ComicStatus
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
@@ -16,6 +17,7 @@ import kotlinx.coroutines.launch
 
 /**
  * ViewModel untuk mengelola seluruh ekosistem Bookmark (Kategori & Konten).
+ * Mendukung in-memory sorting kategori (Phase 6.7.5).
  */
 class BookmarkViewModel(
     private val bookmarkRepository: BookmarkRepository,
@@ -26,6 +28,9 @@ class BookmarkViewModel(
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
+
+    private val _sortOrder = MutableStateFlow(CollectionSortOrder.NAME_ASC)
+    val sortOrder: StateFlow<CollectionSortOrder> = _sortOrder.asStateFlow()
 
     /**
      * Optimasi pencarian untuk mencegah recomputation berlebih saat user mengetik.
@@ -44,21 +49,27 @@ class BookmarkViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     /**
-     * Daftar seluruh kategori bookmark yang ada.
+     * Daftar seluruh kategori bookmark yang ada, diurutkan di memory (Phase 6.7.5).
      */
-    val categories: StateFlow<List<BookmarkEntity>> = bookmarkRepository.getAllBookmarksWithCount()
-        .map { list -> list.map { it.bookmark } }
-        .onEach { list ->
-            val currentId = _selectedCategoryId.value
-            if (list.isNotEmpty()) {
-                if (currentId == null || list.none { it.id == currentId }) {
-                    _selectedCategoryId.value = list.first().id
-                }
-            } else {
-                _selectedCategoryId.value = null
-            }
+    val categories: StateFlow<List<BookmarkEntity>> = combine(
+        bookmarkRepository.getAllBookmarksWithCount(),
+        _sortOrder
+    ) { list, order ->
+        val sorted = when (order) {
+            CollectionSortOrder.NAME_ASC -> list.sortedBy { it.bookmark.name.lowercase() }
+            CollectionSortOrder.NAME_DESC -> list.sortedByDescending { it.bookmark.name.lowercase() }
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        sorted.map { it.bookmark }
+    }.onEach { list ->
+        val currentId = _selectedCategoryId.value
+        if (list.isNotEmpty()) {
+            if (currentId == null || list.none { it.id == currentId }) {
+                _selectedCategoryId.value = list.first().id
+            }
+        } else {
+            _selectedCategoryId.value = null
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     /**
      * StateFlow untuk mendapatkan seluruh path komik yang dibookmark.
@@ -122,7 +133,6 @@ class BookmarkViewModel(
 
     /**
      * Tahap 4: Perakitan Final UI State.
-     * Mengikutsertakan categoryId untuk sinkronisasi rendering di HorizontalPager (Phase 6.7.3).
      */
     val uiState: StateFlow<BookmarkUiState> = combine(
         filteredComics,
@@ -152,6 +162,10 @@ class BookmarkViewModel(
 
     fun onSearchQueryChange(newQuery: String) {
         _searchQuery.value = newQuery
+    }
+
+    fun setSortOrder(order: CollectionSortOrder) {
+        _sortOrder.value = order
     }
 
     fun selectCategory(id: Long?) {

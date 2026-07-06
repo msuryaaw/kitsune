@@ -122,6 +122,7 @@ class BookmarkViewModel(
 
     /**
      * Tahap 4: Perakitan Final UI State.
+     * Mengikutsertakan categoryId untuk sinkronisasi rendering di HorizontalPager (Phase 6.7.3).
      */
     val uiState: StateFlow<BookmarkUiState> = combine(
         filteredComics,
@@ -137,6 +138,7 @@ class BookmarkViewModel(
             BookmarkUiState.Empty
         } else {
             BookmarkUiState.Success(
+                categoryId = selectedId,
                 comics = comics,
                 comicStatuses = statuses,
                 gridSize = gridSize
@@ -214,6 +216,7 @@ sealed class BookmarkUiState {
     data object Loading : BookmarkUiState()
     data object Empty : BookmarkUiState()
     data class Success(
+        val categoryId: Long,
         val comics: List<Comic>,
         val comicStatuses: Map<String, Set<ComicStatus>>,
         val gridSize: Int

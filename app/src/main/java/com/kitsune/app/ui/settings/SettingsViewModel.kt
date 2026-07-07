@@ -93,8 +93,11 @@ class SettingsViewModel(
 
     /**
      * Memicu pemindaian manual untuk mendeteksi perubahan di filesystem.
+     * REVISION 6.7.6: Ditambahkan guard agar rescan tidak berjalan paralel.
      */
     fun rescanLibrary() {
+        if (_isRescanning.value) return
+
         viewModelScope.launch {
             val settings = settingsRepository.settings.first()
             val rootUriString = settings?.rootFolderUri

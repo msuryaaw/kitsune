@@ -200,7 +200,12 @@ class LibraryViewModel(
         return playlistRepository.createPlaylist(name)
     }
 
+    /**
+     * REVISION 6.7.6: Ditambahkan guard agar refresh tidak berjalan paralel.
+     */
     fun refreshLibrary() {
+        if (_isRefreshing.value) return
+
         viewModelScope.launch {
             _isRefreshing.value = true
             _errorMessage.value = null

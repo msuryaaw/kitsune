@@ -145,6 +145,13 @@ class ComicScanner(private val context: Context) {
                 val firstPage = pages.first()
                 val inputStream = cbzParser.getEntryInputStream(cbzUri, firstPage.entryPath) ?: continue
 
+                // REVISION 6.7.6: Lakukan pengecekan ulang tepat sebelum createFile untuk mencegah race condition.
+                // Jika file cover.jpg sudah ada (mungkin dibuat oleh thread lain), gunakan file tersebut.
+                val existingCover = folder.findFile("cover.jpg")
+                if (existingCover != null && existingCover.exists()) {
+                    return@withContext existingCover.uri
+                }
+
                 // Buat file cover.jpg di folder komik
                 val coverFile = folder.createFile("image/jpeg", "cover.jpg") ?: continue
                 

@@ -7,8 +7,9 @@ import com.kitsune.app.domain.model.Chapter
 import com.kitsune.app.domain.model.Comic
 import com.kitsune.app.scanner.ComicScanner
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * Repository untuk mengelola operasi pemindaian media.
@@ -18,6 +19,13 @@ class ScannerRepository(
     private val comicScanner: ComicScanner,
     private val comicDao: ComicDao
 ) {
+    companion object {
+        /**
+         * REVISION 6.7.6: Mutex static untuk menjamin hanya satu proses scan yang berjalan pada satu waktu 
+         * di seluruh aplikasi, bahkan jika Activity/Repository direkonstruksi (config change).
+         */
+        private val scanMutex = Mutex()
+    }
 
     /**
      * Aliran data komik yang tersimpan di database.
@@ -43,11 +51,12 @@ class ScannerRepository(
 
     /**
      * Melakukan pemindaian inkremental pada folder komik.
+     * REVISION 6.7.6: Sinkronisasi mutlak via Mutex untuk mencegah Race Condition pada filesystem.
      */
-    suspend fun performIncrementalScan(rootUri: Uri) {
+    suspend fun performIncrementalScan(rootUri: Uri) = scanMutex.withLock {
         // STABILITY FIX: Proteksi agar tidak menghapus database jika folder kategori tidak ditemukan/error
         if (!comicScanner.isCategoryFolderValid(rootUri, "Comics")) {
-            return
+            return@withLock
         }
 
         val cachedComics = comicDao.getAllComicsSync()

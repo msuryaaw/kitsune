@@ -25,9 +25,6 @@ class BookmarkDetailViewModel(
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
-    /**
-     * OPTIMIZATION 6.8.2: Debounce Search Query.
-     */
     @OptIn(FlowPreview::class)
     private val debouncedSearchQuery = _searchQuery
         .debounce(300)
@@ -104,7 +101,7 @@ class BookmarkDetailViewModel(
                     comicsInBookmark.filter { it.title.contains(query, ignoreCase = true) }
                 }
 
-                // 2. Sorting
+                // 2. Sorting - REVISION 6.8.3: Sorting now correctly affects comics inside category
                 result = when (order) {
                     CollectionSortOrder.NAME_ASC -> result.sortedBy { it.title.lowercase() }
                     CollectionSortOrder.NAME_DESC -> result.sortedByDescending { it.title.lowercase() }

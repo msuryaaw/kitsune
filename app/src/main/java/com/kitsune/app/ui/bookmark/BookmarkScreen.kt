@@ -1,280 +1,84 @@
 package com.kitsune.app.ui.bookmark
 
-import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.LazyGridState
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.kitsune.app.domain.model.Comic
-import com.kitsune.app.ui.library.*
-import kotlinx.coroutines.launch
+import com.kitsune.app.data.repository.BookmarkWithCount
+import com.kitsune.app.ui.library.EmptyLibraryState
 
 /**
- * BookmarkScreen dengan optimasi transisi kategori (Phase 6.7.9).
- * Menggunakan ViewModel-level caching dan preloading untuk transisi yang benar-benar instan.
+ * BookmarkScreen yang menampilkan daftar kategori bookmark.
+ * REVISION 6.8.3: Fokus pada list kategori dengan urutan normal.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BookmarkScreen(
     viewModel: BookmarkViewModel,
-    onComicClick: (Comic) -> Unit
+    onCategoryClick: (BookmarkWithCount) -> Unit
 ) {
-    val uiState by viewModel.uiState.collectAsState()
-    val categoryCache by viewModel.categoryCache.collectAsState()
     val categories by viewModel.categories.collectAsState()
-    val selectedCategoryId by viewModel.selectedCategoryId.collectAsState()
-    val sortOrder by viewModel.sortOrder.collectAsState()
-    val searchQuery by viewModel.searchQuery.collectAsState()
-    val selectionMode by viewModel.selectionMode.collectAsState()
-    val selectedPaths by viewModel.selectedPaths.collectAsState()
-
-    val scope = rememberCoroutineScope()
-    var isSearchActive by remember { mutableStateOf(false) }
     var showAddDialog by remember { mutableStateOf(false) }
-    var showBulkRemoveConfirm by remember { mutableStateOf(false) }
-    var showMenu by remember { mutableStateOf(false) }
-    var showSortMenu by remember { mutableStateOf(false) }
-    var showRenameDialog by remember { mutableStateOf(false) }
-    var showDeleteConfirm by remember { mutableStateOf(false) }
-
-    val pagerState = rememberPagerState(pageCount = { categories.size })
-    
-    // Maintain scroll states for each category
-    val scrollStates = remember { mutableStateMapOf<Long, LazyGridState>() }
-
-    // SYNC: ViewModel -> Pager
-    LaunchedEffect(selectedCategoryId, categories) {
-        if (!pagerState.isScrollInProgress) {
-            val index = categories.indexOfFirst { it.id == selectedCategoryId }
-            if (index >= 0 && pagerState.currentPage != index) {
-                pagerState.scrollToPage(index)
-            }
-        }
-    }
-
-    // SYNC: Pager -> ViewModel
-    LaunchedEffect(pagerState) {
-        snapshotFlow { pagerState.targetPage }.collect { page ->
-            if (categories.isNotEmpty() && page >= 0 && page < categories.size) {
-                val categoryId = categories[page].id
-                if (viewModel.selectedCategoryId.value != categoryId) {
-                    viewModel.selectCategory(categoryId)
-                    viewModel.clearSelection()
-                }
-            }
-        }
-    }
-
-    BackHandler(enabled = selectionMode || isSearchActive) {
-        if (selectionMode) {
-            viewModel.clearSelection()
-        } else {
-            isSearchActive = false
-            viewModel.onSearchQueryChange("")
-        }
-    }
 
     Scaffold(
         topBar = {
-            Column {
-                if (selectionMode) {
-                    SelectionTopAppBar(
-                        selectedCount = selectedPaths.size,
-                        onCancel = { viewModel.clearSelection() },
-                        onSelectAll = { viewModel.selectAll() },
-                        actions = listOf(
-                            SelectionAction(
-                                icon = Icons.Default.Delete,
-                                label = "Remove from Bookmark",
-                                onClick = { showBulkRemoveConfirm = true }
-                            )
-                        )
-                    )
-                } else if (isSearchActive) {
-                    SearchTopAppBar(
-                        query = searchQuery,
-                        onQueryChange = { viewModel.onSearchQueryChange(it) },
-                        onCloseClick = {
-                            isSearchActive = false
-                            viewModel.onSearchQueryChange("")
-                        }
-                    )
-                } else {
-                    TopAppBar(
-                        title = { Text("Bookmarks") },
-                        actions = {
-                            IconButton(onClick = { isSearchActive = true }) {
-                                Icon(Icons.Default.Search, contentDescription = "Search")
-                            }
-                            
-                            Box {
-                                IconButton(onClick = { showSortMenu = true }) {
-                                    Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort")
-                                }
-                                DropdownMenu(
-                                    expanded = showSortMenu,
-                                    onDismissRequest = { showSortMenu = false }
-                                ) {
-                                    CollectionSortOrder.entries.forEach { order ->
-                                        DropdownMenuItem(
-                                            text = { Text(order.label) },
-                                            onClick = {
-                                                viewModel.setSortOrder(order)
-                                                showSortMenu = false
-                                            },
-                                            trailingIcon = {
-                                                if (sortOrder == order) {
-                                                    Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
-                                                }
-                                            }
-                                        )
-                                    }
-                                }
-                            }
-
-                            if (selectedCategoryId != null) {
-                                Box {
-                                    IconButton(onClick = { showMenu = true }) {
-                                        Icon(Icons.Default.MoreVert, contentDescription = "Menu")
-                                    }
-                                    DropdownMenu(
-                                        expanded = showMenu,
-                                        onDismissRequest = { showMenu = false }
-                                    ) {
-                                        DropdownMenuItem(
-                                            text = { Text("Rename Category") },
-                                            onClick = {
-                                                showMenu = false
-                                                showRenameDialog = true
-                                            },
-                                            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) }
-                                        )
-                                        DropdownMenuItem(
-                                            text = { Text("Delete Category") },
-                                            onClick = {
-                                                showMenu = false
-                                                showDeleteConfirm = true
-                                            },
-                                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
-                                            colors = MenuDefaults.itemColors(
-                                                textColor = MaterialTheme.colorScheme.error,
-                                                leadingIconColor = MaterialTheme.colorScheme.error
-                                            )
-                                        )
-                                    }
-                                }
-                            }
-                        },
-                        colors = TopAppBarDefaults.topAppBarColors(
-                            containerColor = Color.Black,
-                            titleContentColor = Color.White,
-                            actionIconContentColor = Color.White
-                        )
-                    )
-                }
-
-                if (!selectionMode && categories.isNotEmpty()) {
-                    ScrollableTabRow(
-                        selectedTabIndex = pagerState.currentPage,
-                        containerColor = Color.Black,
-                        contentColor = MaterialTheme.colorScheme.primary,
-                        edgePadding = 16.dp,
-                        divider = {}
-                    ) {
-                        categories.forEachIndexed { index, category ->
-                            Tab(
-                                selected = pagerState.currentPage == index,
-                                onClick = {
-                                    scope.launch {
-                                        pagerState.animateScrollToPage(index)
-                                    }
-                                },
-                                text = { Text(category.name) }
-                            )
-                        }
-                    }
-                }
-            }
+            TopAppBar(
+                title = { Text("Bookmarks") },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.Black,
+                    titleContentColor = Color.White
+                )
+            )
         },
         floatingActionButton = {
-            if (!selectionMode && !isSearchActive) {
-                FloatingActionButton(
-                    onClick = { showAddDialog = true },
-                    containerColor = MaterialTheme.colorScheme.primary
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = "Add Category")
-                }
+            FloatingActionButton(
+                onClick = { showAddDialog = true },
+                containerColor = MaterialTheme.colorScheme.primary
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "Add Category")
             }
         },
         containerColor = Color.Black
     ) { padding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
-            if (categories.isEmpty()) {
+        if (categories.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize().padding(padding)) {
                 EmptyLibraryState(
                     message = "No categories yet. Click + to create one.",
                     icon = Icons.Default.Star
                 )
-            } else {
-                HorizontalPager(
-                    state = pagerState,
-                    modifier = Modifier.fillMaxSize(),
-                    key = { if (it < categories.size) categories[it].id else it },
-                    beyondViewportPageCount = 1
-                ) { page ->
-                    val categoryId = categories.getOrNull(page)?.id ?: -1L
-                    
-                    // REVISION 6.7.9: Use categoryCache from ViewModel instead of global uiState
-                    // This allows each page to render its content independently and instantly.
-                    val displayState = categoryCache[categoryId]
-
-                    if (displayState != null) {
-                        val gridState = scrollStates.getOrPut(categoryId) { LazyGridState() }
-                        
-                        if (displayState.comics.isEmpty()) {
-                            EmptyLibraryState(
-                                message = if (searchQuery.isNotEmpty()) "No results for \"$searchQuery\"" else "No comics in this category",
-                                icon = if (searchQuery.isNotEmpty()) Icons.Default.SearchOff else Icons.Default.Star
-                            )
-                        } else {
-                            ComicGrid(
-                                comics = displayState.comics,
-                                gridSize = displayState.gridSize,
-                                comicStatuses = displayState.comicStatuses,
-                                selectedPaths = selectedPaths,
-                                state = gridState,
-                                onComicClick = { comic ->
-                                    if (selectionMode) viewModel.toggleSelection(comic.relativePath)
-                                    else onComicClick(comic)
-                                },
-                                onComicLongClick = { comic -> viewModel.toggleSelection(comic.relativePath) }
-                            )
-                        }
-                    } else {
-                        // Render loading only for the page that hasn't been cached/preloaded yet
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator()
-                        }
-                    }
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(
+                    items = categories, 
+                    key = { it.bookmark.id }
+                ) { item ->
+                    BookmarkCategoryItem(
+                        name = item.bookmark.name,
+                        count = item.count,
+                        onClick = { onCategoryClick(item) }
+                    )
                 }
             }
         }
     }
 
-    // Dialogs
     if (showAddDialog) {
         var name by remember { mutableStateOf("") }
         AlertDialog(
@@ -285,7 +89,8 @@ fun BookmarkScreen(
                     value = name,
                     onValueChange = { name = it },
                     placeholder = { Text("Enter name") },
-                    singleLine = true
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
                 )
             },
             confirmButton = {
@@ -301,65 +106,53 @@ fun BookmarkScreen(
             }
         )
     }
+}
 
-    if (showRenameDialog && selectedCategoryId != null) {
-        val currentCategory = categories.find { it.id == selectedCategoryId }
-        var newName by remember(currentCategory) { mutableStateOf(currentCategory?.name ?: "") }
-        AlertDialog(
-            onDismissRequest = { showRenameDialog = false },
-            title = { Text("Rename Category") },
-            text = {
-                TextField(
-                    value = newName,
-                    onValueChange = { newName = it },
-                    singleLine = true
+@Composable
+fun BookmarkCategoryItem(
+    name: String,
+    count: Int,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        color = Color(0xFF1E1E1E),
+        shape = MaterialTheme.shapes.medium
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.Bookmark,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
                 )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    if (newName.isNotBlank()) {
-                        viewModel.renameBookmark(selectedCategoryId!!, newName)
-                        showRenameDialog = false
-                    }
-                }) { Text("Rename") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showRenameDialog = false }) { Text("Cancel") }
+                Spacer(modifier = Modifier.width(16.dp))
+                Text(
+                    text = name,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold
+                )
             }
-        )
-    }
-
-    if (showDeleteConfirm && selectedCategoryId != null) {
-        AlertDialog(
-            onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("Delete Category") },
-            text = { Text("Are you sure you want to delete this category? Comics will not be deleted.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.deleteBookmark(selectedCategoryId!!)
-                    showDeleteConfirm = false
-                }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancel") }
+            Surface(
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                shape = CircleShape
+            ) {
+                Text(
+                    text = "$count",
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
             }
-        )
-    }
-
-    if (showBulkRemoveConfirm) {
-        AlertDialog(
-            onDismissRequest = { showBulkRemoveConfirm = false },
-            title = { Text("Remove Comics") },
-            text = { Text("Remove ${selectedPaths.size} comics from this category?") },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.removeSelected()
-                    showBulkRemoveConfirm = false
-                }) { Text("Remove", color = MaterialTheme.colorScheme.error) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showBulkRemoveConfirm = false }) { Text("Cancel") }
-            }
-        )
+        }
     }
 }

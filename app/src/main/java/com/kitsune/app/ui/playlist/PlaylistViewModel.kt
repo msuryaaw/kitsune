@@ -18,7 +18,7 @@ import kotlinx.coroutines.launch
 
 /**
  * ViewModel untuk mengelola seluruh ekosistem Playlist (Kategori & Konten).
- * REVISION 6.7.9: Ditambahkan mekanisme Multi-Category Cache dan Preloading untuk transisi instan.
+ * REVISION 6.8.2: Optimasi transformasi data dengan Comic Indexing dan Global Status Mapping.
  */
 class PlaylistViewModel(
     private val playlistRepository: PlaylistRepository,
@@ -54,6 +54,37 @@ class PlaylistViewModel(
         .map { it.toSet() }
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+
+    /**
+     * OPTIMIZATION 6.8.2: Indexing Full Library.
+     * Index ini hanya dibangun ulang jika data library di filesystem berubah.
+     */
+    private val comicIndex = scannerRepository.allComics
+        .map { it.associateBy { comic -> comic.relativePath } }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
+    /**
+     * OPTIMIZATION 6.8.2: Global Status Mapping.
+     * Memetakan status bookmark/playlist sekali saja untuk seluruh aplikasi.
+     * Instance Map ini akan digunakan bersama (reused) oleh seluruh tab kategori.
+     */
+    private val globalStatusMap = combine(
+        bookmarkedPaths,
+        playlistPaths
+    ) { bookmarks, playlists ->
+        val impactedPaths = bookmarks + playlists
+        impactedPaths.associateWith { path ->
+            val hasBookmark = bookmarks.contains(path)
+            val hasPlaylist = playlists.contains(path)
+            when {
+                hasBookmark && hasPlaylist -> ComicStatusSets.BOTH
+                hasBookmark -> ComicStatusSets.BOOKMARKED
+                hasPlaylist -> ComicStatusSets.IN_PLAYLIST
+                else -> ComicStatusSets.EMPTY
+            }
+        }
+    }.distinctUntilChanged().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
     private val _categories = combine(
         playlistRepository.getAllPlaylistsWithCount(),
@@ -98,13 +129,12 @@ class PlaylistViewModel(
     private fun setupStateLogic() {
         // Observe global changes to refresh cache
         combine(
-            scannerRepository.allComics.distinctUntilChanged(),
+            comicIndex,
+            globalStatusMap,
             settingsRepository.settings.distinctUntilChanged(),
-            debouncedSearchQuery,
-            bookmarkedPaths,
-            playlistPaths
-        ) { allComics, settings, query, bookmarks, playlists ->
-            refreshAllCachedCategories(allComics, settings, query, bookmarks, playlists)
+            debouncedSearchQuery
+        ) { index, statuses, settings, query ->
+            refreshAllCachedCategories(index, statuses, settings, query)
         }.launchIn(viewModelScope)
 
         // Preload based on selection
@@ -116,24 +146,22 @@ class PlaylistViewModel(
     }
 
     private suspend fun refreshAllCachedCategories(
-        allComics: List<Comic>,
+        comicMap: Map<String, Comic>,
+        statusMap: Map<String, Set<ComicStatus>>,
         settings: com.kitsune.app.database.entity.SettingsEntity?,
-        query: String,
-        bookmarks: Set<String>,
-        playlists: Set<String>
+        query: String
     ) {
         val currentCache = _categoryCache.value
         if (currentCache.isEmpty()) return
 
         val newCache = currentCache.toMutableMap()
-        val comicMap = allComics.associateBy { it.relativePath }
         val gridSize = settings?.gridSize ?: 3
         val currentCats = _categories.value
 
         for (id in currentCache.keys) {
             val paths = playlistRepository.getComicsInPlaylist(id).first()
             val catName = currentCats.find { it.id == id }?.name ?: ""
-            newCache[id] = computeSuccessState(id, catName, paths, comicMap, query, bookmarks, playlists, gridSize)
+            newCache[id] = computeSuccessState(id, catName, paths, comicMap, query, statusMap, gridSize)
         }
         _categoryCache.value = newCache
     }
@@ -157,18 +185,16 @@ class PlaylistViewModel(
     private suspend fun ensureCategoryInCache(categoryId: Long) {
         if (_categoryCache.value.containsKey(categoryId)) return
 
-        val allComics = scannerRepository.allComics.first()
+        val index = comicIndex.value
+        val statuses = globalStatusMap.value
         val settings = settingsRepository.settings.first()
         val query = _searchQuery.value
-        val bookmarks = bookmarkedPaths.value
-        val playlists = playlistPaths.value
         
         val categoryPaths = playlistRepository.getComicsInPlaylist(categoryId).first()
-        val comicMap = allComics.associateBy { it.relativePath }
-        val gridSize = settings?.gridSize ?: 3
         val catName = _categories.value.find { it.id == categoryId }?.name ?: ""
+        val gridSize = settings?.gridSize ?: 3
 
-        val state = computeSuccessState(categoryId, catName, categoryPaths, comicMap, query, bookmarks, playlists, gridSize)
+        val state = computeSuccessState(categoryId, catName, categoryPaths, index, query, statuses, gridSize)
         
         val newMap = _categoryCache.value.toMutableMap()
         newMap[categoryId] = state
@@ -181,26 +207,14 @@ class PlaylistViewModel(
         paths: List<String>,
         comicMap: Map<String, Comic>,
         query: String,
-        bookmarks: Set<String>,
-        playlists: Set<String>,
+        statusMap: Map<String, Set<ComicStatus>>,
         gridSize: Int
     ): PlaylistUiState.Success {
         val comics = paths.mapNotNull { comicMap[it] }
         val filtered = if (query.isBlank()) comics else comics.filter { it.title.contains(query, ignoreCase = true) }
         
-        val statusMap = filtered.associate { comic ->
-            val path = comic.relativePath
-            val hasBookmark = bookmarks.contains(path)
-            val hasPlaylist = playlists.contains(path)
-            val statuses = when {
-                hasBookmark && hasPlaylist -> ComicStatusSets.BOTH
-                hasBookmark -> ComicStatusSets.BOOKMARKED
-                hasPlaylist -> ComicStatusSets.IN_PLAYLIST
-                else -> ComicStatusSets.EMPTY
-            }
-            path to statuses
-        }
-
+        // REVISION 6.8.2: Status mapping is now just a reference to the global map instance.
+        // No redundant calculations or object allocations per category.
         return PlaylistUiState.Success(
             categoryId = id,
             playlistName = name,

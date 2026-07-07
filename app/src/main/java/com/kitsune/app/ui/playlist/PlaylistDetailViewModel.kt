@@ -9,6 +9,8 @@ import com.kitsune.app.data.repository.SettingsRepository
 import com.kitsune.app.domain.model.Comic
 import com.kitsune.app.ui.library.CollectionSortOrder
 import com.kitsune.app.ui.library.ComicStatus
+import com.kitsune.app.ui.library.ComicStatusSets
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -22,6 +24,14 @@ class PlaylistDetailViewModel(
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
+
+    /**
+     * OPTIMIZATION 6.8.2: Debounce Search Query.
+     */
+    @OptIn(FlowPreview::class)
+    private val debouncedSearchQuery = _searchQuery
+        .debounce(300)
+        .distinctUntilChanged()
 
     private val _sortOrder = MutableStateFlow(CollectionSortOrder.NAME_ASC)
     val sortOrder: StateFlow<CollectionSortOrder> = _sortOrder.asStateFlow()
@@ -37,6 +47,15 @@ class PlaylistDetailViewModel(
         .map { it.isNotEmpty() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
+    /**
+     * OPTIMIZATION 6.8.2: Indexing Library.
+     * Index ini hanya dibangun ulang jika data library berubah.
+     */
+    private val comicIndex = scannerRepository.allComics
+        .map { it.associateBy { comic -> comic.relativePath } }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
     init {
         loadPlaylistDetail()
     }
@@ -49,18 +68,16 @@ class PlaylistDetailViewModel(
                 return@launch
             }
 
-            // REVISION 6.7.8: Pre-process flows with distinctUntilChanged to ensure stable references
             val comicsInPlaylistFlow = playlistRepository.getComicsInPlaylist(playlistId).distinctUntilChanged()
-            val allComicsFlow = scannerRepository.allComics.distinctUntilChanged()
             val settingsFlow = settingsRepository.settings.distinctUntilChanged()
             val allBookmarksFlow = bookmarkRepository.getAllBookmarkedComics().map { it.toSet() }.distinctUntilChanged()
             val allPlaylistsFlow = playlistRepository.getAllPlaylistComics().map { it.toSet() }.distinctUntilChanged()
 
             combine(
                 comicsInPlaylistFlow,
-                allComicsFlow,
+                comicIndex,
                 settingsFlow,
-                _searchQuery,
+                debouncedSearchQuery,
                 _sortOrder,
                 allBookmarksFlow,
                 allPlaylistsFlow
@@ -68,7 +85,7 @@ class PlaylistDetailViewModel(
                 @Suppress("UNCHECKED_CAST")
                 val playlistPathsInThisCategory = array[0] as List<String>
                 @Suppress("UNCHECKED_CAST")
-                val allComics = array[1] as List<Comic>
+                val comicMap = array[1] as Map<String, Comic>
                 val settings = array[2] as com.kitsune.app.database.entity.SettingsEntity?
                 val query = array[3] as String
                 val order = array[4] as CollectionSortOrder
@@ -78,7 +95,6 @@ class PlaylistDetailViewModel(
                 val allPlaylists = array[6] as Set<String>
 
                 val gridSize = settings?.gridSize ?: 3
-                val comicMap = allComics.associateBy { it.relativePath }
                 val comicsInPlaylist = playlistPathsInThisCategory.mapNotNull { comicMap[it] }
                 
                 // 1. Filtering
@@ -88,28 +104,28 @@ class PlaylistDetailViewModel(
                     comicsInPlaylist.filter { it.title.contains(query, ignoreCase = true) }
                 }
 
-                // 2. Sorting (REVISION 6.7.7)
+                // 2. Sorting
                 result = when (order) {
                     CollectionSortOrder.NAME_ASC -> result.sortedBy { it.title.lowercase() }
                     CollectionSortOrder.NAME_DESC -> result.sortedByDescending { it.title.lowercase() }
                 }
 
-                // 3. Optimized Status Mapping (REVISION 6.7.8)
+                // 3. Optimized Status Mapping (REVISION 6.8.2)
                 val statusMap = result.associate { comic ->
                     val path = comic.relativePath
                     val hasBookmark = allBookmarks.contains(path)
                     val hasPlaylist = allPlaylists.contains(path)
                     
                     val statuses = when {
-                        hasBookmark && hasPlaylist -> setOf(ComicStatus.BOOKMARKED, ComicStatus.IN_PLAYLIST)
-                        hasBookmark -> setOf(ComicStatus.BOOKMARKED)
-                        hasPlaylist -> setOf(ComicStatus.IN_PLAYLIST)
-                        else -> emptySet()
+                        hasBookmark && hasPlaylist -> ComicStatusSets.BOTH
+                        hasBookmark -> ComicStatusSets.BOOKMARKED
+                        hasPlaylist -> ComicStatusSets.IN_PLAYLIST
+                        else -> ComicStatusSets.EMPTY
                     }
                     path to statuses
                 }
 
-                if (result.isEmpty()) {
+                if (result.isEmpty() && query.isBlank()) {
                     PlaylistDetailUiState.Empty(playlist.name)
                 } else {
                     PlaylistDetailUiState.Success(

@@ -21,6 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.kitsune.app.core.StorageHelper
 import com.kitsune.app.database.entity.SettingsEntity
+import kotlinx.coroutines.flow.collectLatest
 
 /**
  * Layar pengaturan aplikasi (Settings).
@@ -34,10 +35,18 @@ fun OtherScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val isRescanning by viewModel.isRescanning.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
     
     var showReadingModeDialog by remember { mutableStateOf(false) }
     var showGridSizeDialog by remember { mutableStateOf(false) }
     var showThemeDialog by remember { mutableStateOf(false) }
+    var showClearHistoryDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        viewModel.snackbarMessage.collectLatest { message ->
+            snackbarHostState.showSnackbar(message)
+        }
+    }
 
     val folderPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
@@ -60,6 +69,7 @@ fun OtherScreen(
                 )
             )
         },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
         Box(
@@ -89,7 +99,8 @@ fun OtherScreen(
                         onGridSizeClick = { showGridSizeDialog = true },
                         onThemeClick = { showThemeDialog = true },
                         onChangeRootClick = { folderPickerLauncher.launch(null) },
-                        onRescanClick = { viewModel.rescanLibrary() }
+                        onRescanClick = { viewModel.rescanLibrary() },
+                        onClearHistoryClick = { showClearHistoryDialog = true }
                     )
 
                     if (showReadingModeDialog) {
@@ -124,6 +135,16 @@ fun OtherScreen(
                             onDismiss = { showThemeDialog = false }
                         )
                     }
+
+                    if (showClearHistoryDialog) {
+                        ClearHistoryDialog(
+                            onConfirm = {
+                                viewModel.clearReadingHistory()
+                                showClearHistoryDialog = false
+                            },
+                            onDismiss = { showClearHistoryDialog = false }
+                        )
+                    }
                 }
             }
         }
@@ -141,7 +162,8 @@ fun SettingsContent(
     onGridSizeClick: () -> Unit,
     onThemeClick: () -> Unit,
     onChangeRootClick: () -> Unit,
-    onRescanClick: () -> Unit
+    onRescanClick: () -> Unit,
+    onClearHistoryClick: () -> Unit
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -191,6 +213,16 @@ fun SettingsContent(
                 subtitle = if (isRescanning) "Scanning..." else "Check for new comics",
                 onClick = onRescanClick,
                 enabled = !isRescanning
+            )
+        }
+
+        item { SettingsSectionHeader("Data Management") }
+        item {
+            SettingsItem(
+                icon = Icons.Default.Delete,
+                title = "Clear Reading History",
+                subtitle = "Remove all progress and continue reading",
+                onClick = onClearHistoryClick
             )
         }
         
@@ -395,6 +427,33 @@ fun ThemeSelectorDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismiss) { Text("Close") }
+        }
+    )
+}
+
+@Composable
+fun ClearHistoryDialog(
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Clear Reading History?") },
+        text = {
+            Text("This will permanently remove all reading progress and Continue Reading history.\n\nBookmarks and Playlists will NOT be deleted.")
+        },
+        confirmButton = {
+            TextButton(
+                onClick = onConfirm,
+                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+            ) {
+                Text("Clear")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
         }
     )
 }

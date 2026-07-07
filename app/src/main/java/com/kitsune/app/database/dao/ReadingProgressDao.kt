@@ -34,6 +34,12 @@ interface ReadingProgressDao {
     suspend fun deleteProgress(comicPath: String)
 
     /**
+     * Menghapus seluruh riwayat membaca.
+     */
+    @Query("DELETE FROM reading_progress")
+    suspend fun clearAllProgress()
+
+    /**
      * Mendapatkan progres paling baru secara global (untuk Continue Reading di Home).
      */
     @Query("SELECT * FROM reading_progress ORDER BY lastReadAt DESC LIMIT 1")

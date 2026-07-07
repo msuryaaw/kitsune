@@ -68,6 +68,13 @@ class ReadingProgressRepository(
     }
 
     /**
+     * Menghapus seluruh riwayat membaca.
+     */
+    suspend fun clearAllHistory() {
+        readingProgressDao.clearAllProgress()
+    }
+
+    /**
      * Mendapatkan progres membaca terbaru secara global yang digabungkan dengan data komik.
      */
     @OptIn(ExperimentalCoroutinesApi::class)

@@ -2,6 +2,7 @@ package com.kitsune.app.ui.reader
 
 import android.net.Uri
 import androidx.core.net.toUri
+import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kitsune.app.core.StorageHelper
@@ -16,7 +17,7 @@ import kotlinx.coroutines.flow.*
 /**
  * ViewModel untuk mengelola logika layar Reader.
  * Mendukung pembacaan progres per chapter, pemantauan pengaturan mode baca, dan navigasi antar chapter.
- * Dioptimasi untuk transisi chapter yang mulus (Phase 6.7.4).
+ * REVISION 6.8.0: Ditambahkan Parent Folder Cache dan Metadata Preloading untuk transisi instan.
  */
 class ReaderViewModel(
     private val comicRelativePath: String,
@@ -37,6 +38,12 @@ class ReaderViewModel(
     private var chapters: List<Chapter> = emptyList()
     private var currentChapterIndex: Int = -1
 
+    // REVISION 6.8.0: Parent Folder Cache
+    private var parentFolderDoc: DocumentFile? = null
+
+    // REVISION 6.8.0: Flag untuk mencegah preload berulang
+    private var isNextChapterPreloaded = false
+
     // OPTIMIZATION: Reading Progress Debounce (Phase 6.6.4.1)
     private var debounceSaveJob: Job? = null
     private var pendingProgressUpdate: ProgressUpdate? = null
@@ -56,6 +63,9 @@ class ReaderViewModel(
         viewModelScope.launch {
             // Force save progres chapter sebelumnya secara sinkron (suspend) sebelum pindah
             forceSaveSync()
+
+            // Reset preload flag saat pindah chapter
+            isNextChapterPreloaded = false
 
             // OPTIMIZATION (Phase 6.7.4): Jangan reset ke Loading jika kita berpindah antar chapter.
             // Biarkan UI menampilkan chapter lama sampai data chapter baru siap (seamless transition).
@@ -84,45 +94,61 @@ class ReaderViewModel(
                 }
                 currentChapterIndex = chapters.indexOfFirst { it.relativePath == chapterPath }
 
-                val chapterDoc = storageHelper.findFileByRelativePath(rootUri, chapterPath)
-
-                if (chapterDoc == null || !chapterDoc.exists()) {
-                    _uiState.value = ReaderUiState.Error("Chapter file not found")
-                    return@launch
+                // REVISION 6.8.0: Gunakan Parent Folder Cache untuk resolusi URI yang lebih cepat
+                if (parentFolderDoc == null || !parentFolderDoc!!.exists()) {
+                    parentFolderDoc = storageHelper.findFileByRelativePath(rootUri, comicRelativePath)
                 }
 
-                val uri = chapterDoc.uri
-                
-                val cacheKey = "${chapterPath}:${chapterDoc.lastModified()}"
-                val pages = readerRepository.getPages(uri, cacheKey)
-                
-                if (pages.isEmpty()) {
-                    _uiState.value = ReaderUiState.Empty
-                } else {
-                    currentChapterPath = chapterPath
-                    val savedProgress = progressRepository.getProgressByChapterSync(chapterPath)
-                    val startPage = savedProgress?.pageNumber?.coerceIn(1, pages.size) ?: 1
-                    
-                    _currentPage.value = startPage
+                val fileName = chapterPath.substringAfterLast('/')
+                val chapterDoc = parentFolderDoc?.findFile(fileName)
 
-                    // Update UI State secara atomik dengan data chapter baru.
-                    // Penambahan chapterUri ke dalam Success state memungkinkan UI melakukan transisi 
-                    // tanpa flicker atau reset state navigasi yang prematur.
-                    _uiState.value = ReaderUiState.Success(
-                        pages = pages,
-                        chapterName = targetChapterName,
-                        readingMode = readingMode,
-                        chapterUri = uri
-                    )
-                    
-                    // Initial save untuk posisi awal di chapter baru
-                    saveProgress(startPage, pages.size)
+                if (chapterDoc == null || !chapterDoc.exists()) {
+                    // Fallback: jika cache gagal, coba traversal penuh sekali lagi
+                    val fallbackDoc = storageHelper.findFileByRelativePath(rootUri, chapterPath)
+                    if (fallbackDoc == null || !fallbackDoc.exists()) {
+                        _uiState.value = ReaderUiState.Error("Chapter file not found")
+                        return@launch
+                    }
+                    val uri = fallbackDoc.uri
+                    processChapterPages(uri, chapterPath, targetChapterName, readingMode, fallbackDoc.lastModified())
+                } else {
+                    processChapterPages(chapterDoc.uri, chapterPath, targetChapterName, readingMode, chapterDoc.lastModified())
                 }
             } catch (e: Exception) {
                 if (isInitialLoad) {
                     _uiState.value = ReaderUiState.Error("Failed to load chapter: ${e.message}")
                 }
             }
+        }
+    }
+
+    private suspend fun processChapterPages(
+        uri: Uri,
+        chapterPath: String,
+        chapterName: String,
+        readingMode: String,
+        lastModified: Long
+    ) {
+        val cacheKey = "${chapterPath}:${lastModified}"
+        val pages = readerRepository.getPages(uri, cacheKey)
+        
+        if (pages.isEmpty()) {
+            _uiState.value = ReaderUiState.Empty
+        } else {
+            currentChapterPath = chapterPath
+            val savedProgress = progressRepository.getProgressByChapterSync(chapterPath)
+            val startPage = savedProgress?.pageNumber?.coerceIn(1, pages.size) ?: 1
+            
+            _currentPage.value = startPage
+
+            _uiState.value = ReaderUiState.Success(
+                pages = pages,
+                chapterName = chapterName,
+                readingMode = readingMode,
+                chapterUri = uri
+            )
+            
+            saveProgress(startPage, pages.size)
         }
     }
 
@@ -141,11 +167,17 @@ class ReaderViewModel(
 
     /**
      * Menyimpan progres membaca dengan mekanisme debounce.
-     * Menggunakan structured concurrency via finally block untuk memastikan penyimpanan saat pembatalan.
+     * REVISION 6.8.0: Ditambahkan pemicu preloading metadata saat mendekati akhir chapter.
      */
     fun saveProgress(pageNumber: Int, totalPages: Int) {
         _currentPage.value = pageNumber
         
+        // REVISION 6.8.0: Pemicu Preload Metadata (80% - 90%)
+        val progressPercent = if (totalPages > 0) pageNumber.toFloat() / totalPages.toFloat() else 0f
+        if (progressPercent >= 0.8f && !isNextChapterPreloaded) {
+            preloadNextChapterMetadata()
+        }
+
         val update = ProgressUpdate(
             pageNumber = pageNumber,
             totalPages = totalPages,
@@ -160,14 +192,47 @@ class ReaderViewModel(
                 performSave(update)
                 pendingProgressUpdate = null // Berhasil disimpan
             } finally {
-                // Structured Concurrency: Jika coroutine dibatalkan (misal ViewModel hancur)
-                // dan masih ada progres tertunda, simpan menggunakan NonCancellable.
                 if (pendingProgressUpdate != null && !isActive) {
                     val lastUpdate = pendingProgressUpdate!!
                     pendingProgressUpdate = null
                     withContext(NonCancellable + Dispatchers.IO) {
                         performSave(lastUpdate)
                     }
+                }
+            }
+        }
+    }
+
+    /**
+     * REVISION 6.8.0: Preload metadata chapter berikutnya ke dalam LRU Cache.
+     */
+    private fun preloadNextChapterMetadata() {
+        if (currentChapterIndex < chapters.size - 1) {
+            isNextChapterPreloaded = true
+            val nextChapter = chapters[currentChapterIndex + 1]
+            val nextChapterPath = nextChapter.relativePath
+
+            viewModelScope.launch(Dispatchers.IO) {
+                try {
+                    val settings = settingsRepository.settings.first()
+                    val rootUriString = settings?.rootFolderUri ?: return@launch
+                    val rootUri = rootUriString.toUri()
+
+                    // Pastikan parent folder cache tersedia
+                    if (parentFolderDoc == null || !parentFolderDoc!!.exists()) {
+                        parentFolderDoc = storageHelper.findFileByRelativePath(rootUri, comicRelativePath)
+                    }
+
+                    val fileName = nextChapterPath.substringAfterLast('/')
+                    val nextChapterDoc = parentFolderDoc?.findFile(fileName)
+
+                    if (nextChapterDoc != null && nextChapterDoc.exists()) {
+                        val cacheKey = "${nextChapterPath}:${nextChapterDoc.lastModified()}"
+                        // Memanggil getPages akan mengisi LruCache di ReaderRepository secara spekulatif
+                        readerRepository.getPages(nextChapterDoc.uri, cacheKey)
+                    }
+                } catch (e: Exception) {
+                    // Abaikan galat preload agar tidak mengganggu alur utama
                 }
             }
         }
@@ -212,8 +277,6 @@ class ReaderViewModel(
     }
 
     override fun onCleared() {
-        // Debounce job akan menangani force save terakhirnya sendiri di block finally 
-        // berkat pengecekan !isActive and NonCancellable.
         super.onCleared()
     }
 

@@ -286,7 +286,8 @@ fun MainContainer(
                                 settingsRepository, 
                                 scannerRepository, 
                                 bookmarkRepository, 
-                                playlistRepository
+                                playlistRepository,
+                                progressRepository
                             ) as T
                         }
                     }

@@ -3,10 +3,7 @@ package com.kitsune.app.ui.settings
 import androidx.core.net.toUri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.kitsune.app.data.repository.BookmarkRepository
-import com.kitsune.app.data.repository.PlaylistRepository
-import com.kitsune.app.data.repository.ScannerRepository
-import com.kitsune.app.data.repository.SettingsRepository
+import com.kitsune.app.data.repository.*
 import com.kitsune.app.database.entity.SettingsEntity
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -18,7 +15,8 @@ class SettingsViewModel(
     private val settingsRepository: SettingsRepository,
     private val scannerRepository: ScannerRepository,
     private val bookmarkRepository: BookmarkRepository,
-    private val playlistRepository: PlaylistRepository
+    private val playlistRepository: PlaylistRepository,
+    private val progressRepository: ReadingProgressRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<SettingsUiState>(SettingsUiState.Loading)
@@ -26,6 +24,9 @@ class SettingsViewModel(
 
     private val _isRescanning = MutableStateFlow(false)
     val isRescanning: StateFlow<Boolean> = _isRescanning.asStateFlow()
+
+    private val _snackbarMessage = MutableSharedFlow<String>()
+    val snackbarMessage = _snackbarMessage.asSharedFlow()
 
     init {
         loadSettings()
@@ -88,6 +89,16 @@ class SettingsViewModel(
         viewModelScope.launch {
             settingsRepository.updateRootFolderUri(uri)
             rescanLibrary()
+        }
+    }
+
+    /**
+     * Menghapus seluruh riwayat membaca.
+     */
+    fun clearReadingHistory() {
+        viewModelScope.launch {
+            progressRepository.clearAllHistory()
+            _snackbarMessage.emit("Reading history cleared")
         }
     }
 

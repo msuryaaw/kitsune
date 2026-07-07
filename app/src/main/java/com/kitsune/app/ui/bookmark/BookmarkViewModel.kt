@@ -10,6 +10,7 @@ import com.kitsune.app.domain.model.Comic
 import com.kitsune.app.database.entity.BookmarkEntity
 import com.kitsune.app.ui.library.CollectionSortOrder
 import com.kitsune.app.ui.library.ComicStatus
+import com.kitsune.app.ui.library.ComicStatusSets
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.*
@@ -17,7 +18,7 @@ import kotlinx.coroutines.launch
 
 /**
  * ViewModel untuk mengelola seluruh ekosistem Bookmark (Kategori & Konten).
- * Mendukung in-memory sorting kategori (Phase 6.7.5).
+ * REVISION 6.7.9: Ditambahkan mekanisme Multi-Category Cache dan Preloading untuk transisi instan.
  */
 class BookmarkViewModel(
     private val bookmarkRepository: BookmarkRepository,
@@ -32,15 +33,11 @@ class BookmarkViewModel(
     private val _sortOrder = MutableStateFlow(CollectionSortOrder.NAME_ASC)
     val sortOrder: StateFlow<CollectionSortOrder> = _sortOrder.asStateFlow()
 
-    /**
-     * Optimasi pencarian untuk mencegah recomputation berlebih saat user mengetik.
-     */
     @OptIn(FlowPreview::class)
     private val debouncedSearchQuery = _searchQuery
         .debounce(300)
         .distinctUntilChanged()
 
-    // Selection Mode State
     private val _selectedPaths = MutableStateFlow<Set<String>>(emptySet())
     val selectedPaths: StateFlow<Set<String>> = _selectedPaths.asStateFlow()
 
@@ -48,10 +45,17 @@ class BookmarkViewModel(
         .map { it.isNotEmpty() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
-    /**
-     * Daftar seluruh kategori bookmark yang ada, diurutkan di memory (Phase 6.7.5).
-     */
-    val categories: StateFlow<List<BookmarkEntity>> = combine(
+    private val bookmarkedPaths: StateFlow<Set<String>> = bookmarkRepository.getAllBookmarkedComics()
+        .map { it.toSet() }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+
+    private val playlistPaths: StateFlow<Set<String>> = playlistRepository.getAllPlaylistComics()
+        .map { it.toSet() }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+
+    private val _categories = combine(
         bookmarkRepository.getAllBookmarksWithCount(),
         _sortOrder
     ) { list, order ->
@@ -71,94 +75,138 @@ class BookmarkViewModel(
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    /**
-     * StateFlow untuk mendapatkan seluruh path komik yang dibookmark.
-     */
-    val bookmarkedPaths: StateFlow<Set<String>> = bookmarkRepository.getAllBookmarkedComics()
-        .map { it.toSet() }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
-
-    /**
-     * StateFlow untuk mendapatkan seluruh path komik yang masuk playlist.
-     */
-    val playlistPaths: StateFlow<Set<String>> = playlistRepository.getAllPlaylistComics()
-        .map { it.toSet() }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+    val categories: StateFlow<List<BookmarkEntity>> = _categories
 
     private val _selectedCategoryId = MutableStateFlow<Long?>(null)
     val selectedCategoryId: StateFlow<Long?> = _selectedCategoryId.asStateFlow()
 
-    /**
-     * Tahap 1: Mendapatkan komik untuk kategori terpilih.
-     */
-    @OptIn(ExperimentalCoroutinesApi::class)
-    private val currentCategoryComics = _selectedCategoryId.flatMapLatest { id ->
-        if (id == null) flowOf(emptyList())
-        else bookmarkRepository.getComicsInBookmark(id)
-    }.combine(scannerRepository.allComics) { categoryPaths, allComics ->
-        val comicMap = allComics.associateBy { it.relativePath }
-        categoryPaths.mapNotNull { comicMap[it] }
-    }.distinctUntilChanged()
+    private val _categoryCache = MutableStateFlow<Map<Long, BookmarkUiState.Success>>(emptyMap())
+    val categoryCache: StateFlow<Map<Long, BookmarkUiState.Success>> = _categoryCache.asStateFlow()
 
-    /**
-     * Tahap 2: Filtering komik berdasarkan search query.
-     */
-    private val filteredComics = combine(
-        currentCategoryComics,
-        debouncedSearchQuery
-    ) { comics, query ->
-        if (query.isBlank()) {
-            comics
-        } else {
-            comics.filter { it.title.contains(query, ignoreCase = true) }
-        }
-    }.distinctUntilChanged()
-
-    /**
-     * Tahap 3: Mapping Status Visual.
-     */
-    private val comicStatuses = combine(
-        filteredComics,
-        bookmarkedPaths,
-        playlistPaths
-    ) { comics, bookmarks, playlists ->
-        comics.associate { comic ->
-            val path = comic.relativePath
-            val statuses = mutableSetOf<ComicStatus>()
-            if (bookmarks.contains(path)) statuses.add(ComicStatus.BOOKMARKED)
-            if (playlists.contains(path)) statuses.add(ComicStatus.IN_PLAYLIST)
-            path to statuses.toSet()
-        }
-    }.distinctUntilChanged()
-
-    /**
-     * Tahap 4: Perakitan Final UI State.
-     */
     val uiState: StateFlow<BookmarkUiState> = combine(
-        filteredComics,
-        comicStatuses,
-        settingsRepository.settings,
-        _selectedCategoryId
-    ) { comics, statuses, settings, selectedId ->
+        _selectedCategoryId,
+        _categoryCache
+    ) { selectedId, cache ->
+        if (selectedId == null) BookmarkUiState.Empty
+        else cache[selectedId] ?: BookmarkUiState.Loading
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), BookmarkUiState.Loading)
+
+    init {
+        setupStateLogic()
+    }
+
+    private fun setupStateLogic() {
+        combine(
+            scannerRepository.allComics.distinctUntilChanged(),
+            settingsRepository.settings.distinctUntilChanged(),
+            debouncedSearchQuery,
+            bookmarkedPaths,
+            playlistPaths
+        ) { allComics, settings, query, bookmarks, playlists ->
+            refreshAllCachedCategories(allComics, settings, query, bookmarks, playlists)
+        }.launchIn(viewModelScope)
+
+        _selectedCategoryId.onEach { id ->
+            if (id != null) {
+                loadAndPreload(id)
+            }
+        }.launchIn(viewModelScope)
+    }
+
+    private suspend fun refreshAllCachedCategories(
+        allComics: List<Comic>,
+        settings: com.kitsune.app.database.entity.SettingsEntity?,
+        query: String,
+        bookmarks: Set<String>,
+        playlists: Set<String>
+    ) {
+        val currentCache = _categoryCache.value
+        if (currentCache.isEmpty()) return
+
+        val newCache = currentCache.toMutableMap()
+        val comicMap = allComics.associateBy { it.relativePath }
         val gridSize = settings?.gridSize ?: 3
-        
-        if (selectedId == null) {
-            BookmarkUiState.Empty
-        } else if (comics.isEmpty()) {
-            BookmarkUiState.Empty
-        } else {
-            BookmarkUiState.Success(
-                categoryId = selectedId,
-                comics = comics,
-                comicStatuses = statuses,
-                gridSize = gridSize
-            )
+        val currentCats = _categories.value
+
+        for (id in currentCache.keys) {
+            val paths = bookmarkRepository.getComicsInBookmark(id).first()
+            val catName = currentCats.find { it.id == id }?.name ?: ""
+            newCache[id] = computeSuccessState(id, catName, paths, comicMap, query, bookmarks, playlists, gridSize)
         }
-    }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
-        initialValue = BookmarkUiState.Loading
-    )
+        _categoryCache.value = newCache
+    }
+
+    private fun loadAndPreload(selectedId: Long) {
+        viewModelScope.launch {
+            ensureCategoryInCache(selectedId)
+            
+            val allCats = _categories.value
+            val currentIndex = allCats.indexOfFirst { it.id == selectedId }
+            if (currentIndex >= 0) {
+                val prev = allCats.getOrNull(currentIndex - 1)
+                val next = allCats.getOrNull(currentIndex + 1)
+                
+                prev?.let { launch { ensureCategoryInCache(it.id) } }
+                next?.let { launch { ensureCategoryInCache(it.id) } }
+            }
+        }
+    }
+
+    private suspend fun ensureCategoryInCache(categoryId: Long) {
+        if (_categoryCache.value.containsKey(categoryId)) return
+
+        val allComics = scannerRepository.allComics.first()
+        val settings = settingsRepository.settings.first()
+        val query = _searchQuery.value
+        val bookmarks = bookmarkedPaths.value
+        val playlists = playlistPaths.value
+        
+        val categoryPaths = bookmarkRepository.getComicsInBookmark(categoryId).first()
+        val comicMap = allComics.associateBy { it.relativePath }
+        val gridSize = settings?.gridSize ?: 3
+        val catName = _categories.value.find { it.id == categoryId }?.name ?: ""
+
+        val state = computeSuccessState(categoryId, catName, categoryPaths, comicMap, query, bookmarks, playlists, gridSize)
+        
+        val newMap = _categoryCache.value.toMutableMap()
+        newMap[categoryId] = state
+        _categoryCache.value = newMap
+    }
+
+    private fun computeSuccessState(
+        id: Long,
+        name: String,
+        paths: List<String>,
+        comicMap: Map<String, Comic>,
+        query: String,
+        bookmarks: Set<String>,
+        playlists: Set<String>,
+        gridSize: Int
+    ): BookmarkUiState.Success {
+        val comics = paths.mapNotNull { comicMap[it] }
+        val filtered = if (query.isBlank()) comics else comics.filter { it.title.contains(query, ignoreCase = true) }
+        
+        val statusMap = filtered.associate { comic ->
+            val path = comic.relativePath
+            val hasBookmark = bookmarks.contains(path)
+            val hasPlaylist = playlists.contains(path)
+            val statuses = when {
+                hasBookmark && hasPlaylist -> ComicStatusSets.BOTH
+                hasBookmark -> ComicStatusSets.BOOKMARKED
+                hasPlaylist -> ComicStatusSets.IN_PLAYLIST
+                else -> ComicStatusSets.EMPTY
+            }
+            path to statuses
+        }
+
+        return BookmarkUiState.Success(
+            categoryId = id,
+            bookmarkName = name,
+            comics = filtered,
+            comicStatuses = statusMap,
+            gridSize = gridSize
+        )
+    }
 
     fun onSearchQueryChange(newQuery: String) {
         _searchQuery.value = newQuery
@@ -166,6 +214,7 @@ class BookmarkViewModel(
 
     fun setSortOrder(order: CollectionSortOrder) {
         _sortOrder.value = order
+        _categoryCache.value = emptyMap()
     }
 
     fun selectCategory(id: Long?) {
@@ -200,6 +249,9 @@ class BookmarkViewModel(
         
         viewModelScope.launch {
             bookmarkRepository.removeComicsFromBookmark(categoryId, paths)
+            val newCache = _categoryCache.value.toMutableMap()
+            newCache.remove(categoryId)
+            _categoryCache.value = newCache
             clearSelection()
         }
     }
@@ -216,12 +268,20 @@ class BookmarkViewModel(
     fun renameBookmark(id: Long, newName: String) {
         viewModelScope.launch {
             bookmarkRepository.renameBookmark(id, newName)
+            _categoryCache.value[id]?.let {
+                val newCache = _categoryCache.value.toMutableMap()
+                newCache[id] = it.copy(bookmarkName = newName)
+                _categoryCache.value = newCache
+            }
         }
     }
 
     fun deleteBookmark(id: Long) {
         viewModelScope.launch {
             bookmarkRepository.deleteBookmark(id)
+            val newCache = _categoryCache.value.toMutableMap()
+            newCache.remove(id)
+            _categoryCache.value = newCache
         }
     }
 }
@@ -231,6 +291,7 @@ sealed class BookmarkUiState {
     data object Empty : BookmarkUiState()
     data class Success(
         val categoryId: Long,
+        val bookmarkName: String,
         val comics: List<Comic>,
         val comicStatuses: Map<String, Set<ComicStatus>>,
         val gridSize: Int

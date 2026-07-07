@@ -29,11 +29,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.kitsune.app.domain.model.Comic
 
 /**
@@ -45,13 +47,23 @@ enum class ComicStatus {
 }
 
 /**
+ * REVISION 6.7.8: Constants for common sets to avoid allocations in ViewModel associate blocks.
+ */
+object ComicStatusSets {
+    val EMPTY = emptySet<ComicStatus>()
+    val BOOKMARKED = setOf(ComicStatus.BOOKMARKED)
+    val IN_PLAYLIST = setOf(ComicStatus.IN_PLAYLIST)
+    val BOTH = setOf(ComicStatus.BOOKMARKED, ComicStatus.IN_PLAYLIST)
+}
+
+/**
  * Metadata UI untuk sebuah kartu komik.
  * Anotasi Immutable memastikan Compose dapat melewati recomposition jika data identik.
  */
 @Immutable
 data class ComicCardState(
     val isSelected: Boolean = false,
-    val statuses: Set<ComicStatus> = emptySet()
+    val statuses: Set<ComicStatus> = ComicStatusSets.EMPTY
 )
 
 /**
@@ -72,6 +84,18 @@ fun ComicCard(
     onClick: () -> Unit,
     onLongClick: () -> Unit = {}
 ) {
+    // REVISION 6.7.8: Optimized ImageRequest with remember and sizing
+    val context = LocalContext.current
+    val imageRequest = remember(comic.coverUri) {
+        ImageRequest.Builder(context)
+            .data(comic.coverUri)
+            .crossfade(true)
+            // Target size for grid (approx 5:7 aspect ratio)
+            // This prevents Coil from keeping full-size bitmaps in memory
+            .size(300, 420) 
+            .build()
+    }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -96,8 +120,8 @@ fun ComicCard(
                 colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
             ) {
                 AsyncImage(
-                    model = comic.coverUri,
-                    contentDescription = "Cover for ${comic.title}",
+                    model = imageRequest,
+                    contentDescription = null, // Optimized: fixed/null description
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )
@@ -216,7 +240,7 @@ fun ComicGrid(
                 selectedPaths.contains(comic.relativePath)
             }
             val statuses = remember(comicStatuses, comic.relativePath) {
-                comicStatuses[comic.relativePath] ?: emptySet()
+                comicStatuses[comic.relativePath] ?: ComicStatusSets.EMPTY
             }
             val cardState = remember(isSelected, statuses) {
                 ComicCardState(isSelected, statuses)

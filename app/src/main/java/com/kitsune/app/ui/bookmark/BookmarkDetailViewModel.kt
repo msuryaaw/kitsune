@@ -7,6 +7,7 @@ import com.kitsune.app.data.repository.PlaylistRepository
 import com.kitsune.app.data.repository.ScannerRepository
 import com.kitsune.app.data.repository.SettingsRepository
 import com.kitsune.app.domain.model.Comic
+import com.kitsune.app.ui.library.CollectionSortOrder
 import com.kitsune.app.ui.library.ComicStatus
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -21,6 +22,9 @@ class BookmarkDetailViewModel(
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
+
+    private val _sortOrder = MutableStateFlow(CollectionSortOrder.NAME_ASC)
+    val sortOrder: StateFlow<CollectionSortOrder> = _sortOrder.asStateFlow()
 
     private val _uiState = MutableStateFlow<BookmarkDetailUiState>(BookmarkDetailUiState.Loading)
     val uiState: StateFlow<BookmarkDetailUiState> = _uiState.asStateFlow()
@@ -45,13 +49,21 @@ class BookmarkDetailViewModel(
                 return@launch
             }
 
+            // REVISION 6.7.8: Pre-process flows with distinctUntilChanged to ensure stable references
+            val bookmarkedInThisCategoryFlow = bookmarkRepository.getComicsInBookmark(bookmarkId).distinctUntilChanged()
+            val allComicsFlow = scannerRepository.allComics.distinctUntilChanged()
+            val settingsFlow = settingsRepository.settings.distinctUntilChanged()
+            val allBookmarksFlow = bookmarkRepository.getAllBookmarkedComics().map { it.toSet() }.distinctUntilChanged()
+            val allPlaylistsFlow = playlistRepository.getAllPlaylistComics().map { it.toSet() }.distinctUntilChanged()
+
             combine(
-                bookmarkRepository.getComicsInBookmark(bookmarkId),
-                scannerRepository.allComics,
-                settingsRepository.settings,
+                bookmarkedInThisCategoryFlow,
+                allComicsFlow,
+                settingsFlow,
                 _searchQuery,
-                bookmarkRepository.getAllBookmarkedComics(),
-                playlistRepository.getAllPlaylistComics()
+                _sortOrder,
+                allBookmarksFlow,
+                allPlaylistsFlow
             ) { array ->
                 @Suppress("UNCHECKED_CAST")
                 val bookmarkedInThisCategory = array[0] as List<String>
@@ -59,36 +71,50 @@ class BookmarkDetailViewModel(
                 val allComics = array[1] as List<Comic>
                 val settings = array[2] as com.kitsune.app.database.entity.SettingsEntity?
                 val query = array[3] as String
+                val order = array[4] as CollectionSortOrder
                 @Suppress("UNCHECKED_CAST")
-                val allBookmarks = (array[4] as List<String>).toSet()
+                val allBookmarks = array[5] as Set<String>
                 @Suppress("UNCHECKED_CAST")
-                val allPlaylists = (array[5] as List<String>).toSet()
+                val allPlaylists = array[6] as Set<String>
 
                 val gridSize = settings?.gridSize ?: 3
                 val comicMap = allComics.associateBy { it.relativePath }
-                val comics = bookmarkedInThisCategory.mapNotNull { comicMap[it] }
+                val comicsInBookmark = bookmarkedInThisCategory.mapNotNull { comicMap[it] }
                 
-                val filteredComics = if (query.isBlank()) {
-                    comics
+                // 1. Filtering
+                var result = if (query.isBlank()) {
+                    comicsInBookmark
                 } else {
-                    comics.filter { it.title.contains(query, ignoreCase = true) }
+                    comicsInBookmark.filter { it.title.contains(query, ignoreCase = true) }
                 }
 
-                // Build status map
-                val statusMap = filteredComics.associate { comic ->
+                // 2. Sorting
+                result = when (order) {
+                    CollectionSortOrder.NAME_ASC -> result.sortedBy { it.title.lowercase() }
+                    CollectionSortOrder.NAME_DESC -> result.sortedByDescending { it.title.lowercase() }
+                }
+
+                // 3. Optimized Status Mapping (REVISION 6.7.8)
+                val statusMap = result.associate { comic ->
                     val path = comic.relativePath
-                    val statuses = mutableSetOf<ComicStatus>()
-                    if (allBookmarks.contains(path)) statuses.add(ComicStatus.BOOKMARKED)
-                    if (allPlaylists.contains(path)) statuses.add(ComicStatus.IN_PLAYLIST)
-                    path to statuses.toSet()
+                    val hasBookmark = allBookmarks.contains(path)
+                    val hasPlaylist = allPlaylists.contains(path)
+                    
+                    val statuses = when {
+                        hasBookmark && hasPlaylist -> setOf(ComicStatus.BOOKMARKED, ComicStatus.IN_PLAYLIST)
+                        hasBookmark -> setOf(ComicStatus.BOOKMARKED)
+                        hasPlaylist -> setOf(ComicStatus.IN_PLAYLIST)
+                        else -> emptySet()
+                    }
+                    path to statuses
                 }
 
-                if (filteredComics.isEmpty()) {
+                if (result.isEmpty()) {
                     BookmarkDetailUiState.Empty(bookmark.name)
                 } else {
                     BookmarkDetailUiState.Success(
                         bookmarkName = bookmark.name,
-                        comics = filteredComics,
+                        comics = result,
                         comicStatuses = statusMap,
                         gridSize = gridSize
                     )
@@ -103,6 +129,10 @@ class BookmarkDetailViewModel(
 
     fun onSearchQueryChange(newQuery: String) {
         _searchQuery.value = newQuery
+    }
+
+    fun setSortOrder(order: CollectionSortOrder) {
+        _sortOrder.value = order
     }
 
     fun toggleSelection(path: String) {

@@ -53,25 +53,26 @@ class LibraryViewModel(
     val snackbarMessage = _snackbarMessage.asSharedFlow()
 
     /**
-     * StateFlow untuk mendapatkan seluruh path komik yang dibookmark secara batch.
+     * REVISION 6.7.8: Added distinctUntilChanged to ensure stable set references.
      */
     val bookmarkedPaths: StateFlow<Set<String>> = bookmarkRepository.getAllBookmarkedComics()
         .map { it.toSet() }
+        .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
-    /**
-     * StateFlow untuk mendapatkan seluruh path komik yang masuk playlist secara batch.
-     */
     val playlistPaths: StateFlow<Set<String>> = playlistRepository.getAllPlaylistComics()
         .map { it.toSet() }
+        .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
     val allBookmarks: StateFlow<List<BookmarkEntity>> = bookmarkRepository.getAllBookmarksWithCount()
         .map { list -> list.map { it.bookmark } }
+        .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val allPlaylists: StateFlow<List<PlaylistEntity>> = playlistRepository.getAllPlaylistsWithCount()
         .map { list -> list.map { it.playlist } }
+        .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     /**
@@ -93,7 +94,7 @@ class LibraryViewModel(
 
     /**
      * Tahap 2: Mapping Status Visual.
-     * Hanya dijalankan jika hasil filter berubah atau status keanggotaan koleksi berubah.
+     * REVISION 6.7.8: Optimized map and set creation by using constant sets from ComicStatusSets.
      */
     private val comicStatuses = combine(
         filteredComics,
@@ -102,21 +103,26 @@ class LibraryViewModel(
     ) { comics, bookmarks, playlists ->
         comics.associate { comic ->
             val path = comic.relativePath
-            val statuses = mutableSetOf<ComicStatus>()
-            if (bookmarks.contains(path)) statuses.add(ComicStatus.BOOKMARKED)
-            if (playlists.contains(path)) statuses.add(ComicStatus.IN_PLAYLIST)
-            path to statuses.toSet()
+            val hasBookmark = bookmarks.contains(path)
+            val hasPlaylist = playlists.contains(path)
+            
+            val statuses = when {
+                hasBookmark && hasPlaylist -> ComicStatusSets.BOTH
+                hasBookmark -> ComicStatusSets.BOOKMARKED
+                hasPlaylist -> ComicStatusSets.IN_PLAYLIST
+                else -> ComicStatusSets.EMPTY
+            }
+            path to statuses
         }
     }.distinctUntilChanged()
 
     /**
      * Tahap 3: Perakitan Final UI State.
-     * Memisahkan logic berat (filter/map) dari logic UI ringan (gridSize, refreshing).
      */
     val uiState: StateFlow<LibraryUiState> = combine(
         filteredComics,
         comicStatuses,
-        settingsRepository.settings,
+        settingsRepository.settings.distinctUntilChanged(),
         _isRefreshing,
         _errorMessage
     ) { comics, statuses, settings, refreshing, error ->

@@ -20,8 +20,8 @@ import com.kitsune.app.ui.library.*
 import kotlinx.coroutines.launch
 
 /**
- * PlaylistScreen dengan optimasi transisi kategori (Phase 6.7.3).
- * Menggunakan Pager pre-rendering dan local page caching untuk menghilangkan micro-stutter.
+ * PlaylistScreen dengan optimasi transisi kategori (Phase 6.7.9).
+ * Menggunakan ViewModel-level caching dan preloading untuk transisi yang benar-benar instan.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -30,6 +30,7 @@ fun PlaylistScreen(
     onComicClick: (Comic) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val categoryCache by viewModel.categoryCache.collectAsState()
     val categories by viewModel.categories.collectAsState()
     val selectedCategoryId by viewModel.selectedCategoryId.collectAsState()
     val sortOrder by viewModel.sortOrder.collectAsState()
@@ -48,11 +49,10 @@ fun PlaylistScreen(
 
     val pagerState = rememberPagerState(pageCount = { categories.size })
     
-    // Maintain scroll states for each category to prevent reset during swipe
+    // Maintain scroll states for each category
     val scrollStates = remember { mutableStateMapOf<Long, LazyGridState>() }
 
     // SYNC: ViewModel -> Pager
-    // Only snap to page when not manually swiping to prevent jank
     LaunchedEffect(selectedCategoryId, categories) {
         if (!pagerState.isScrollInProgress) {
             val index = categories.indexOfFirst { it.id == selectedCategoryId }
@@ -63,10 +63,9 @@ fun PlaylistScreen(
     }
 
     // SYNC: Pager -> ViewModel
-    // Trigger loading earlier by using targetPage instead of settledPage
     LaunchedEffect(pagerState) {
         snapshotFlow { pagerState.targetPage }.collect { page ->
-            if (categories.isNotEmpty() && page < categories.size) {
+            if (categories.isNotEmpty() && page >= 0 && page < categories.size) {
                 val categoryId = categories[page].id
                 if (viewModel.selectedCategoryId.value != categoryId) {
                     viewModel.selectCategory(categoryId)
@@ -118,7 +117,6 @@ fun PlaylistScreen(
                                 Icon(Icons.Default.Search, contentDescription = "Search")
                             }
 
-                            // SORT MENU
                             Box {
                                 IconButton(onClick = { showSortMenu = true }) {
                                     Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort")
@@ -235,53 +233,38 @@ fun PlaylistScreen(
                     state = pagerState,
                     modifier = Modifier.fillMaxSize(),
                     key = { if (it < categories.size) categories[it].id else it },
-                    beyondViewportPageCount = 1 // Pre-render adjacent pages
+                    beyondViewportPageCount = 1
                 ) { page ->
-                    val category = categories.getOrNull(page)
-                    val categoryId = category?.id ?: -1L
+                    val categoryId = categories.getOrNull(page)?.id ?: -1L
                     
-                    // Logic to ensure the page shows its own data or stays in its last success state
-                    var lastSuccess by remember(categoryId) { mutableStateOf<PlaylistUiState.Success?>(null) }
-                    
-                    val state = uiState
-                    if (state is PlaylistUiState.Success && state.categoryId == categoryId) {
-                        lastSuccess = state
-                    }
+                    // REVISION 6.7.9: Use categoryCache from ViewModel
+                    val displayState = categoryCache[categoryId]
 
-                    val displayState = if (state is PlaylistUiState.Success && state.categoryId == categoryId) {
-                        state
-                    } else {
-                        lastSuccess
-                    }
-
-                    // Pre-render content even when not the current active page
                     if (displayState != null) {
                         val gridState = scrollStates.getOrPut(categoryId) { LazyGridState() }
                         
-                        ComicGrid(
-                            comics = displayState.comics,
-                            gridSize = displayState.gridSize,
-                            comicStatuses = displayState.comicStatuses,
-                            selectedPaths = selectedPaths,
-                            state = gridState,
-                            onComicClick = { comic ->
-                                if (selectionMode) viewModel.toggleSelection(comic.relativePath)
-                                else onComicClick(comic)
-                            },
-                            onComicLongClick = { comic -> viewModel.toggleSelection(comic.relativePath) }
-                        )
-                    } else {
-                        // Show loading only if we have never loaded this category yet
-                        val isLoading = state is PlaylistUiState.Loading || (state is PlaylistUiState.Success && state.categoryId != categoryId)
-                        if (isLoading) {
-                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                CircularProgressIndicator()
-                            }
-                        } else if (state is PlaylistUiState.Empty || state is PlaylistUiState.Error) {
+                        if (displayState.comics.isEmpty()) {
                             EmptyLibraryState(
-                                message = if (state is PlaylistUiState.Error) state.message else "No comics in this playlist",
-                                icon = if (state is PlaylistUiState.Error) Icons.Default.Error else Icons.AutoMirrored.Filled.List
+                                message = if (searchQuery.isNotEmpty()) "No results for \"$searchQuery\"" else "No comics in this playlist",
+                                icon = if (searchQuery.isNotEmpty()) Icons.Default.SearchOff else Icons.AutoMirrored.Filled.List
                             )
+                        } else {
+                            ComicGrid(
+                                comics = displayState.comics,
+                                gridSize = displayState.gridSize,
+                                comicStatuses = displayState.comicStatuses,
+                                selectedPaths = selectedPaths,
+                                state = gridState,
+                                onComicClick = { comic ->
+                                    if (selectionMode) viewModel.toggleSelection(comic.relativePath)
+                                    else onComicClick(comic)
+                                },
+                                onComicLongClick = { comic -> viewModel.toggleSelection(comic.relativePath) }
+                            )
+                        }
+                    } else {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator()
                         }
                     }
                 }

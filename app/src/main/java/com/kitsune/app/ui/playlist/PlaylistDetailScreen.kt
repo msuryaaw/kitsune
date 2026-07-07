@@ -24,6 +24,7 @@ fun PlaylistDetailScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
+    val sortOrder by viewModel.sortOrder.collectAsState()
     val selectionMode by viewModel.selectionMode.collectAsState()
     val selectedPaths by viewModel.selectedPaths.collectAsState()
 
@@ -32,6 +33,7 @@ fun PlaylistDetailScreen(
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showBulkRemoveConfirm by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
+    var showSortMenu by remember { mutableStateOf(false) }
 
     BackHandler(enabled = selectionMode || isSearchActive) {
         if (selectionMode) {
@@ -85,6 +87,33 @@ fun PlaylistDetailScreen(
                         IconButton(onClick = { isSearchActive = true }) {
                             Icon(Icons.Default.Search, contentDescription = "Search")
                         }
+
+                        // REVISION 6.7.7: Sort Menu
+                        Box {
+                            IconButton(onClick = { showSortMenu = true }) {
+                                Icon(Icons.Default.SortByAlpha, contentDescription = "Sort")
+                            }
+                            DropdownMenu(
+                                expanded = showSortMenu,
+                                onDismissRequest = { showSortMenu = false }
+                            ) {
+                                CollectionSortOrder.entries.forEach { order ->
+                                    DropdownMenuItem(
+                                        text = { Text(order.label) },
+                                        onClick = {
+                                            viewModel.setSortOrder(order)
+                                            showSortMenu = false
+                                        },
+                                        trailingIcon = {
+                                            if (sortOrder == order) {
+                                                Icon(Icons.Default.Check, contentDescription = null)
+                                            }
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
                         Box {
                             IconButton(onClick = { showMenu = true }) {
                                 Icon(Icons.Default.MoreVert, contentDescription = "Menu")

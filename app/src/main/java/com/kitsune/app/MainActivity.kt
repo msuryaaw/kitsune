@@ -55,6 +55,8 @@ import com.kitsune.app.ui.settings.OtherScreen
 import com.kitsune.app.ui.settings.SettingsViewModel
 import com.kitsune.app.ui.splash.SplashScreen
 import com.kitsune.app.ui.splash.SplashViewModel
+import com.kitsune.app.ui.video.VideoLibraryScreen
+import com.kitsune.app.ui.video.VideoLibraryViewModel
 
 data class BottomNavItem(val label: String, val route: String, val icon: ImageVector)
 
@@ -86,6 +88,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var bookmarkRepository: BookmarkRepository
     private lateinit var playlistRepository: PlaylistRepository
     private lateinit var scannerRepository: ScannerRepository
+    private lateinit var videoRepository: VideoRepository
     private lateinit var settingsRepository: SettingsRepository
     private lateinit var progressRepository: ReadingProgressRepository
     private lateinit var storageHelper: StorageHelper
@@ -109,6 +112,8 @@ class MainActivity : ComponentActivity() {
             videoScanner = videoScanner,
             videoDao = database.videoDao()
         )
+        
+        videoRepository = VideoRepository(database.videoDao(), scannerRepository)
 
         progressRepository = ReadingProgressRepository(database.readingProgressDao(), database.comicDao())
         bookmarkRepository = BookmarkRepository(database.bookmarkDao())
@@ -151,6 +156,7 @@ class MainActivity : ComponentActivity() {
                             MainContainer(
                                 libraryViewModel = libraryViewModelInstance,
                                 scannerRepository = scannerRepository,
+                                videoRepository = videoRepository,
                                 settingsRepository = settingsRepository,
                                 readerRepository = readerRepository,
                                 progressRepository = progressRepository,
@@ -170,6 +176,7 @@ class MainActivity : ComponentActivity() {
 fun MainContainer(
     libraryViewModel: LibraryViewModel,
     scannerRepository: ScannerRepository,
+    videoRepository: VideoRepository,
     settingsRepository: SettingsRepository,
     readerRepository: ReaderRepository,
     progressRepository: ReadingProgressRepository,
@@ -334,7 +341,7 @@ fun MainContainer(
                         )
                     },
                     onComicsClick = { navController.navigate(Screen.ComicLibrary.route) },
-                    onVideosClick = { /* Future */ }
+                    onVideosClick = { navController.navigate(Screen.VideoLibrary.route) }
                 ) 
             }
             composable(Screen.Other.route) { 
@@ -360,6 +367,24 @@ fun MainContainer(
                     viewModel = libraryViewModel,
                     onComicClick = { comic ->
                         navController.navigate(Screen.ComicDetail.createRoute(comic.relativePath))
+                    },
+                    onBackClick = { navController.popBackStack() }
+                )
+            }
+
+            composable(Screen.VideoLibrary.route) {
+                val videoLibraryViewModel: VideoLibraryViewModel = viewModel(
+                    factory = object : ViewModelProvider.Factory {
+                        @Suppress("UNCHECKED_CAST")
+                        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                            return VideoLibraryViewModel(videoRepository, settingsRepository) as T
+                        }
+                    }
+                )
+                VideoLibraryScreen(
+                    viewModel = videoLibraryViewModel,
+                    onVideoClick = { video ->
+                        // Future: navigate to VideoDetail
                     },
                     onBackClick = { navController.popBackStack() }
                 )

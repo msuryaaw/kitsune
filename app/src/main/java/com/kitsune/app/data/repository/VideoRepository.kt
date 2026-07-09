@@ -40,6 +40,13 @@ class VideoRepository(
         return scannerRepository.getEpisodes(rootUri, relativePath)
     }
 
+    /**
+     * Bridge ke ScannerRepository untuk memicu pemindaian library.
+     */
+    suspend fun refreshLibrary(rootUri: Uri) {
+        scannerRepository.performIncrementalScan(rootUri)
+    }
+
     private fun VideoEntity.toDomain() = Video(
         title = title,
         relativePath = relativePath,

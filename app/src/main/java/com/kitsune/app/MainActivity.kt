@@ -34,6 +34,7 @@ import com.kitsune.app.database.entity.ReadingProgressEntity
 import com.kitsune.app.navigation.Screen
 import com.kitsune.app.reader.CbzParser
 import com.kitsune.app.scanner.ComicScanner
+import com.kitsune.app.scanner.VideoScanner
 import com.kitsune.app.ui.bookmark.BookmarkDetailScreen
 import com.kitsune.app.ui.bookmark.BookmarkDetailViewModel
 import com.kitsune.app.ui.bookmark.BookmarkScreen
@@ -98,8 +99,17 @@ class MainActivity : ComponentActivity() {
         val database = AppDatabase.getDatabase(this)
         settingsRepository = SettingsRepository(database.settingsDao())
         storageHelper = StorageHelper(this)
+        
         val comicScanner = ComicScanner(this)
-        scannerRepository = ScannerRepository(comicScanner, database.comicDao())
+        val videoScanner = VideoScanner(this)
+        
+        scannerRepository = ScannerRepository(
+            comicScanner = comicScanner,
+            comicDao = database.comicDao(),
+            videoScanner = videoScanner,
+            videoDao = database.videoDao()
+        )
+
         progressRepository = ReadingProgressRepository(database.readingProgressDao(), database.comicDao())
         bookmarkRepository = BookmarkRepository(database.bookmarkDao())
         playlistRepository = PlaylistRepository(database.playlistDao())

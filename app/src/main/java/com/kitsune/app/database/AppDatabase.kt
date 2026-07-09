@@ -11,6 +11,7 @@ import com.kitsune.app.database.dao.ComicDao
 import com.kitsune.app.database.dao.PlaylistDao
 import com.kitsune.app.database.dao.ReadingProgressDao
 import com.kitsune.app.database.dao.SettingsDao
+import com.kitsune.app.database.dao.VideoDao
 import com.kitsune.app.database.entity.*
 
 @Database(
@@ -21,9 +22,11 @@ import com.kitsune.app.database.entity.*
         BookmarkEntity::class,
         BookmarkComicEntity::class,
         PlaylistEntity::class,
-        PlaylistComicEntity::class
+        PlaylistComicEntity::class,
+        VideoEntity::class,
+        VideoProgressEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -32,6 +35,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun readingProgressDao(): ReadingProgressDao
     abstract fun bookmarkDao(): BookmarkDao
     abstract fun playlistDao(): PlaylistDao
+    abstract fun videoDao(): VideoDao
 
     companion object {
         @Volatile
@@ -39,7 +43,6 @@ abstract class AppDatabase : RoomDatabase() {
 
         private val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                // 1. Buat tabel baru dengan skema yang benar
                 db.execSQL("""
                     CREATE TABLE reading_progress_new (
                         id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
@@ -50,23 +53,49 @@ abstract class AppDatabase : RoomDatabase() {
                         lastReadAt INTEGER NOT NULL
                     )
                 """.trimIndent())
-
-                // 2. Salin data dari tabel lama ke tabel baru
                 db.execSQL("""
                     INSERT INTO reading_progress_new (id, comicRelativePath, chapterRelativePath, pageNumber, totalPages, lastReadAt)
                     SELECT id, comicRelativePath, chapterRelativePath, pageNumber, totalPages, lastReadAt FROM reading_progress
                 """.trimIndent())
-
-                // 3. Hapus tabel lama
                 db.execSQL("DROP TABLE reading_progress")
-
-                // 4. Ubah nama tabel baru menjadi nama tabel lama
                 db.execSQL("ALTER TABLE reading_progress_new RENAME TO reading_progress")
-
-                // 5. Buat index composite unik yang baru
                 db.execSQL("""
                     CREATE UNIQUE INDEX IF NOT EXISTS index_reading_progress_comicRelativePath_chapterRelativePath 
                     ON reading_progress (comicRelativePath, chapterRelativePath)
+                """.trimIndent())
+            }
+        }
+
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // 1. Create videos table
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `videos` (
+                        `relativePath` TEXT NOT NULL, 
+                        `title` TEXT NOT NULL, 
+                        `coverUri` TEXT, 
+                        `episodeCount` INTEGER NOT NULL, 
+                        `lastModified` INTEGER NOT NULL, 
+                        PRIMARY KEY(`relativePath`)
+                    )
+                """.trimIndent())
+
+                // 2. Create video_progress table
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `video_progress` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, 
+                        `videoRelativePath` TEXT NOT NULL, 
+                        `episodeRelativePath` TEXT NOT NULL, 
+                        `lastPositionMs` INTEGER NOT NULL, 
+                        `durationMs` INTEGER NOT NULL, 
+                        `lastWatchedAt` INTEGER NOT NULL
+                    )
+                """.trimIndent())
+
+                // 3. Create index for video_progress
+                db.execSQL("""
+                    CREATE UNIQUE INDEX IF NOT EXISTS `index_video_progress_videoRelativePath_episodeRelativePath` 
+                    ON `video_progress` (`videoRelativePath`, `episodeRelativePath`)
                 """.trimIndent())
             }
         }
@@ -78,7 +107,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "kitsune.db"
                 )
-                .addMigrations(MIGRATION_1_2)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                 .build()
                 INSTANCE = instance
                 instance

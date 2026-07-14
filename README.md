@@ -1,103 +1,82 @@
-# Kitsune Documentation Index
+# Kitsune - Offline Media Library (Manga & Video)
 
-Welcome to the official documentation for **Kitsune**, an offline-first manga and comic reader for Android. This repository contains the source code and technical specifications for the project.
+Welcome to the official documentation for **Kitsune**, an offline-first manga, comic, and video library application for Android.
 
 ## 1. Project Overview
-Kitsune is a high-performance, reader-focused application designed to manage and read local comic libraries.
-- **Goal:** To provide a seamless, stable, and offline reading experience for manga and comic enthusiasts.
-- **Core Philosophy:**
-    - **Offline First:** No internet connection required. All media is stored locally.
-    - **Filesystem First:** The application treats the user's storage as the single source of truth, accessed via Android's Storage Access Framework (SAF).
-    - **Performance Oriented:** Optimized I/O operations and memory management for handling large libraries.
+Kitsune is a high-performance, unified media manager designed for local consumption of digital comics and videos. It emphasizes privacy, speed, and a consistent user experience.
+
+- **Offline First:** No trackers, no accounts, no internet required.
+- **Filesystem First:** Your folders are the source of truth.
+- **Unified Media Foundation:** A common architectural base for both Comic and Video engines.
+- **Privacy Focused:** Uses Android's Storage Access Framework (SAF) for secure file access.
 
 ## 2. Current Status
-- **Current Version:** v1.0.0
-- **Status:** Stable
-- **Next Milestone:** Phase 7 - Video Support (Media3 integration and Video Library).
+- **Current Phase:** 7.9 (Architecture Cleanup & Unified Foundation)
+- **Status:** Stable Candidate
+- **Milestone:** Phase 7 (Video & Unified Foundation) successfully implemented.
+- **Next Goal:** Phase 8 - Backup & Restore System.
 
 ## 3. Core Features
-- **Library Scanner:** Incremental scanning that only updates modified folders.
-- **Manga Reader:** Supports Vertical (webtoon style), Left-to-Right (LTR), and Right-to-Left (RTL/Manga) reading modes.
-- **Reading Progress:** Automatically saves and resumes from the last read page and chapter.
-- **Bookmark System:** Organize comics into custom categories with bulk management support.
-- **Playlist System:** Create custom reading orders for specific series or collections.
-- **Search:** Real-time title filtering with visual feedback.
-- **Continue Reading:** Quick access to the last read title via the home screen.
 
-## 4. Architecture Overview
-Kitsune is built with modern Android development practices:
-- **MVVM:** Clear separation of concerns between UI, Logic, and Data.
-- **Jetpack Compose:** Fully declarative UI built with Material 3.
-- **Room Database:** Used for persisting application metadata, settings, and progress.
-- **Hybrid SAF:** Uses `DocumentFile` for directory navigation and `ContentResolver` for high-performance file streaming.
-- **Relative Path Identifier:** Uses paths relative to the root folder (e.g., `Comics/One Piece`) as primary IDs to ensure library portability.
-- **Natural Sorting:** Alphanumeric sorting (e.g., Chapter 2 comes before Chapter 10) applied across all lists.
+### 📖 Comic Engine
+- **Library & Detail:** Interactive grid and detail views with natural sorting.
+- **Manga Reader:** Supports Vertical, LTR, and RTL modes with seamless chapter transitions.
+- **Progress Tracking:** Saves reading page and chapter, supporting "Continue Reading".
+- **Auto-Cover:** Automatically generates covers from chapter content if missing.
+
+### 🎬 Video Engine
+- **Video Library:** Grid-based browsing for serials and movies.
+- **High-Performance Player:** Powered by Media3 ExoPlayer with custom overlay controls.
+- **Playback Management:** Resume Playback (save/restore position), Progress Saving, and "Finished" badges (>90% watched).
+- **Navigation:** Quick episode switching, Auto-Next episode, and "Continue Watching" support.
+
+### 📂 Unified Media Foundation
+- **Unified Components:** Consistent UI using `MediaGrid`, `MediaLibraryScaffold`, and `MediaCardContainer`.
+- **Unified Collections:** Shared Bookmark and Playlist systems for all media types via `CollectionRepository`.
+- **Reactive Home:** "Jump Back In" feature for recent activity (Comics & Videos) with "Continue Reading" and "Continue Watching" cards.
+
+## 4. Architecture Summary
+Built with modern Android development standards:
+- **Clean MVVM:** Decoupled UI, Business Logic, and Data.
+- **Repository Pattern:** Centralized data access with a unified facade for collections.
+- **Reactive UI:** Driven by Kotlin StateFlow and Room's reactive queries.
+- **Hybrid SAF:** `DocumentFile` for navigation and `ContentResolver` for high-performance streaming.
+- **Relative Path Identification:** Ensures library portability (data remains valid if root folder is moved).
+- **Natural Sorting:** Mandatory alphanumeric sorting applied across all media lists.
 
 ## 5. Project Structure
-- `com.kitsune.app.core`: Core utilities like `StorageHelper` and `NaturalOrderComparator`.
-- `com.kitsune.app.data`: Repositories that orchestrate data flow between SAF and Room.
-- `com.kitsune.app.database`: Room database definition, entities, and DAOs.
-- `com.kitsune.app.domain`: Business models (Comic, Chapter, Page).
-- `com.kitsune.app.navigation`: Navigation graph and URL-encoded route management.
-- `com.kitsune.app.reader`: CBZ parsing engine and Coil image fetcher implementation.
-- `com.kitsune.app.scanner`: Library scanning engine and incremental logic.
+- `com.kitsune.app.core`: Core utilities (StorageHelper, NaturalSort).
+- `com.kitsune.app.data.repository`: Data orchestrators (CollectionRepository, ScannerRepository).
+- `com.kitsune.app.database`: Room DB definition, entities (VideoProgress, ReadingProgress), and DAOs.
+- `com.kitsune.app.domain.model`: Business models (Comic, Video, Episode, Page).
+- `com.kitsune.app.navigation`: `KitsuneNavGraph` and URL-encoded route management.
+- `com.kitsune.app.reader`: CBZ parsing engine and image handling.
+- `com.kitsune.app.scanner`: Specialized engines (ComicScanner, VideoScanner).
 - `com.kitsune.app.ui`: Compose-based screens and ViewModels.
+    - `components.media`: Unified UI Foundation components.
+    - `library.base`: Base ViewModels and common library logic.
 
-## 6. Storage Structure
-Users select a root folder (e.g., `/Kitsune`) which the app initializes with the following structure:
-```text
-/Kitsune
-├── Comics/      # Comic folders containing CBZ files
-├── Videos/      # Placeholder for future video support
-├── Backup/      # Target for future database exports
-├── Cache/       # Temporary data storage
-└── .nomedia     # Prevents media from appearing in system gallery
-```
-- **Comic Rules:** A folder inside `/Comics` represents a title.
-- **Cover:** A file named `cover.[jpg|jpeg|png|webp]` inside the title folder.
-- **Chapters:** Files must be in `.cbz` format (ZIP).
+## 6. Technology Stack
+- **Kotlin & Jetpack Compose**
+- **Room Database** (Metadata & Progress)
+- **Media3 ExoPlayer** (Video Playback)
+- **Coil** (Image Loading & CBZ Fetching)
+- **Navigation Compose**
 
-## 7. Database Overview
-The Room database (`kitsune.db`) stores:
-- **Settings:** Global app configuration and the Root Folder URI.
-- **Comic Cache:** Metadata of scanned titles to speed up library browsing.
-- **Reading Progress:** Last read chapter and page for each comic.
-- **Collections:** User-defined Bookmark and Playlist categories.
-**Primary Key:** Most relations use the `comicRelativePath` to remain valid even if the Root Folder is moved.
+## 7. Documentation Index
+- [AI Agent Context](docs/AI_AGENT_CONTEXT.md) - **Primary Entry Point for AI Agents.**
+- [Architecture](docs/architecture.md) - Technical architecture and data flow.
+- [Foundation](docs/foundation.md) - Core philosophy and project rules.
+- [Filesystem](docs/filesystem.md) - Storage structure and SAF rules.
+- [Database](docs/database.md) - Room schema and migration history.
+- [Navigation](docs/navigation.md) - Routing and parameter handling.
+- [UI Specification](docs/ui-spec.md) - Visual components and design rules.
+- [Scanner Engine](docs/scanner-engine.md) - Incremental scanning logic.
+- [Video Engine](docs/video-engine.md) - Video player and engine specifications.
+- [Task Roadmap](docs/task-roadmap.md) - Development history and future plans.
 
-## 8. Reader Engine
-The reader extracts images directly from `.cbz` files using `ZipInputStream`.
-- **Metadata Cache:** Page lists are cached in memory (`pageCache`) to avoid re-parsing ZIP files during navigation.
-- **Stability:** Includes `SecurityException` handling if SAF permissions are revoked at runtime.
-- **Known Limitation:** `ZipInputStream` requires linear iteration; jumping to the very end of extremely large CBZ files (>500 pages) may have a slight I/O delay.
-
-## 9. Scanner Engine
-- **Incremental Scan:** Uses the filesystem's `lastModified` attribute to skip unchanged folders.
-- **Folder Cache:** Caches `DocumentFile` references to avoid expensive SAF tree traversals.
-- **Room Write Optimization:** Only updates the database if actual changes (new folders, renamed covers) are detected.
-- **Wipe-out Protection:** Validates the category folder's existence before performing deletions to prevent library loss on storage errors.
-
-## 10. Technology Stack
-- **Kotlin**: 100%
-- **Jetpack Compose**: UI Framework
-- **Room**: Persistence
-- **Coil**: Image Loading (Custom CBZ Fetcher)
-- **Navigation Compose**: App Navigation
-- **KSP**: Annotation Processing
-
-## 11. Known Limitations
-- **Manual Rename:** Renaming folders via external file managers will break the link to reading progress (treated as a new comic).
-- **Linear ZIP:** Linear access pattern for CBZ content as mentioned in the Reader section.
-
-## 12. Future Roadmap
-- **Phase 7 - Video Support:** Integration with Media3 for local video playback.
-- **Phase 8 - Backup & Restore:** Manual and automatic metadata export/import.
-- **Phase 9 - Metadata Support:** Support for external metadata files (`info.json`).
-
-## 13. Development Rules
-1. **Relative Path First:** Always use relative paths from the root as the primary identifier in the database.
-2. **Natural Sorting Mandatory:** Every list (Chapters, Pages, Titles) must use `NaturalOrderComparator`.
-3. **Filesystem is Truth:** Do not store chapter or page lists in the database; read them from the filesystem lazily.
-4. **SAF Stewardship:** Always handle URI persistence and `SecurityException` gracefully.
-
-
+## 8. Development Rules
+1. **Relative Path First:** IDs in DB must be relative to the root for portability.
+2. **Natural Sorting Mandatory:** Every list must use `NaturalOrderComparator`.
+3. **Filesystem is Truth:** Do not store media lists in the DB; read them from the filesystem lazily.
+4. **Unified UI:** Use components from the `media` foundation for all library-related features.

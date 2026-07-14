@@ -23,6 +23,18 @@ sealed class Screen(val route: String) {
         }
     }
 
+    object VideoDetail : Screen("video_detail/{videoRelativePath}") {
+        fun createRoute(videoRelativePath: String): String {
+            return "video_detail/${Uri.encode(videoRelativePath)}"
+        }
+    }
+
+    object VideoPlayer : Screen("video_player/{videoRelativePath}/{episodeRelativePath}") {
+        fun createRoute(videoRelativePath: String, episodeRelativePath: String): String {
+            return "video_player/${Uri.encode(videoRelativePath)}/${Uri.encode(episodeRelativePath)}"
+        }
+    }
+
     object BookmarkDetail : Screen("bookmark_detail/{bookmarkId}") {
         fun createRoute(bookmarkId: Long): String = "bookmark_detail/$bookmarkId"
     }

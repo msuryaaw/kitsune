@@ -1,7 +1,6 @@
 package com.kitsune.app.ui.library
 
 import androidx.core.net.toUri
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kitsune.app.data.repository.BookmarkRepository
 import com.kitsune.app.data.repository.PlaylistRepository
@@ -10,7 +9,7 @@ import com.kitsune.app.data.repository.SettingsRepository
 import com.kitsune.app.domain.model.Comic
 import com.kitsune.app.database.entity.BookmarkEntity
 import com.kitsune.app.database.entity.PlaylistEntity
-import kotlinx.coroutines.FlowPreview
+import com.kitsune.app.ui.library.base.BaseLibraryViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -23,34 +22,17 @@ class LibraryViewModel(
     private val settingsRepository: SettingsRepository,
     private val bookmarkRepository: BookmarkRepository,
     private val playlistRepository: PlaylistRepository
-) : ViewModel() {
+) : BaseLibraryViewModel() {
 
-    private val _isRefreshing = MutableStateFlow(false)
     private val _errorMessage = MutableStateFlow<String?>(null)
-    private val _searchQuery = MutableStateFlow("")
-    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
-    /**
-     * Optimasi pencarian untuk mencegah recomputation berlebih saat user mengetik.
-     */
-    @OptIn(FlowPreview::class)
-    private val debouncedSearchQuery = _searchQuery
-        .debounce(300)
-        .distinctUntilChanged()
-
-    // Selection State
+    // Selection State (Spesifik Komik saat ini)
     private val _selectedPaths = MutableStateFlow<Set<String>>(emptySet())
     val selectedPaths: StateFlow<Set<String>> = _selectedPaths.asStateFlow()
 
     val selectionMode: StateFlow<Boolean> = _selectedPaths
         .map { it.isNotEmpty() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
-
-    /**
-     * Snackbar Feedback State
-     */
-    private val _snackbarMessage = MutableSharedFlow<String>()
-    val snackbarMessage = _snackbarMessage.asSharedFlow()
 
     /**
      * REVISION 6.7.8: Added distinctUntilChanged to ensure stable set references.
@@ -77,7 +59,7 @@ class LibraryViewModel(
 
     /**
      * Tahap 1: Filtering Komik.
-     * Hanya dijalankan jika daftar komik atau query pencarian berubah.
+     * Menggunakan debouncedSearchQuery dari Base.
      */
     private val filteredComics = combine(
         scannerRepository.allComics,
@@ -94,7 +76,6 @@ class LibraryViewModel(
 
     /**
      * Tahap 2: Mapping Status Visual.
-     * REVISION 6.7.8: Optimized map and set creation by using constant sets from ComicStatusSets.
      */
     private val comicStatuses = combine(
         filteredComics,
@@ -150,10 +131,6 @@ class LibraryViewModel(
         refreshLibrary()
     }
 
-    fun onSearchQueryChange(newQuery: String) {
-        _searchQuery.value = newQuery
-    }
-
     // Selection Methods
     fun toggleSelection(path: String) {
         val current = _selectedPaths.value
@@ -207,9 +184,9 @@ class LibraryViewModel(
     }
 
     /**
-     * REVISION 6.7.6: Ditambahkan guard agar refresh tidak berjalan paralel.
+     * Implementasi refresh library untuk komik.
      */
-    fun refreshLibrary() {
+    override fun refreshLibrary() {
         if (_isRefreshing.value) return
 
         viewModelScope.launch {

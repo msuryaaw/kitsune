@@ -13,7 +13,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -23,6 +22,9 @@ import com.kitsune.app.core.DateUtils
 import com.kitsune.app.database.entity.ReadingProgressEntity
 import com.kitsune.app.domain.model.Chapter
 import com.kitsune.app.domain.model.Comic
+import com.kitsune.app.ui.components.media.CollectionDialogItem
+import com.kitsune.app.ui.components.media.MediaMultiSelectDialog
+import com.kitsune.app.ui.components.media.MediaSingleSelectDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -52,7 +54,7 @@ fun ComicDetailScreen(
                 actions = {
                     IconButton(onClick = { showBookmarkDialog = true }) {
                         Icon(
-                            imageVector = if (isBookmarked) Icons.Filled.Star else Icons.Filled.Star, // Using filled for both as simplified example, usually would use Outlined
+                            imageVector = Icons.Filled.Star,
                             contentDescription = "Bookmark",
                             tint = if (isBookmarked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                         )
@@ -94,8 +96,14 @@ fun ComicDetailScreen(
     }
 
     if (showBookmarkDialog) {
-        BookmarkMembershipDialog(
-            bookmarks = availableBookmarks,
+        val dialogItems = remember(availableBookmarks) {
+            availableBookmarks.map { 
+                CollectionDialogItem(it.bookmark.bookmark.id, it.bookmark.bookmark.name, it.isMember) 
+            }
+        }
+        MediaMultiSelectDialog(
+            title = "Manage Bookmarks",
+            items = dialogItems,
             onToggle = { id, isMember ->
                 viewModel.toggleBookmarkMembership(id, isMember)
             },
@@ -104,9 +112,14 @@ fun ComicDetailScreen(
     }
 
     if (showPlaylistDialog) {
-        CollectionSelectionDialog(
+        val dialogItems = remember(availablePlaylists) {
+            availablePlaylists.map { 
+                CollectionDialogItem(it.playlist.id, it.playlist.name) 
+            }
+        }
+        MediaSingleSelectDialog(
             title = "Add to Playlist",
-            items = availablePlaylists.map { it.playlist.id to it.playlist.name },
+            items = dialogItems,
             onSelect = { id ->
                 viewModel.addComicToPlaylist(id)
                 showPlaylistDialog = false
@@ -114,76 +127,6 @@ fun ComicDetailScreen(
             onDismiss = { showPlaylistDialog = false }
         )
     }
-}
-
-@Composable
-fun BookmarkMembershipDialog(
-    bookmarks: List<BookmarkWithMembership>,
-    onToggle: (Long, Boolean) -> Unit,
-    onDismiss: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Manage Bookmarks") },
-        text = {
-            if (bookmarks.isEmpty()) {
-                Text("No bookmarks available. Create one first.")
-            } else {
-                LazyColumn {
-                    items(bookmarks) { item ->
-                        ListItem(
-                            headlineContent = { Text(item.bookmark.bookmark.name) },
-                            trailingContent = {
-                                Checkbox(
-                                    checked = item.isMember,
-                                    onCheckedChange = null // Handled by ListItem click
-                                )
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { onToggle(item.bookmark.bookmark.id, item.isMember) }
-                        )
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Done") }
-        }
-    )
-}
-
-@Composable
-fun CollectionSelectionDialog(
-    title: String,
-    items: List<Pair<Long, String>>,
-    onSelect: (Long) -> Unit,
-    onDismiss: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = {
-            if (items.isEmpty()) {
-                Text("No entries available. Create one first.")
-            } else {
-                LazyColumn {
-                    items(items) { item ->
-                        ListItem(
-                            headlineContent = { Text(item.second) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { onSelect(item.first) }
-                        )
-                    }
-                }
-            }
-        },
-        confirmButton = {},
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        }
-    )
 }
 
 @Composable

@@ -2,6 +2,7 @@ package com.kitsune.app.database.dao
 
 import androidx.room.*
 import com.kitsune.app.database.entity.VideoEntity
+import com.kitsune.app.database.entity.VideoProgressEntity
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -30,4 +31,42 @@ interface VideoDao {
             insertVideos(toInsert)
         }
     }
+
+    // --- Video Progress Operations ---
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertProgress(progress: VideoProgressEntity)
+
+    @Query("SELECT * FROM video_progress WHERE videoRelativePath = :videoPath AND episodeRelativePath = :episodePath LIMIT 1")
+    fun getProgress(videoPath: String, episodePath: String): Flow<VideoProgressEntity?>
+
+    @Query("SELECT * FROM video_progress WHERE episodeRelativePath = :episodePath LIMIT 1")
+    suspend fun getProgressByEpisodeSync(episodePath: String): VideoProgressEntity?
+
+    @Query("DELETE FROM video_progress WHERE videoRelativePath = :videoPath")
+    suspend fun deleteProgress(videoPath: String)
+
+    @Query("DELETE FROM video_progress WHERE videoRelativePath IN (:videoPaths)")
+    suspend fun deleteProgressList(videoPaths: List<String>)
+
+    @Query("DELETE FROM video_progress WHERE episodeRelativePath = :episodePath")
+    suspend fun deleteEpisodeProgress(episodePath: String)
+
+    @Query("DELETE FROM video_progress WHERE episodeRelativePath IN (:episodePaths)")
+    suspend fun deleteEpisodeProgressList(episodePaths: List<String>)
+
+    @Query("SELECT * FROM video_progress ORDER BY lastWatchedAt DESC LIMIT 1")
+    fun getLatestProgress(): Flow<VideoProgressEntity?>
+
+    @Query("SELECT * FROM video_progress")
+    fun getAllProgress(): Flow<List<VideoProgressEntity>>
+
+    @Query("SELECT * FROM video_progress")
+    suspend fun getAllProgressSync(): List<VideoProgressEntity>
+
+    /**
+     * Membersihkan progres yang tidak lagi memiliki VideoEntity terkait (Orphan).
+     */
+    @Query("DELETE FROM video_progress WHERE videoRelativePath NOT IN (SELECT relativePath FROM videos)")
+    suspend fun deleteOrphanProgress()
 }

@@ -3,11 +3,17 @@ package com.kitsune.app.data.repository
 import com.kitsune.app.database.dao.BookmarkDao
 import com.kitsune.app.database.entity.BookmarkComicEntity
 import com.kitsune.app.database.entity.BookmarkEntity
+import com.kitsune.app.domain.model.CollectionType
+import com.kitsune.app.domain.model.Comic
+import com.kitsune.app.domain.model.MediaCollectionItem
+import com.kitsune.app.domain.model.MediaType
+import com.kitsune.app.domain.model.Video
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 
 /**
  * Repository untuk mengelola Bookmark.
+ * REVISION 7.8.9: Penambahan API Video secara additive untuk Unified Collection Foundation.
  */
 class BookmarkRepository(private val bookmarkDao: BookmarkDao) {
 
@@ -40,9 +46,20 @@ class BookmarkRepository(private val bookmarkDao: BookmarkDao) {
 
     /**
      * Mendapatkan seluruh jalur relatif komik yang ada di kategori bookmark manapun.
+     * PERINGATAN: Mengembalikan seluruh isi tabel bookmark_comics.
      */
     fun getAllBookmarkedComics(): Flow<List<String>> {
         return bookmarkDao.getAllBookmarkedComics()
+    }
+
+    /**
+     * ADDITIVE: Mendapatkan jalur relatif berdasarkan tipe media menggunakan filter prefix.
+     */
+    fun getBookmarkedPaths(mediaType: MediaType): Flow<List<String>> {
+        val prefix = if (mediaType == MediaType.COMIC) "Comics/" else "Videos/"
+        return bookmarkDao.getAllBookmarkedComics().map { paths ->
+            paths.filter { it.startsWith(prefix) }
+        }
     }
 
     suspend fun createBookmark(name: String): Long {
@@ -71,6 +88,13 @@ class BookmarkRepository(private val bookmarkDao: BookmarkDao) {
     }
 
     /**
+     * ADDITIVE: Menambahkan video ke bookmark.
+     */
+    suspend fun addVideoToBookmark(bookmarkId: Long, videoPath: String) {
+        addComicToBookmark(bookmarkId, videoPath)
+    }
+
+    /**
      * REVISION 5.2: Menambahkan banyak komik ke banyak bookmark sekaligus secara batch.
      */
     suspend fun addComicsToBookmarks(bookmarkIds: List<Long>, comicPaths: List<String>) {
@@ -84,8 +108,22 @@ class BookmarkRepository(private val bookmarkDao: BookmarkDao) {
         }
     }
 
+    /**
+     * ADDITIVE: Batch add untuk media apapun (Video/Comic).
+     */
+    suspend fun addMediaToBookmarks(bookmarkIds: List<Long>, mediaPaths: List<String>) {
+        addComicsToBookmarks(bookmarkIds, mediaPaths)
+    }
+
     suspend fun removeComicFromBookmark(bookmarkId: Long, comicPath: String) {
         bookmarkDao.removeComicFromBookmark(bookmarkId, comicPath)
+    }
+
+    /**
+     * ADDITIVE: Menghapus video dari bookmark.
+     */
+    suspend fun removeVideoFromBookmark(bookmarkId: Long, videoPath: String) {
+        removeComicFromBookmark(bookmarkId, videoPath)
     }
 
     /**
@@ -104,6 +142,32 @@ class BookmarkRepository(private val bookmarkDao: BookmarkDao) {
      */
     fun getBookmarkIdsForComic(comicPath: String): Flow<List<Long>> {
         return bookmarkDao.getBookmarkIdsForComic(comicPath)
+    }
+
+    /**
+     * GENERIC API: Memetakan Comic menjadi MediaCollectionItem untuk abstraksi Unified Collections.
+     */
+    fun mapToMediaCollectionItem(comic: Comic): MediaCollectionItem {
+        return MediaCollectionItem(
+            relativePath = comic.relativePath,
+            title = comic.title,
+            thumbnailUri = comic.coverUri,
+            mediaType = MediaType.COMIC,
+            collectionType = CollectionType.BOOKMARK
+        )
+    }
+
+    /**
+     * ADDITIVE: Memetakan Video menjadi MediaCollectionItem.
+     */
+    fun mapToMediaCollectionItem(video: Video): MediaCollectionItem {
+        return MediaCollectionItem(
+            relativePath = video.relativePath,
+            title = video.title,
+            thumbnailUri = video.coverUri,
+            mediaType = MediaType.VIDEO,
+            collectionType = CollectionType.BOOKMARK
+        )
     }
 }
 

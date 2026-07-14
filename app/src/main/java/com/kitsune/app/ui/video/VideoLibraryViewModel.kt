@@ -1,65 +1,88 @@
 package com.kitsune.app.ui.video
 
 import androidx.core.net.toUri
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.kitsune.app.data.repository.CollectionRepository
 import com.kitsune.app.data.repository.SettingsRepository
 import com.kitsune.app.data.repository.VideoRepository
-import kotlinx.coroutines.FlowPreview
+import com.kitsune.app.domain.model.MediaType
+import com.kitsune.app.ui.library.ComicStatus
+import com.kitsune.app.ui.library.base.BaseLibraryViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 /**
  * ViewModel untuk mengelola data pada layar Video Library.
- * Mengikuti pola arsitektur yang konsisten dengan Comic Library.
+ * REVISION 7.8.7: Migrasi ke BaseLibraryViewModel untuk standarisasi logika pencarian dan penyegaran.
+ * REVISION 7.8.11: Integrasi CollectionRepository untuk indikator Bookmark dan Playlist.
  */
 class VideoLibraryViewModel(
     private val videoRepository: VideoRepository,
-    private val settingsRepository: SettingsRepository
-) : ViewModel() {
-
-    private val _isRefreshing = MutableStateFlow(false)
-    private val _searchQuery = MutableStateFlow("")
-    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
+    private val settingsRepository: SettingsRepository,
+    private val collectionRepository: CollectionRepository
+) : BaseLibraryViewModel() {
 
     /**
-     * Optimasi pencarian di memori untuk mencegah recomputation berlebih.
+     * Menggabungkan data inti library (Video, Progress, Collections).
+     * Dibagi menjadi dua tahap untuk menangani limitasi combine() overload (> 5 flows).
      */
-    @OptIn(FlowPreview::class)
-    private val debouncedSearchQuery = _searchQuery
-        .debounce(300)
-        .distinctUntilChanged()
+    private val videoItemsFlow: Flow<List<VideoItemState>> = combine(
+        videoRepository.allVideos,
+        videoRepository.getAllProgressMap(),
+        collectionRepository.getBookmarkedPaths(MediaType.VIDEO),
+        collectionRepository.getPlaylistPaths(MediaType.VIDEO)
+    ) { videos, progressMap, bookmarkedPaths, playlistPaths ->
+        
+        // OPTIMIZATION: Group progress by video path once per emission to avoid O(N) filter in loop
+        val groupedProgress = progressMap.values.groupBy { it.videoRelativePath }
+        
+        videos.map { video ->
+            val path = video.relativePath
+            
+            val latestProgress = groupedProgress[path]?.maxByOrNull { it.lastWatchedAt }
+
+            val percentage = if (latestProgress != null && latestProgress.durationMs > 0) {
+                latestProgress.lastPositionMs.toFloat() / latestProgress.durationMs.toFloat()
+            } else 0f
+            
+            // Build Statuses
+            val statusSet = mutableSetOf<ComicStatus>()
+            if (bookmarkedPaths.contains(path)) statusSet.add(ComicStatus.BOOKMARKED)
+            if (playlistPaths.contains(path)) statusSet.add(ComicStatus.IN_PLAYLIST)
+
+            VideoItemState(
+                video = video,
+                watchedPercentage = percentage,
+                isFinished = percentage >= 0.95f,
+                lastEpisodePath = latestProgress?.episodeRelativePath,
+                statuses = statusSet
+            )
+        }
+    }
 
     /**
-     * Alur pengolahan data UI State:
-     * 1. Ambil data video dari Repository.
-     * 2. Gabungkan dengan query pencarian (debounce).
-     * 3. Lakukan filtering dan sorting di memori.
-     * 4. Gabungkan dengan pengaturan grid size.
+     * Perakitan final UI State dengan Filtering, Sorting, dan Settings.
      */
     val uiState: StateFlow<VideoLibraryUiState> = combine(
-        videoRepository.allVideos,
+        videoItemsFlow,
         debouncedSearchQuery,
         settingsRepository.settings.map { it?.gridSize ?: 3 }.distinctUntilChanged(),
         _isRefreshing
-    ) { videos, query, gridSize, refreshing ->
-        
-        // 1. Filtering di memori
-        val filteredVideos = if (query.isBlank()) {
-            videos
+    ) { videoItems, query, gridSize, refreshing ->
+
+        // Filtering & Sorting
+        val filteredItems = if (query.isBlank()) {
+            videoItems
         } else {
-            videos.filter { it.title.contains(query, ignoreCase = true) }
+            videoItems.filter { it.video.title.contains(query, ignoreCase = true) }
         }
+        val sortedItems = filteredItems.sortedBy { it.video.title.lowercase() }
 
-        // 2. Sorting di memori (Alfabet)
-        val sortedVideos = filteredVideos.sortedBy { it.title.lowercase() }
-
-        // 3. Penentuan State
         when {
-            refreshing && sortedVideos.isEmpty() && query.isBlank() -> VideoLibraryUiState.Loading
-            sortedVideos.isEmpty() -> VideoLibraryUiState.Empty
+            refreshing && sortedItems.isEmpty() && query.isBlank() -> VideoLibraryUiState.Loading
+            sortedItems.isEmpty() -> VideoLibraryUiState.Empty
             else -> VideoLibraryUiState.Success(
-                videos = sortedVideos,
+                videos = sortedItems,
                 isRefreshing = refreshing,
                 gridSize = gridSize
             )
@@ -74,14 +97,10 @@ class VideoLibraryViewModel(
         refreshLibrary()
     }
 
-    fun onSearchQueryChange(newQuery: String) {
-        _searchQuery.value = newQuery
-    }
-
     /**
-     * Memicu pemindaian ulang library melalui VideoRepository.
+     * Implementasi refresh library untuk video.
      */
-    fun refreshLibrary() {
+    override fun refreshLibrary() {
         if (_isRefreshing.value) return
 
         viewModelScope.launch {
@@ -94,7 +113,7 @@ class VideoLibraryViewModel(
                     videoRepository.refreshLibrary(rootUriString.toUri())
                 }
             } catch (e: Exception) {
-                // Error handling minimal untuk fondasi ViewModel
+                e.printStackTrace()
             } finally {
                 _isRefreshing.value = false
             }

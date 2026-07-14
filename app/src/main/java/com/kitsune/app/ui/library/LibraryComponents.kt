@@ -4,23 +4,15 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyGridState
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -28,15 +20,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
 import com.kitsune.app.domain.model.Comic
+import com.kitsune.app.ui.components.media.*
+import com.kitsune.app.ui.components.media.mapper.toMediaUiModel
 
 /**
  * Representasi status komik untuk indikator visual.
@@ -76,6 +65,10 @@ data class SelectionAction(
     val onClick: () -> Unit
 )
 
+/**
+ * REVISION 7.8.3: Migrated to Unified Media Foundation.
+ * REVISION 7.9.2: Migrated to Unified Media Badges.
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ComicCard(
@@ -84,61 +77,30 @@ fun ComicCard(
     onClick: () -> Unit,
     onLongClick: () -> Unit = {}
 ) {
-    // REVISION 6.7.8: Optimized ImageRequest with remember and sizing
-    val context = LocalContext.current
-    val imageRequest = remember(comic.coverUri) {
-        ImageRequest.Builder(context)
-            .data(comic.coverUri)
-            .crossfade(true)
-            // Target size for grid (approx 5:7 aspect ratio)
-            // This prevents Coil from keeping full-size bitmaps in memory
-            .size(300, 420) 
-            .build()
-    }
+    val mediaUiModel = remember(comic) { comic.toMediaUiModel() }
 
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .combinedClickable(
-                onClick = onClick,
-                onLongClick = onLongClick
-            )
+    MediaCardContainer(
+        onClick = onClick,
+        onLongClick = onLongClick,
+        isSelected = state.isSelected
     ) {
         Box {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(5f / 7f)
-                    .then(
-                        if (state.isSelected) Modifier.border(
-                            2.dp,
-                            MaterialTheme.colorScheme.primary,
-                            MaterialTheme.shapes.medium
-                        ) else Modifier
-                    ),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
-            ) {
-                AsyncImage(
-                    model = imageRequest,
-                    contentDescription = null, // Optimized: fixed/null description
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
-            }
+            MediaThumbnail(
+                thumbnailUri = mediaUiModel.thumbnailUri,
+                mediaType = mediaUiModel.mediaType,
+                modifier = if (state.isSelected) Modifier.border(
+                    2.dp,
+                    MaterialTheme.colorScheme.primary,
+                    MaterialTheme.shapes.medium
+                ) else Modifier
+            )
 
-            // Status Badges (Top Start)
-            if (state.statuses.isNotEmpty() && !state.isSelected) {
-                Row(
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    state.statuses.forEach { status ->
-                        StatusBadgeIcon(status = status)
-                    }
-                }
+            // Collection Badges (Top Start) - Unified 7.9.2
+            if (!state.isSelected) {
+                MediaCollectionBadges(
+                    statuses = state.statuses,
+                    modifier = Modifier.align(Alignment.TopStart)
+                )
             }
 
             // Selection Indicator (Top End)
@@ -159,58 +121,21 @@ fun ComicCard(
                 )
             }
         }
+        
         Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = comic.title,
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = if (state.isSelected) FontWeight.Bold else FontWeight.Normal,
+        
+        MediaTitle(
+            title = mediaUiModel.title,
             color = if (state.isSelected) MaterialTheme.colorScheme.primary else Color.White,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
+            fontWeight = if (state.isSelected) FontWeight.Bold else FontWeight.Normal,
             modifier = Modifier.padding(horizontal = 4.dp)
         )
     }
 }
 
 /**
- * Mapping internal ComicStatus ke Icon, Tint, dan ContentDescription.
- */
-@Composable
-private fun StatusBadgeIcon(status: ComicStatus) {
-    // Avoid object allocation (Triple) by using local constants
-    val icon: ImageVector
-    val tint: Color
-    val description: String
-
-    when (status) {
-        ComicStatus.BOOKMARKED -> {
-            icon = Icons.Default.Bookmark
-            tint = MaterialTheme.colorScheme.primary
-            description = "Bookmarked"
-        }
-        ComicStatus.IN_PLAYLIST -> {
-            icon = Icons.AutoMirrored.Filled.List
-            tint = Color(0xFF4CAF50)
-            description = "In Playlist"
-        }
-    }
-
-    Surface(
-        shape = RoundedCornerShape(4.dp),
-        color = Color.Black.copy(alpha = 0.7f),
-        modifier = Modifier.size(20.dp)
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = description,
-            tint = tint,
-            modifier = Modifier.padding(3.dp)
-        )
-    }
-}
-
-/**
  * Grid Komik Reusable dengan optimasi performa tinggi.
+ * REVISION 7.8.5: Migrated to generic MediaGrid.
  */
 @Composable
 fun ComicGrid(
@@ -222,44 +147,37 @@ fun ComicGrid(
     onComicClick: (Comic) -> Unit,
     onComicLongClick: (Comic) -> Unit = {}
 ) {
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(gridSize),
+    MediaGrid(
+        items = comics,
+        gridSize = gridSize,
+        keySelector = { it.relativePath },
         state = state,
-        contentPadding = PaddingValues(12.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        modifier = Modifier.fillMaxSize()
-    ) {
-        items(
-            items = comics, 
-            key = { it.relativePath },
-            contentType = { "comic" }
-        ) { comic ->
-            // Optimize lookup and state allocation
-            val isSelected = remember(selectedPaths, comic.relativePath) {
-                selectedPaths.contains(comic.relativePath)
-            }
-            val statuses = remember(comicStatuses, comic.relativePath) {
-                comicStatuses[comic.relativePath] ?: ComicStatusSets.EMPTY
-            }
-            val cardState = remember(isSelected, statuses) {
-                ComicCardState(isSelected, statuses)
-            }
-
-            // Stable lambdas to prevent redundant card recompositions
-            val currentOnComicClick by rememberUpdatedState(onComicClick)
-            val currentOnComicLongClick by rememberUpdatedState(onComicLongClick)
-            
-            val onClick = remember(comic) { { currentOnComicClick(comic) } }
-            val onLongClick = remember(comic) { { currentOnComicLongClick(comic) } }
-
-            ComicCard(
-                comic = comic,
-                state = cardState,
-                onClick = onClick,
-                onLongClick = onLongClick
-            )
+        contentType = { "comic" }
+    ) { comic ->
+        // Optimize lookup and state allocation
+        val isSelected = remember(selectedPaths, comic.relativePath) {
+            selectedPaths.contains(comic.relativePath)
         }
+        val statuses = remember(comicStatuses, comic.relativePath) {
+            comicStatuses[comic.relativePath] ?: ComicStatusSets.EMPTY
+        }
+        val cardState = remember(isSelected, statuses) {
+            ComicCardState(isSelected, statuses)
+        }
+
+        // Stable lambdas to prevent redundant card recompositions
+        val currentOnComicClick by rememberUpdatedState(onComicClick)
+        val currentOnComicLongClick by rememberUpdatedState(onComicLongClick)
+        
+        val onClick = remember(comic) { { currentOnComicClick(comic) } }
+        val onLongClick = remember(comic) { { currentOnComicLongClick(comic) } }
+
+        ComicCard(
+            comic = comic,
+            state = cardState,
+            onClick = onClick,
+            onLongClick = onLongClick
+        )
     }
 }
 

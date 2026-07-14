@@ -18,13 +18,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.kitsune.app.core.DateUtils
 import com.kitsune.app.domain.model.LastReadComic
+import com.kitsune.app.domain.model.LastWatchedVideo
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LocalScreen(
     viewModel: LocalViewModel,
     onContinueReading: (LastReadComic) -> Unit,
+    onContinueWatching: (LastWatchedVideo) -> Unit,
     onComicsClick: () -> Unit,
     onVideosClick: () -> Unit
 ) {
@@ -43,25 +46,25 @@ fun LocalScreen(
                 .padding(padding)
                 .padding(16.dp)
         ) {
-            Text(
-                text = "Last Read",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(bottom = 12.dp)
-            )
-
             when (val state = uiState) {
                 is LocalUiState.Loading -> {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(140.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator()
                     }
                 }
+                is LocalUiState.Error -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(text = state.message, color = MaterialTheme.colorScheme.error)
+                    }
+                }
                 is LocalUiState.Success -> {
+                    // Last Read (Comics)
+                    Text(
+                        text = "Last Read",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
                     if (state.lastRead != null) {
                         LastReadCard(
                             lastRead = state.lastRead,
@@ -70,13 +73,25 @@ fun LocalScreen(
                     } else {
                         EmptyLastReadCard()
                     }
-                }
-                is LocalUiState.Error -> {
-                    Text(text = state.message, color = MaterialTheme.colorScheme.error)
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    // Continue Watching (Videos) - Phase 7.7.3.2
+                    if (state.lastWatched != null) {
+                        Text(
+                            text = "Continue Watching",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(bottom = 12.dp)
+                        )
+                        ContinueWatchingCard(
+                            lastWatched = state.lastWatched,
+                            onClick = { onContinueWatching(state.lastWatched) }
+                        )
+                        Spacer(modifier = Modifier.height(24.dp))
+                    }
                 }
             }
-
-            Spacer(modifier = Modifier.height(32.dp))
 
             Text(
                 text = "Library",
@@ -180,6 +195,92 @@ fun LastReadCard(
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                         contentDescription = "Continue",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * REVISION 7.7.3.2: Continue Watching Card for Videos.
+ */
+@Composable
+fun ContinueWatchingCard(
+    lastWatched: LastWatchedVideo,
+    onClick: () -> Unit
+) {
+    ElevatedCard(
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(140.dp),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp)
+        )
+    ) {
+        Row(modifier = Modifier.fillMaxSize()) {
+            AsyncImage(
+                model = lastWatched.video.coverUri,
+                contentDescription = null,
+                modifier = Modifier
+                    .width(100.dp)
+                    .fillMaxHeight(),
+                contentScale = ContentScale.Crop
+            )
+            
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column {
+                    Text(
+                        text = lastWatched.video.title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = lastWatched.episodeRelativePath.substringAfterLast('/'),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        val pos = DateUtils.formatDuration(lastWatched.progressPositionMs)
+                        val dur = DateUtils.formatDuration(lastWatched.durationMs)
+                        Text(
+                            text = "$pos / $dur",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        LinearProgressIndicator(
+                            progress = { lastWatched.watchedPercentage },
+                            modifier = Modifier
+                                .width(120.dp)
+                                .height(4.dp)
+                                .padding(top = 4.dp),
+                            color = MaterialTheme.colorScheme.primary,
+                            trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                            strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
+                        )
+                    }
+                    
+                    Icon(
+                        imageVector = Icons.Default.PlayArrow,
+                        contentDescription = "Play",
                         tint = MaterialTheme.colorScheme.primary
                     )
                 }

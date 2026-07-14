@@ -1,70 +1,65 @@
 package com.kitsune.app.ui.video
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
-import com.kitsune.app.domain.model.Video
+import com.kitsune.app.ui.components.media.*
+import com.kitsune.app.ui.components.media.mapper.toMediaUiModel
 
 /**
  * Komponen kartu untuk menampilkan item Video di Library.
- * Mengikuti optimasi performa Phase 6 dari Comic Library.
+ * REVISION 7.8.4: Migrated to Unified Media Foundation.
+ * REVISION 7.8.11: Added status badges for Bookmark and Playlist.
+ * REVISION 7.9.2: Migrated to Unified Media Badges.
  */
 @Composable
 fun VideoCard(
-    video: Video,
+    state: VideoItemState,
     onClick: () -> Unit
 ) {
-    val context = LocalContext.current
-    
-    // OPTIMIZATION: Optimized ImageRequest with remember and specific sizing (Phase 6 strategy)
-    val imageRequest = remember(video.coverUri) {
-        ImageRequest.Builder(context)
-            .data(video.coverUri)
-            .crossfade(true)
-            .size(300, 420) // Target size for consistency and memory efficiency
-            .build()
-    }
+    val mediaUiModel = remember(state) { state.toMediaUiModel(state.statuses) }
 
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
+    MediaCardContainer(
+        onClick = onClick
     ) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(5f / 7f), // Maintain same aspect ratio as Comics for UI consistency
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
-        ) {
-            AsyncImage(
-                model = imageRequest,
-                contentDescription = null,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop
+        Box {
+            MediaThumbnail(
+                thumbnailUri = mediaUiModel.thumbnailUri,
+                mediaType = mediaUiModel.mediaType
+            )
+
+            // Collection Badges (Top Start) - Unified 7.9.2
+            MediaCollectionBadges(
+                statuses = mediaUiModel.statuses,
+                modifier = Modifier.align(Alignment.TopStart)
+            )
+
+            // Finished Badge (Top End) - Unified 7.9.2
+            if (state.isFinished) {
+                MediaFinishedBadge(
+                    modifier = Modifier.align(Alignment.TopEnd)
+                )
+            }
+
+            // Progress Bar (Bottom) - Phase 7.7.3.3 (Unified via MediaProgressBar)
+            MediaProgressBar(
+                progress = state.watchedPercentage,
+                modifier = Modifier.align(Alignment.BottomCenter)
             )
         }
         
         Spacer(modifier = Modifier.height(4.dp))
         
-        Text(
-            text = video.title,
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.Normal,
-            color = Color.White,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
+        MediaTitle(
+            title = mediaUiModel.title,
+            fontWeight = if (state.watchedPercentage > 0) FontWeight.Bold else FontWeight.Normal,
+            color = if (state.isFinished) MaterialTheme.colorScheme.primary.copy(alpha = 0.7f) else Color.White,
             modifier = Modifier.padding(horizontal = 4.dp)
         )
     }

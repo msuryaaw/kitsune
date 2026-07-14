@@ -34,6 +34,18 @@ class ScannerRepository(
     }
 
     /**
+     * Listener untuk memberitahu komponen lain bahwa pemindaian akan dimulai.
+     * Digunakan untuk invalidasi cache (Phase 7.6.1).
+     */
+    var onScanStarted: (() -> Unit)? = null
+
+    /**
+     * Listener untuk memberitahu komponen lain bahwa pemindaian telah selesai.
+     * Digunakan untuk pembersihan database (Phase 7.7.5).
+     */
+    var onScanFinished: (suspend (Uri) -> Unit)? = null
+
+    /**
      * Aliran data komik (Tetap di sini karena Comic Engine belum direfactor ke ComicRepository).
      */
     val allComics: Flow<List<Comic>> = comicDao.getAllComics().map { entities ->
@@ -67,8 +79,14 @@ class ScannerRepository(
      * Menggunakan perlindungan Mutex.
      */
     suspend fun performIncrementalScan(rootUri: Uri) = scanMutex.withLock {
+        // Phase 7.6.1: Invalidasikan cache sebelum memulai pemindaian baru
+        onScanStarted?.invoke()
+
         scanComicsIncremental(rootUri)
         scanVideosIncremental(rootUri)
+
+        // Phase 7.7.5: Jalankan pembersihan setelah scanning selesai
+        onScanFinished?.invoke(rootUri)
     }
 
     private suspend fun scanComicsIncremental(rootUri: Uri) {

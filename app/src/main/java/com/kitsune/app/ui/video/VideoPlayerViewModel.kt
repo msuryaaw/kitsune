@@ -20,7 +20,7 @@ import kotlinx.coroutines.flow.*
 
 /**
  * ViewModel untuk mengelola instance ExoPlayer dan lifecycle pemutaran video secara sekuensial.
- * REVISION 7.7.2: Implementasi Resume Playback Foundation.
+ * REVISION 8.1.5: Added Orientation Foundation.
  */
 class VideoPlayerViewModel(
     application: Application,
@@ -92,8 +92,21 @@ class VideoPlayerViewModel(
     private val _isRestoring = MutableStateFlow(false)
     val isRestoring: StateFlow<Boolean> = _isRestoring.asStateFlow()
 
+    // VISIBILITY FOUNDATION (Phase 8.1.2)
+    private val _isControlsVisible = MutableStateFlow(true)
+    val isControlsVisible: StateFlow<Boolean> = _isControlsVisible.asStateFlow()
+
+    // AUTO HIDE FOUNDATION (Phase 8.1.3)
+    private var autoHideJob: Job? = null
+
+    // ORIENTATION FOUNDATION (Phase 8.1.5)
+    private val _isLandscape = MutableStateFlow(false)
+    val isLandscape: StateFlow<Boolean> = _isLandscape.asStateFlow()
+
     init {
         initializeSequentialPlayer()
+        // Start auto-hide timer for initial state
+        startAutoHideTimer()
     }
 
     private fun initializeSequentialPlayer() {
@@ -135,6 +148,8 @@ class VideoPlayerViewModel(
                     _showResumeDialog.value = savedProgress
                     // Siapkan player tetapi jangan putar (playWhenReady = false)
                     loadMediaItem(firstEpisode, autoPlay = false)
+                    // If resume dialog is shown, we probably want controls to stay visible
+                    showControls()
                 } else {
                     loadMediaItem(firstEpisode, autoPlay = true)
                 }
@@ -273,6 +288,7 @@ class VideoPlayerViewModel(
             it.playWhenReady = true
             it.play()
         }
+        userInteraction()
     }
 
     /**
@@ -292,6 +308,7 @@ class VideoPlayerViewModel(
             it.playWhenReady = true
             it.play()
         }
+        userInteraction()
     }
 
     /**
@@ -346,6 +363,7 @@ class VideoPlayerViewModel(
         if (nextIndex < _episodes.value.size) {
             goToEpisode(nextIndex)
         }
+        userInteraction()
     }
 
     fun previousEpisode() {
@@ -353,6 +371,7 @@ class VideoPlayerViewModel(
         if (prevIndex >= 0) {
             goToEpisode(prevIndex)
         }
+        userInteraction()
     }
 
     /**
@@ -380,6 +399,7 @@ class VideoPlayerViewModel(
 
     fun reloadCurrentEpisode() {
         _currentEpisode.value?.let { loadMediaItem(it) }
+        userInteraction()
     }
 
     private fun startPollingPosition() {
@@ -412,6 +432,7 @@ class VideoPlayerViewModel(
             it.seekTo(positionMs)
             _currentPosition.value = positionMs
         }
+        userInteraction()
     }
 
     fun togglePlayPause() {
@@ -423,6 +444,7 @@ class VideoPlayerViewModel(
             playWhenReady = nextState
             it.playWhenReady = nextState
         }
+        userInteraction()
     }
 
     fun replay() {
@@ -431,6 +453,7 @@ class VideoPlayerViewModel(
             it.playWhenReady = true
             it.play()
         }
+        userInteraction()
     }
 
     override fun onCleared() {
@@ -456,6 +479,7 @@ class VideoPlayerViewModel(
 
         super.onCleared()
         stopPollingPosition()
+        autoHideJob?.cancel()
         _player.value?.let {
             it.stop()
             it.release()
@@ -469,5 +493,43 @@ class VideoPlayerViewModel(
 
         playWhenReady = play
         _player.value?.playWhenReady = play
+    }
+
+    // --- VISIBILITY API (Phase 8.1.3) ---
+
+    fun userInteraction() {
+        showControls()
+    }
+
+    fun showControls() {
+        _isControlsVisible.value = true
+        startAutoHideTimer()
+    }
+
+    fun hideControls() {
+        _isControlsVisible.value = false
+        autoHideJob?.cancel()
+    }
+
+    fun toggleControls() {
+        if (_isControlsVisible.value) {
+            hideControls()
+        } else {
+            userInteraction()
+        }
+    }
+
+    private fun startAutoHideTimer() {
+        autoHideJob?.cancel()
+        autoHideJob = viewModelScope.launch {
+            delay(3500) // 3.5 seconds
+            hideControls()
+        }
+    }
+
+    // --- ORIENTATION API (Phase 8.1.5) ---
+
+    fun updateOrientation(isLandscape: Boolean) {
+        _isLandscape.value = isLandscape
     }
 }

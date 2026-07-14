@@ -1,8 +1,10 @@
 package com.kitsune.app.ui.video
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay
@@ -13,13 +15,34 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import androidx.media3.common.Player
 
 /**
  * Komponen overlay untuk kontrol pemutar video.
- * REVISION 7.6.3: Integrasi Navigasi Episode (Previous, Play/Pause, Next).
+ * REVISION 8.1.6: Added Landscape UI Adaptation & Top Bar.
  */
+
+/**
+ * Lapisan interaksi utama untuk Video Player.
+ */
+@Composable
+fun PlayerInteractionLayer(
+    onTap: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onTap = { onTap() }
+                )
+            }
+    )
+}
+
 @Composable
 fun PlayerControls(
     modifier: Modifier = Modifier,
@@ -30,28 +53,52 @@ fun PlayerControls(
     bufferedPosition: Long,
     hasNext: Boolean,
     hasPrevious: Boolean,
+    isLandscape: Boolean,
     onPlayPauseToggle: () -> Unit,
     onSeek: (Long) -> Unit,
     onReplay: () -> Unit,
     onNextClick: () -> Unit,
-    onPreviousClick: () -> Unit
+    onPreviousClick: () -> Unit,
+    onInteraction: () -> Unit,
+    onBackClick: () -> Unit
 ) {
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(Color.Black.copy(alpha = 0.3f))
     ) {
-        // Center Controls (Previous, Play/Pause, Next) - Phase 7.6.3
+        // Top Controls (Back Button) - Added in Phase 8.1.6
+        Row(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .fillMaxWidth()
+                .padding(if (isLandscape) 16.dp else 8.dp)
+                .statusBarsPadding(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onBackClick) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Back",
+                    tint = Color.White
+                )
+            }
+        }
+
+        // Center Controls (Previous, Play/Pause, Next)
         Row(
             modifier = Modifier.align(Alignment.Center),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(32.dp)
+            horizontalArrangement = Arrangement.spacedBy(if (isLandscape) 64.dp else 32.dp)
         ) {
             // Previous Episode Button
             IconButton(
-                onClick = onPreviousClick,
+                onClick = { 
+                    onPreviousClick()
+                    onInteraction()
+                },
                 enabled = hasPrevious,
-                modifier = Modifier.size(48.dp)
+                modifier = Modifier.size(if (isLandscape) 56.dp else 48.dp)
             ) {
                 Icon(
                     imageVector = Icons.Default.SkipPrevious,
@@ -63,11 +110,20 @@ fun PlayerControls(
 
             // Main Play/Pause/Replay Button
             if (playbackState == Player.STATE_ENDED) {
-                ReplayButton(onClick = onReplay)
+                ReplayButton(
+                    onClick = {
+                        onReplay()
+                        onInteraction()
+                    },
+                    isLandscape = isLandscape
+                )
             } else {
                 IconButton(
-                    onClick = onPlayPauseToggle,
-                    modifier = Modifier.size(64.dp)
+                    onClick = {
+                        onPlayPauseToggle()
+                        onInteraction()
+                    },
+                    modifier = Modifier.size(if (isLandscape) 84.dp else 64.dp)
                 ) {
                     Icon(
                         imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
@@ -80,9 +136,12 @@ fun PlayerControls(
 
             // Next Episode Button
             IconButton(
-                onClick = onNextClick,
+                onClick = {
+                    onNextClick()
+                    onInteraction()
+                },
                 enabled = hasNext,
-                modifier = Modifier.size(48.dp)
+                modifier = Modifier.size(if (isLandscape) 56.dp else 48.dp)
             ) {
                 Icon(
                     imageVector = Icons.Default.SkipNext,
@@ -98,13 +157,16 @@ fun PlayerControls(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(horizontal = if (isLandscape) 32.dp else 16.dp)
+                .padding(bottom = if (isLandscape) 24.dp else 16.dp)
+                .navigationBarsPadding()
         ) {
             PlaybackSlider(
                 currentPosition = currentPosition,
                 duration = duration,
                 bufferedPosition = bufferedPosition,
-                onSeek = onSeek
+                onSeek = onSeek,
+                onInteraction = onInteraction
             )
             
             Row(
@@ -123,13 +185,14 @@ fun PlaybackSlider(
     currentPosition: Long,
     duration: Long,
     bufferedPosition: Long,
-    onSeek: (Long) -> Unit
+    onSeek: (Long) -> Unit,
+    onInteraction: () -> Unit
 ) {
     var sliderPosition by remember(currentPosition) { mutableFloatStateOf(currentPosition.toFloat()) }
     var isDragging by remember { mutableStateOf(false) }
 
     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-        // Buffer Indicator (Secondary Track)
+        // Buffer Indicator
         if (duration > 0) {
             LinearProgressIndicator(
                 progress = { bufferedPosition.toFloat() / duration.toFloat() },
@@ -147,10 +210,12 @@ fun PlaybackSlider(
             onValueChange = {
                 isDragging = true
                 sliderPosition = it
+                onInteraction() // Reset timer during drag
             },
             onValueChangeFinished = {
                 isDragging = false
                 onSeek(sliderPosition.toLong())
+                onInteraction() // Reset timer after drag
             },
             valueRange = 0f..duration.toFloat().coerceAtLeast(1f),
             colors = SliderDefaults.colors(
@@ -184,10 +249,13 @@ fun PlaybackTimer(positionMs: Long) {
 }
 
 @Composable
-fun ReplayButton(onClick: () -> Unit) {
+fun ReplayButton(
+    onClick: () -> Unit,
+    isLandscape: Boolean = false
+) {
     IconButton(
         onClick = onClick,
-        modifier = Modifier.size(64.dp)
+        modifier = Modifier.size(if (isLandscape) 84.dp else 64.dp)
     ) {
         Icon(
             imageVector = Icons.Default.Replay,

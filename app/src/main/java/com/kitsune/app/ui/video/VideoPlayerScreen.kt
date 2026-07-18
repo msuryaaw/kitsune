@@ -2,7 +2,6 @@ package com.kitsune.app.ui.video
 
 import android.app.Activity
 import android.content.res.Configuration
-import android.view.View
 import androidx.annotation.OptIn
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -16,7 +15,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -29,7 +27,7 @@ import androidx.media3.ui.PlayerView
 
 /**
  * Screen untuk pemutaran video menggunakan ExoPlayer dengan kontrol kustom.
- * REVISION 8.1.6: Added Landscape UI Adaptation & Immersive Mode.
+ * REVISION 8.2.6: Gesture UX Final Polish (Overlay, Animation, & Conflict Resolution).
  */
 @OptIn(UnstableApi::class)
 @Composable
@@ -50,8 +48,7 @@ fun VideoPlayerScreen(
         viewModel.updateOrientation(configuration.orientation == Configuration.ORIENTATION_LANDSCAPE)
     }
 
-    // SYSTEM UI ADAPTATION (Phase 8.1.6)
-    // Handle Immersive Mode for Landscape
+    // SYSTEM UI ADAPTATION
     val activity = context as? Activity
     DisposableEffect(isLandscape) {
         if (isLandscape && activity != null) {
@@ -73,13 +70,36 @@ fun VideoPlayerScreen(
         }
     }
 
-    // Visibility State (Phase 8.1.2)
+    // Visibility State
     val isControlsVisible by viewModel.isControlsVisible.collectAsState()
 
-    // Resume Dialog State (Phase 7.7.2)
+    // Resume Dialog State
     val showResumeDialog by viewModel.showResumeDialog.collectAsState()
 
-    // PlayerView dibuat satu kali menggunakan remember
+    // Gesture States (Phase 8.2.4 - 8.2.6)
+    val gestureState by viewModel.gestureState.collectAsState()
+    val gestureDirection by viewModel.gestureDirection.collectAsState()
+    val gestureArea by viewModel.gestureArea.collectAsState()
+    
+    val seekPreviewPosition by viewModel.seekPreviewPosition.collectAsState()
+    val seekPreviewDelta by viewModel.seekPreviewDelta.collectAsState()
+    
+    val brightnessPreview by viewModel.brightnessPreview.collectAsState()
+    val volumePreview by viewModel.volumePreview.collectAsState()
+    val maxVolume by viewModel.maxVolume.collectAsState()
+    
+    val currentPosition by viewModel.currentPosition.collectAsState()
+    val duration by viewModel.duration.collectAsState()
+
+    // BRIGHTNESS REAL-TIME UPDATE (Phase 8.2.5)
+    LaunchedEffect(brightnessPreview) {
+        if (brightnessPreview >= 0f && activity != null) {
+            val params = activity.window.attributes
+            params.screenBrightness = brightnessPreview
+            activity.window.attributes = params
+        }
+    }
+
     val playerView = remember {
         PlayerView(context).apply {
             useController = false
@@ -87,12 +107,10 @@ fun VideoPlayerScreen(
         }
     }
 
-    // Hubungkan player ke PlayerView saat player siap
     LaunchedEffect(player) {
         playerView.player = player
     }
 
-    // Lifecycle Management: Pause saat background
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
@@ -111,7 +129,6 @@ fun VideoPlayerScreen(
         }
     }
 
-    // Cleanup saat keluar dari komposisi
     DisposableEffect(Unit) {
         onDispose {
             playerView.player = null
@@ -141,9 +158,15 @@ fun VideoPlayerScreen(
                 modifier = Modifier.fillMaxSize()
             )
 
-            // INTERACTION LAYER (Phase 8.1.4)
+            // INTERACTION LAYER (Connected to Gesture Foundation)
             PlayerInteractionLayer(
-                onTap = { viewModel.toggleControls() }
+                onTap = { viewModel.toggleControls() },
+                onDown = { x, width -> 
+                    val currentBrightness = activity?.window?.attributes?.screenBrightness ?: -1f
+                    viewModel.onGestureDown(x, width, currentBrightness) 
+                },
+                onMove = { dx, dy -> viewModel.onGestureMove(dx, dy) },
+                onUp = { viewModel.onGestureUp() }
             )
 
             // Buffering Indicator
@@ -155,14 +178,26 @@ fun VideoPlayerScreen(
                 )
             }
 
-            // Custom Controls Overlay (Phase 8.1.6: Responsive Layout)
+            // --- GESTURE PREVIEW UI (Phase 8.2.6 Final Polish) ---
+            GesturePreviewOverlay(
+                modifier = Modifier.align(Alignment.Center),
+                isVisible = gestureState == GestureState.ACTIVE || gestureState == GestureState.FINISHED,
+                gestureDirection = gestureDirection,
+                gestureArea = gestureArea,
+                seekPreviewDelta = seekPreviewDelta,
+                seekPreviewPosition = seekPreviewPosition,
+                currentPosition = currentPosition,
+                duration = duration,
+                brightnessPreview = brightnessPreview,
+                volumePreview = volumePreview,
+                maxVolume = maxVolume
+            )
+
+            // Custom Controls Overlay
             val isPlaying by viewModel.isPlaying.collectAsState()
             val playbackState by viewModel.playbackState.collectAsState()
-            val currentPosition by viewModel.currentPosition.collectAsState()
-            val duration by viewModel.duration.collectAsState()
             val bufferedPosition by viewModel.bufferedPosition.collectAsState()
             
-            // Sequential States (Phase 7.6.3)
             val hasNext by viewModel.hasNext.collectAsState()
             val hasPrevious by viewModel.hasPrevious.collectAsState()
 
@@ -190,7 +225,7 @@ fun VideoPlayerScreen(
                 )
             }
 
-            // Resume Playback Dialog (Phase 7.7.2)
+            // Resume Playback Dialog
             showResumeDialog?.let { progress ->
                 AlertDialog(
                     onDismissRequest = { /* Force choice */ },

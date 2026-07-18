@@ -1,6 +1,8 @@
 package com.kitsune.app.ui.video
 
 import android.app.Application
+import android.content.Context
+import android.media.AudioManager
 import android.net.Uri
 import androidx.annotation.OptIn
 import androidx.core.net.toUri
@@ -19,8 +21,23 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 
 /**
+ * State untuk siklus hidup gesture.
+ */
+enum class GestureState { IDLE, DETECTING, ACTIVE, FINISHED }
+
+/**
+ * Arah deteksi gesture.
+ */
+enum class GestureDirection { HORIZONTAL, VERTICAL, UNKNOWN }
+
+/**
+ * Area awal interaksi gesture.
+ */
+enum class GestureArea { LEFT, CENTER, RIGHT }
+
+/**
  * ViewModel untuk mengelola instance ExoPlayer dan lifecycle pemutaran video secara sekuensial.
- * REVISION 8.1.5: Added Orientation Foundation.
+ * REVISION 8.2.5: Implementasi Vertical Brightness & Volume Gesture.
  */
 class VideoPlayerViewModel(
     application: Application,
@@ -92,6 +109,56 @@ class VideoPlayerViewModel(
     private val _isRestoring = MutableStateFlow(false)
     val isRestoring: StateFlow<Boolean> = _isRestoring.asStateFlow()
 
+    // TRANSITION STABILIZATION (Phase 8.2.2)
+    private val _isTransitioning = MutableStateFlow(false)
+    val isTransitioning: StateFlow<Boolean> = _isTransitioning.asStateFlow()
+
+    private var loadJob: Job? = null
+
+    // GESTURE FOUNDATION (Phase 8.2.3)
+    private val _gestureState = MutableStateFlow(GestureState.IDLE)
+    val gestureState = _gestureState.asStateFlow()
+
+    private val _gestureDirection = MutableStateFlow(GestureDirection.UNKNOWN)
+    val gestureDirection = _gestureDirection.asStateFlow()
+
+    private val _gestureArea = MutableStateFlow(GestureArea.CENTER)
+    val gestureArea = _gestureArea.asStateFlow()
+
+    // HORIZONTAL SEEK GESTURE (Phase 8.2.4)
+    private val _seekPreviewPosition = MutableStateFlow(0L)
+    val seekPreviewPosition = _seekPreviewPosition.asStateFlow()
+
+    private val _seekPreviewDelta = MutableStateFlow(0L)
+    val seekPreviewDelta = _seekPreviewDelta.asStateFlow()
+
+    private var totalSeekDelta = 0f
+    private var initialSeekPosition = 0L
+    private var totalDx = 0f
+    private var totalDy = 0f
+
+    // VERTICAL BRIGHTNESS & VOLUME GESTURE (Phase 8.2.5)
+    private val _brightnessPreview = MutableStateFlow(-1f)
+    val brightnessPreview = _brightnessPreview.asStateFlow()
+
+    private val _volumePreview = MutableStateFlow(-1)
+    val volumePreview = _volumePreview.asStateFlow()
+
+    private val _maxVolume = MutableStateFlow(0)
+    val maxVolume = _maxVolume.asStateFlow()
+
+    private val audioManager = application.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    private var initialBrightnessValue = -1f
+    private var verticalVolumeAccumulator = 0f
+
+    companion object {
+        // GESTURE CONFIGURATION (Phase 8.2.4 & 8.2.5)
+        private const val GESTURE_THRESHOLD = 30f 
+        private const val SEEK_SENSITIVITY = 150L // ms per pixel drag
+        private const val BRIGHTNESS_SENSITIVITY = 500f // pixels for full range
+        private const val VOLUME_SENSITIVITY = 40f // pixels per volume step
+    }
+
     // VISIBILITY FOUNDATION (Phase 8.1.2)
     private val _isControlsVisible = MutableStateFlow(true)
     val isControlsVisible: StateFlow<Boolean> = _isControlsVisible.asStateFlow()
@@ -112,11 +179,13 @@ class VideoPlayerViewModel(
     private fun initializeSequentialPlayer() {
         viewModelScope.launch {
             try {
+                _isTransitioning.value = true
                 val settings = settingsRepository.settings.first()
                 val rootUriString = settings?.rootFolderUri
 
                 if (rootUriString.isNullOrEmpty()) {
                     _errorState.value = "Library not configured"
+                    _isTransitioning.value = false
                     return@launch
                 }
 
@@ -125,6 +194,7 @@ class VideoPlayerViewModel(
                 val episodeList = videoRepository.getEpisodes(rootUri!!, videoRelativePath)
                 if (episodeList.isEmpty()) {
                     _errorState.value = "No episodes found"
+                    _isTransitioning.value = false
                     return@launch
                 }
                 _episodes.value = episodeList
@@ -132,6 +202,7 @@ class VideoPlayerViewModel(
                 val index = episodeList.indexOfFirst { it.relativePath == episodeRelativePath }
                 if (index == -1) {
                     _errorState.value = "Episode not found in library"
+                    _isTransitioning.value = false
                     return@launch
                 }
                 
@@ -156,6 +227,7 @@ class VideoPlayerViewModel(
 
             } catch (e: Exception) {
                 _errorState.value = "Initialization Error: ${e.message}"
+                _isTransitioning.value = false
             }
         }
     }
@@ -222,22 +294,28 @@ class VideoPlayerViewModel(
 
     /**
      * Menangani kondisi saat pemutaran video selesai (Phase 7.6.4).
+     * REVISION 8.2.2: Perbaikan double save pada end-of-playback.
      */
     private fun handlePlaybackEnded() {
-        viewModelScope.launch {
-            saveCurrentProgress()
-            if (hasNext.value) {
-                nextEpisode()
+        if (hasNext.value) {
+            // nextEpisode() akan menangani penyimpanan progress secara internal
+            nextEpisode()
+        } else {
+            // Jika episode terakhir, lakukan final save
+            viewModelScope.launch {
+                saveCurrentProgress(isFinal = true)
             }
         }
     }
 
     /**
      * Menyimpan progres menonton video ke database (Phase 7.7.1).
+     * REVISION 8.2.2: Pencegahan penyimpanan posisi tidak valid selama transisi.
      */
     private suspend fun saveCurrentProgress(isFinal: Boolean = false) {
-        // JANGAN menyimpan progres jika sedang dalam proses restore dialog
+        // JANGAN menyimpan progres jika sedang dalam proses restore dialog atau transisi (kecuali final save)
         if (_isRestoring.value) return
+        if (_isTransitioning.value && !isFinal) return
 
         val player = _player.value ?: return
         val episode = _currentEpisode.value ?: return
@@ -245,9 +323,10 @@ class VideoPlayerViewModel(
         val position = player.currentPosition
         val duration = player.duration
 
-        if (position < 3000L) return
+        // Validasi posisi: Jangan simpan jika terlalu awal atau player sedang reset (0)
+        if (position < 3000L && !isFinal) return
         if (duration <= 0L) return
-        if (player.playbackState == Player.STATE_BUFFERING) return
+        if (player.playbackState == Player.STATE_BUFFERING && !isFinal) return
         if (position == lastSavedPosition && !isFinal) return
 
         lastSavedPosition = position
@@ -313,32 +392,55 @@ class VideoPlayerViewModel(
 
     /**
      * Mengganti MediaItem pada instance player yang sudah ada.
+     * REVISION 8.2.2: Implementasi Load Job Management untuk transisi serial.
      */
     private fun loadMediaItem(episode: Episode, autoPlay: Boolean = true) {
         val player = _player.value ?: return
         val currentRoot = rootUri ?: return
 
-        val mediaItem = if (preloadedMediaItem != null && 
-            episode.relativePath == _episodes.value.getOrNull(_currentEpisodeIndex.value)?.relativePath) {
-            preloadedMediaItem!!
-        } else {
-            val videoUri = videoRepository.getEpisodeUri(currentRoot, episode.relativePath)
-            if (videoUri == null) {
-                _errorState.value = "Video file not found: ${episode.name}"
-                return
+        // Batalkan proses loading sebelumnya jika ada (Rapid Navigation Safety)
+        loadJob?.cancel()
+        
+        loadJob = viewModelScope.launch {
+            try {
+                // Resolusi URI dilakukan di IO thread
+                val mediaItem = withContext(Dispatchers.IO) {
+                    if (preloadedMediaItem != null && 
+                        episode.relativePath == _episodes.value.getOrNull(_currentEpisodeIndex.value)?.relativePath) {
+                        preloadedMediaItem!!
+                    } else {
+                        val videoUri = videoRepository.getEpisodeUri(currentRoot, episode.relativePath)
+                        if (videoUri == null) {
+                            null
+                        } else {
+                            MediaItem.fromUri(videoUri)
+                        }
+                    }
+                }
+                
+                if (mediaItem == null) {
+                    _errorState.value = "Video file not found: ${episode.name}"
+                    return@launch
+                }
+
+                preloadedMediaItem = null
+                
+                player.setMediaItem(mediaItem)
+                player.prepare()
+                
+                player.playWhenReady = autoPlay
+                if (autoPlay) player.play()
+                
+                preloadNextEpisode()
+            } catch (e: CancellationException) {
+                // Diabaikan karena ini hasil dari loadJob.cancel()
+            } catch (e: Exception) {
+                _errorState.value = "Load Error: ${e.message}"
+            } finally {
+                // Reset flag transisi setelah proses selesai atau dibatalkan
+                _isTransitioning.value = false
             }
-            MediaItem.fromUri(videoUri)
         }
-        
-        preloadedMediaItem = null
-        
-        player.setMediaItem(mediaItem)
-        player.prepare()
-        
-        player.playWhenReady = autoPlay
-        if (autoPlay) player.play()
-        
-        preloadNextEpisode()
     }
 
     /**
@@ -359,6 +461,7 @@ class VideoPlayerViewModel(
     }
 
     fun nextEpisode() {
+        if (_isTransitioning.value) return
         val nextIndex = _currentEpisodeIndex.value + 1
         if (nextIndex < _episodes.value.size) {
             goToEpisode(nextIndex)
@@ -367,6 +470,7 @@ class VideoPlayerViewModel(
     }
 
     fun previousEpisode() {
+        if (_isTransitioning.value) return
         val prevIndex = _currentEpisodeIndex.value - 1
         if (prevIndex >= 0) {
             goToEpisode(prevIndex)
@@ -376,23 +480,30 @@ class VideoPlayerViewModel(
 
     /**
      * Navigasi ke episode tertentu berdasarkan index.
-     * Resume Dialog TIDAK muncul di sini (hanya saat first open).
+     * REVISION 8.2.2: Penambahan Transition Lock dan Atomic State Updates.
      */
     fun goToEpisode(index: Int) {
+        if (_isTransitioning.value) return // Block rapid input
+
         val episodeList = _episodes.value
         if (index < 0 || index >= episodeList.size) return
 
         viewModelScope.launch {
-            saveCurrentProgress()
+            // 1. Kunci transisi
+            _isTransitioning.value = true
+
+            // 2. Simpan progres episode saat ini secara sinkron (suspend)
+            saveCurrentProgress(isFinal = true)
             
+            // 3. Update metadata
             val episode = episodeList[index]
             _currentEpisodeIndex.value = index
             _currentEpisode.value = episode
             
-            // Nonaktifkan restore flag jika pindah episode manual/auto
             _isRestoring.value = false
             _showResumeDialog.value = null
             
+            // 4. Trigger pemuatan media baru
             loadMediaItem(episode, autoPlay = true)
         }
     }
@@ -411,8 +522,8 @@ class VideoPlayerViewModel(
                     _currentPosition.value = player.currentPosition
                     _bufferedPosition.value = player.bufferedPosition
                     
-                    // JANGAN polling save jika sedang dalam dialog restore
-                    if (!_isRestoring.value && player.isPlaying && System.currentTimeMillis() - lastSaveTime >= 5000L) {
+                    // JANGAN polling save jika sedang dalam dialog restore atau transisi
+                    if (!_isRestoring.value && !_isTransitioning.value && player.isPlaying && System.currentTimeMillis() - lastSaveTime >= 5000L) {
                         saveCurrentProgress()
                         lastSaveTime = System.currentTimeMillis()
                     }
@@ -436,8 +547,8 @@ class VideoPlayerViewModel(
     }
 
     fun togglePlayPause() {
-        // JANGAN toggle jika sedang dalam dialog restore
-        if (_isRestoring.value) return
+        // JANGAN toggle jika sedang dalam dialog restore atau transisi
+        if (_isRestoring.value || _isTransitioning.value) return
 
         _player.value?.let {
             val nextState = !it.playWhenReady
@@ -456,13 +567,132 @@ class VideoPlayerViewModel(
         userInteraction()
     }
 
+    // --- GESTURE DISPATCHER (Phase 8.2.3) ---
+
+    /**
+     * Menangani event awal sentuhan.
+     * Mengidentifikasi area interaksi (Left, Center, Right).
+     */
+    fun onGestureDown(x: Float, viewWidth: Float, currentBrightness: Float) {
+        userInteraction()
+        _gestureState.value = GestureState.DETECTING
+        
+        _gestureArea.value = when {
+            x < viewWidth / 3 -> GestureArea.LEFT
+            x > viewWidth * 2 / 3 -> GestureArea.RIGHT
+            else -> GestureArea.CENTER
+        }
+
+        // Initialize Gesture Data (Phase 8.2.4)
+        totalDx = 0f
+        totalDy = 0f
+        totalSeekDelta = 0f
+        initialSeekPosition = _currentPosition.value
+
+        // Phase 8.2.5
+        initialBrightnessValue = if (currentBrightness < 0) 0.5f else currentBrightness
+        _maxVolume.value = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+        _volumePreview.value = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+        verticalVolumeAccumulator = 0f
+    }
+
+    /**
+     * Menangani pergerakan gesture.
+     * Mengidentifikasi arah pergerakan (Horizontal, Vertical).
+     */
+    fun onGestureMove(dx: Float, dy: Float) {
+        userInteraction()
+
+        if (_gestureState.value == GestureState.DETECTING) {
+            totalDx += dx
+            totalDy += dy
+            val absTotalDx = kotlin.math.abs(totalDx)
+            val absTotalDy = kotlin.math.abs(totalDy)
+            
+            if (absTotalDx > GESTURE_THRESHOLD || absTotalDy > GESTURE_THRESHOLD) {
+                _gestureState.value = GestureState.ACTIVE
+                _gestureDirection.value = if (absTotalDx > absTotalDy) {
+                    GestureDirection.HORIZONTAL
+                } else {
+                    GestureDirection.VERTICAL
+                }
+
+                // Initialize accumulators based on direction
+                if (_gestureDirection.value == GestureDirection.HORIZONTAL) {
+                    totalSeekDelta = totalDx
+                } else {
+                    verticalVolumeAccumulator = 0f
+                }
+            }
+        }
+
+        // Handle Horizontal Seek Logic (Phase 8.2.4)
+        if (_gestureState.value == GestureState.ACTIVE && _gestureDirection.value == GestureDirection.HORIZONTAL) {
+            totalSeekDelta += dx
+            val offsetMs = (totalSeekDelta * SEEK_SENSITIVITY).toLong()
+            val newPosition = (initialSeekPosition + offsetMs).coerceIn(0L, _duration.value)
+
+            _seekPreviewPosition.value = newPosition
+            _seekPreviewDelta.value = offsetMs
+        }
+
+        // Handle Vertical Brightness & Volume (Phase 8.2.5)
+        if (_gestureState.value == GestureState.ACTIVE && _gestureDirection.value == GestureDirection.VERTICAL) {
+            if (_gestureArea.value == GestureArea.LEFT) {
+                // Brightness
+                val delta = -dy / BRIGHTNESS_SENSITIVITY
+                val current = _brightnessPreview.value.let { if (it < 0f) initialBrightnessValue else it }.coerceAtLeast(0f)
+                _brightnessPreview.value = (current + delta).coerceIn(0.01f, 1f)
+            } else if (_gestureArea.value == GestureArea.RIGHT || _gestureArea.value == GestureArea.CENTER) {
+                // Volume
+                verticalVolumeAccumulator -= dy
+                if (kotlin.math.abs(verticalVolumeAccumulator) >= VOLUME_SENSITIVITY) {
+                    val steps = (verticalVolumeAccumulator / VOLUME_SENSITIVITY).toInt()
+                    val currentVol = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+                    val newVol = (currentVol + steps).coerceIn(0, _maxVolume.value)
+                    
+                    audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVol, 0)
+                    _volumePreview.value = newVol
+                    verticalVolumeAccumulator -= steps * VOLUME_SENSITIVITY
+                }
+            }
+        }
+    }
+
+    /**
+     * Menangani penyelesaian gesture.
+     * REVISION 8.2.4: Added Commit Seek logic.
+     * REVISION 8.2.5: Added Vertical reset logic.
+     */
+    fun onGestureUp() {
+        if (_gestureState.value == GestureState.ACTIVE && _gestureDirection.value == GestureDirection.HORIZONTAL) {
+            seekTo(_seekPreviewPosition.value)
+        }
+
+        _gestureState.value = GestureState.FINISHED
+        
+        viewModelScope.launch {
+            delay(500) // Visual feedback duration placeholder
+            if (_gestureState.value == GestureState.FINISHED) {
+                _gestureState.value = GestureState.IDLE
+                _gestureDirection.value = GestureDirection.UNKNOWN
+                // Reset Preview States (Phase 8.2.4 & 8.2.5)
+                _seekPreviewPosition.value = 0L
+                _seekPreviewDelta.value = 0L
+                _brightnessPreview.value = -1f
+                _volumePreview.value = -1
+            }
+        }
+    }
+
     override fun onCleared() {
         // FINAL SAVE TRIGGER
         val player = _player.value
         val episode = _currentEpisode.value
         val isRestoring = _isRestoring.value
+        val isTransitioning = _isTransitioning.value
 
-        if (!isRestoring && player != null && episode != null) {
+        if (!isRestoring && !isTransitioning && player != null && episode != null) {
             val pos = player.currentPosition
             val dur = player.duration
             if (pos >= 3000L && dur > 0L) {
@@ -488,8 +718,8 @@ class VideoPlayerViewModel(
     }
     
     fun onPlayPause(play: Boolean) {
-        // JANGAN force play/pause jika sedang dalam dialog restore
-        if (_isRestoring.value) return
+        // JANGAN force play/pause jika sedang dalam dialog restore atau transisi
+        if (_isRestoring.value || _isTransitioning.value) return
 
         playWhenReady = play
         _player.value?.playWhenReady = play

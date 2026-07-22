@@ -1,6 +1,7 @@
 package com.kitsune.app.ui.video
 
 import android.app.Activity
+import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import androidx.annotation.OptIn
 import androidx.compose.animation.AnimatedVisibility
@@ -28,6 +29,7 @@ import androidx.media3.ui.PlayerView
 /**
  * Screen untuk pemutaran video menggunakan ExoPlayer dengan kontrol kustom.
  * REVISION 8.2.6: Gesture UX Final Polish (Overlay, Animation, & Conflict Resolution).
+ * REVISION 8.3.2: Implementasi Manual Orientation Toggle.
  */
 @OptIn(UnstableApi::class)
 @Composable
@@ -132,6 +134,8 @@ fun VideoPlayerScreen(
     DisposableEffect(Unit) {
         onDispose {
             playerView.player = null
+            // Reset to default when leaving the screen
+            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         }
     }
 
@@ -220,6 +224,16 @@ fun VideoPlayerScreen(
                     onReplay = { viewModel.replay() },
                     onNextClick = { viewModel.nextEpisode() },
                     onPreviousClick = { viewModel.previousEpisode() },
+                    onToggleOrientation = {
+                        if (activity != null) {
+                            val targetOrientation = if (isLandscape) {
+                                ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                            } else {
+                                ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+                            }
+                            activity.requestedOrientation = targetOrientation
+                        }
+                    },
                     onInteraction = { viewModel.userInteraction() },
                     onBackClick = onBackClick
                 )

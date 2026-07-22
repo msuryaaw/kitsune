@@ -10,6 +10,7 @@ import com.kitsune.app.database.entity.VideoProgressEntity
 import com.kitsune.app.domain.model.Episode
 import com.kitsune.app.domain.model.LastWatchedVideo
 import com.kitsune.app.domain.model.Video
+import com.kitsune.app.domain.model.VideoStatistics
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
@@ -18,6 +19,8 @@ import kotlinx.coroutines.withContext
 /**
  * Repository untuk mengelola data video.
  * REVISION 7.7.5: Implementasi History Cleanup & Database Maintenance.
+ * REVISION 8.3.4: Added Clear Watching History support.
+ * REVISION 8.3.5: Added Video Statistics support.
  */
 class VideoRepository(
     private val videoDao: VideoDao,
@@ -157,6 +160,34 @@ class VideoRepository(
      */
     suspend fun deleteEpisodeProgress(episodePath: String) {
         videoDao.deleteEpisodeProgress(episodePath)
+    }
+
+    /**
+     * Menghapus seluruh riwayat menonton video (Phase 8.3.4).
+     */
+    suspend fun clearWatchingHistory() {
+        videoDao.deleteAllProgress()
+    }
+
+    // --- Statistics (Phase 8.3.5) ---
+
+    /**
+     * Mengamati statistik penggunaan Video Engine secara terpadu.
+     */
+    fun getVideoStatistics(): Flow<VideoStatistics> {
+        return combine(
+            videoDao.getTotalVideoCount(),
+            videoDao.getWatchedVideoCount(),
+            videoDao.getCompletedVideoCount(),
+            videoDao.getTotalWatchTimeMs()
+        ) { total, watched, completed, watchTime ->
+            VideoStatistics(
+                totalVideos = total,
+                watchedVideos = watched,
+                completedVideos = completed,
+                totalWatchTimeMs = watchTime ?: 0L
+            )
+        }.distinctUntilChanged()
     }
 
     // --- Continue Watching Foundation (Phase 7.7.3.1) ---

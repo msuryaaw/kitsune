@@ -26,14 +26,6 @@ class LibraryViewModel(
 
     private val _errorMessage = MutableStateFlow<String?>(null)
 
-    // Selection State (Spesifik Komik saat ini)
-    private val _selectedPaths = MutableStateFlow<Set<String>>(emptySet())
-    val selectedPaths: StateFlow<Set<String>> = _selectedPaths.asStateFlow()
-
-    val selectionMode: StateFlow<Boolean> = _selectedPaths
-        .map { it.isNotEmpty() }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
-
     /**
      * REVISION 6.7.8: Added distinctUntilChanged to ensure stable set references.
      */
@@ -132,24 +124,11 @@ class LibraryViewModel(
     }
 
     // Selection Methods
-    fun toggleSelection(path: String) {
-        val current = _selectedPaths.value
-        if (current.contains(path)) {
-            _selectedPaths.value = current - path
-        } else {
-            _selectedPaths.value = current + path
-        }
-    }
-
     fun selectAll() {
         val state = uiState.value
         if (state is LibraryUiState.Success) {
             _selectedPaths.value = state.comics.map { it.relativePath }.toSet()
         }
-    }
-
-    fun clearSelection() {
-        _selectedPaths.value = emptySet()
     }
 
     // Bulk Operations

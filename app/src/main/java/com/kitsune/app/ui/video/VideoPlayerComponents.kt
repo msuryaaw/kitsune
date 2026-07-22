@@ -27,6 +27,7 @@ import androidx.media3.common.Player
  * Komponen overlay untuk kontrol pemutar video.
  * REVISION 8.2.3: Added Gesture Foundation Support to Interaction Layer.
  * REVISION 8.2.6: Added GesturePreviewOverlay for Polished UX.
+ * REVISION 8.3.2: Added Manual Orientation Toggle Button.
  */
 
 /**
@@ -257,6 +258,7 @@ fun PlayerControls(
     onReplay: () -> Unit,
     onNextClick: () -> Unit,
     onPreviousClick: () -> Unit,
+    onToggleOrientation: () -> Unit,
     onInteraction: () -> Unit,
     onBackClick: () -> Unit
 ) {
@@ -369,10 +371,30 @@ fun PlayerControls(
             
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 PlaybackTimer(positionMs = currentPosition)
-                PlaybackTimer(positionMs = duration)
+                
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    PlaybackTimer(positionMs = duration)
+                    
+                    Spacer(modifier = Modifier.width(if (isLandscape) 16.dp else 8.dp))
+                    
+                    // REVISION 8.3.2: Manual Orientation Toggle Button
+                    IconButton(
+                        onClick = {
+                            onToggleOrientation()
+                            onInteraction()
+                        }
+                    ) {
+                        Icon(
+                            imageVector = if (isLandscape) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
+                            contentDescription = "Toggle Orientation",
+                            tint = Color.White
+                        )
+                    }
+                }
             }
         }
     }

@@ -18,14 +18,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.kitsune.app.core.StorageHelper
 import com.kitsune.app.database.entity.SettingsEntity
+import com.kitsune.app.domain.model.VideoStatistics
 import kotlinx.coroutines.flow.collectLatest
 
 /**
  * Layar pengaturan aplikasi (Settings).
  * Menangani konfigurasi reader, library, storage, appearance, dan menampilkan statistik.
+ * REVISION 8.3.4: Added Clear Watching History support.
+ * REVISION 8.3.5: Integrated Video Statistics.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -41,6 +45,7 @@ fun OtherScreen(
     var showGridSizeDialog by remember { mutableStateOf(false) }
     var showThemeDialog by remember { mutableStateOf(false) }
     var showClearHistoryDialog by remember { mutableStateOf(false) }
+    var showClearWatchingHistoryDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         viewModel.snackbarMessage.collectLatest { message ->
@@ -94,13 +99,15 @@ fun OtherScreen(
                         comicCount = state.comicCount,
                         bookmarkCount = state.bookmarkCount,
                         playlistCount = state.playlistCount,
+                        videoStatistics = state.videoStatistics,
                         isRescanning = isRescanning,
                         onReadingModeClick = { showReadingModeDialog = true },
                         onGridSizeClick = { showGridSizeDialog = true },
                         onThemeClick = { showThemeDialog = true },
                         onChangeRootClick = { folderPickerLauncher.launch(null) },
                         onRescanClick = { viewModel.rescanLibrary() },
-                        onClearHistoryClick = { showClearHistoryDialog = true }
+                        onClearHistoryClick = { showClearHistoryDialog = true },
+                        onClearWatchingHistoryClick = { showClearWatchingHistoryDialog = true }
                     )
 
                     if (showReadingModeDialog) {
@@ -145,6 +152,16 @@ fun OtherScreen(
                             onDismiss = { showClearHistoryDialog = false }
                         )
                     }
+
+                    if (showClearWatchingHistoryDialog) {
+                        ClearWatchingHistoryDialog(
+                            onConfirm = {
+                                viewModel.clearWatchingHistory()
+                                showClearWatchingHistoryDialog = false
+                            },
+                            onDismiss = { showClearWatchingHistoryDialog = false }
+                        )
+                    }
                 }
             }
         }
@@ -157,13 +174,15 @@ fun SettingsContent(
     comicCount: Int,
     bookmarkCount: Int,
     playlistCount: Int,
+    videoStatistics: VideoStatistics,
     isRescanning: Boolean,
     onReadingModeClick: () -> Unit,
     onGridSizeClick: () -> Unit,
     onThemeClick: () -> Unit,
     onChangeRootClick: () -> Unit,
     onRescanClick: () -> Unit,
-    onClearHistoryClick: () -> Unit
+    onClearHistoryClick: () -> Unit,
+    onClearWatchingHistoryClick: () -> Unit
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -225,6 +244,15 @@ fun SettingsContent(
                 onClick = onClearHistoryClick
             )
         }
+
+        item {
+            SettingsItem(
+                icon = Icons.Default.DeleteSweep,
+                title = "Clear Watching History",
+                subtitle = "Remove all video progress and history",
+                onClick = onClearWatchingHistoryClick
+            )
+        }
         
         item { SettingsSectionHeader("Statistics") }
         item {
@@ -234,11 +262,27 @@ fun SettingsContent(
                 tonalElevation = 2.dp
             ) {
                 Column(modifier = Modifier.padding(16.dp).fillMaxWidth()) {
-                    StatRow(label = "Total Comics", value = comicCount.toString())
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = Color.Gray.copy(alpha = 0.3f))
+                    Text("General", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+                    Spacer(modifier = Modifier.height(8.dp))
                     StatRow(label = "Total Bookmarks", value = bookmarkCount.toString())
                     HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = Color.Gray.copy(alpha = 0.3f))
                     StatRow(label = "Total Playlists", value = playlistCount.toString())
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text("Comic Statistics", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    StatRow(label = "Total Comics", value = comicCount.toString())
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text("Video Statistics", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    StatRow(label = "Total Videos", value = videoStatistics.totalVideos.toString())
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = Color.Gray.copy(alpha = 0.3f))
+                    StatRow(label = "Watched Videos", value = videoStatistics.watchedVideos.toString())
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = Color.Gray.copy(alpha = 0.3f))
+                    StatRow(label = "Completed Videos", value = videoStatistics.completedVideos.toString())
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = Color.Gray.copy(alpha = 0.3f))
+                    StatRow(label = "Total Watch Time", value = formatWatchTime(videoStatistics.totalWatchTimeMs))
                 }
             }
         }
@@ -269,6 +313,13 @@ fun SettingsContent(
             )
         }
     }
+}
+
+private fun formatWatchTime(ms: Long): String {
+    val totalMinutes = ms / (1000 * 60)
+    val hours = totalMinutes / 60
+    val minutes = totalMinutes % 60
+    return if (hours > 0) "${hours}h ${minutes}m" else "${minutes}m"
 }
 
 @Composable
@@ -448,6 +499,33 @@ fun ClearHistoryDialog(
                 colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
             ) {
                 Text("Clear")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+fun ClearWatchingHistoryDialog(
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Clear Watching History?") },
+        text = {
+            Text("Seluruh riwayat menonton video akan dihapus.\nProgress video tidak dapat dikembalikan.\n\nBookmarks and Playlists will NOT be deleted.")
+        },
+        confirmButton = {
+            TextButton(
+                onClick = onConfirm,
+                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+            ) {
+                Text("Delete")
             }
         },
         dismissButton = {

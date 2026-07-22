@@ -12,13 +12,16 @@ import com.kitsune.app.ui.components.media.MediaGrid
 /**
  * Grid Video Reusable dengan optimasi performa tinggi.
  * REVISION 7.8.5: Migrated to generic MediaGrid.
+ * REVISION 8.3.3: Added Selection support.
  */
 @Composable
 fun VideoGrid(
     videos: List<VideoItemState>,
     gridSize: Int,
+    selectedPaths: Set<String> = emptySet(),
     state: LazyGridState = rememberLazyGridState(),
-    onVideoClick: (Video) -> Unit
+    onVideoClick: (Video) -> Unit,
+    onVideoLongClick: (Video) -> Unit = {}
 ) {
     MediaGrid(
         items = videos,
@@ -27,15 +30,26 @@ fun VideoGrid(
         state = state,
         contentType = { "video" }
     ) { videoState ->
-        // Stable lambda to prevent redundant card recompositions
+        val isSelected = remember(selectedPaths, videoState.video.relativePath) {
+            selectedPaths.contains(videoState.video.relativePath)
+        }
+
+        // Stable lambdas to prevent redundant card recompositions
         val currentOnVideoClick by rememberUpdatedState(onVideoClick)
+        val currentOnVideoLongClick by rememberUpdatedState(onVideoLongClick)
+        
         val onClick = remember(videoState.video.relativePath) { 
             { currentOnVideoClick(videoState.video) } 
+        }
+        val onLongClick = remember(videoState.video.relativePath) {
+            { currentOnVideoLongClick(videoState.video) }
         }
 
         VideoCard(
             state = videoState,
-            onClick = onClick
+            isSelected = isSelected,
+            onClick = onClick,
+            onLongClick = onLongClick
         )
     }
 }

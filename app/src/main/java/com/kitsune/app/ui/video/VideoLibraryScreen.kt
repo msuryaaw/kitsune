@@ -11,7 +11,12 @@ import androidx.compose.ui.unit.dp
 import com.kitsune.app.domain.model.Video
 import com.kitsune.app.ui.components.media.MediaLibraryScaffold
 import com.kitsune.app.ui.library.EmptyLibraryState
+import com.kitsune.app.ui.library.SelectionTopAppBar
 
+/**
+ * Screen untuk menampilkan daftar video dengan dukungan Selection Mode.
+ * REVISION 8.3.3: Implementasi Multi Selection dan Selection Top Bar.
+ */
 @Composable
 fun VideoLibraryScreen(
     viewModel: VideoLibraryViewModel,
@@ -20,6 +25,8 @@ fun VideoLibraryScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
+    val selectionMode by viewModel.selectionMode.collectAsState()
+    val selectedPaths by viewModel.selectedPaths.collectAsState()
 
     var isSearchActive by remember { mutableStateOf(false) }
 
@@ -29,7 +36,17 @@ fun VideoLibraryScreen(
         onQueryChange = viewModel::onSearchQueryChange,
         isSearchActive = isSearchActive,
         onSearchActiveChange = { isSearchActive = it },
-        onBackClick = onBackClick
+        onBackClick = onBackClick,
+        selectionTopBar = if (selectionMode) {
+            {
+                SelectionTopAppBar(
+                    selectedCount = selectedPaths.size,
+                    onCancel = { viewModel.clearSelection() },
+                    onSelectAll = { viewModel.selectAll() },
+                    actions = emptyList() // Batch actions akan ditambahkan pada phase berikutnya
+                )
+            }
+        } else null
     ) {
         when (val state = uiState) {
             is VideoLibraryUiState.Loading -> {
@@ -45,7 +62,17 @@ fun VideoLibraryScreen(
                 VideoGrid(
                     videos = state.videos,
                     gridSize = state.gridSize,
-                    onVideoClick = onVideoClick
+                    selectedPaths = selectedPaths,
+                    onVideoClick = { video ->
+                        if (selectionMode) {
+                            viewModel.toggleSelection(video.relativePath)
+                        } else {
+                            onVideoClick(video)
+                        }
+                    },
+                    onVideoLongClick = { video ->
+                        viewModel.toggleSelection(video.relativePath)
+                    }
                 )
             }
         }

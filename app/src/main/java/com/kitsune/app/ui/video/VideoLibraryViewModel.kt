@@ -15,6 +15,7 @@ import kotlinx.coroutines.launch
  * ViewModel untuk mengelola data pada layar Video Library.
  * REVISION 7.8.7: Migrasi ke BaseLibraryViewModel untuk standarisasi logika pencarian dan penyegaran.
  * REVISION 7.8.11: Integrasi CollectionRepository untuk indikator Bookmark dan Playlist.
+ * REVISION 8.3.3: Integrasi Selection Mode dari BaseLibraryViewModel.
  */
 class VideoLibraryViewModel(
     private val videoRepository: VideoRepository,
@@ -117,6 +118,15 @@ class VideoLibraryViewModel(
             } finally {
                 _isRefreshing.value = false
             }
+        }
+    }
+
+    // --- Selection Methods (Specific implementation) ---
+
+    fun selectAll() {
+        val state = uiState.value
+        if (state is VideoLibraryUiState.Success) {
+            _selectedPaths.value = state.videos.map { it.video.relativePath }.toSet()
         }
     }
 }

@@ -5,18 +5,22 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kitsune.app.data.repository.*
 import com.kitsune.app.database.entity.SettingsEntity
+import com.kitsune.app.domain.model.VideoStatistics
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 /**
  * ViewModel untuk mengelola pengaturan aplikasi dan statistik penyimpanan.
+ * REVISION 8.3.4: Added Video Watching History management.
+ * REVISION 8.3.5: Integrated Video Statistics.
  */
 class SettingsViewModel(
     private val settingsRepository: SettingsRepository,
     private val scannerRepository: ScannerRepository,
     private val bookmarkRepository: BookmarkRepository,
     private val playlistRepository: PlaylistRepository,
-    private val progressRepository: ReadingProgressRepository
+    private val progressRepository: ReadingProgressRepository,
+    private val videoRepository: VideoRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<SettingsUiState>(SettingsUiState.Loading)
@@ -38,8 +42,9 @@ class SettingsViewModel(
                 settingsRepository.settings,
                 scannerRepository.allComics,
                 bookmarkRepository.getAllBookmarksWithCount(),
-                playlistRepository.getAllPlaylistsWithCount()
-            ) { settings, comics, bookmarks, playlists ->
+                playlistRepository.getAllPlaylistsWithCount(),
+                videoRepository.getVideoStatistics()
+            ) { settings, comics, bookmarks, playlists, videoStats ->
                 if (settings == null) {
                     SettingsUiState.Error("Settings not initialized")
                 } else {
@@ -47,7 +52,8 @@ class SettingsViewModel(
                         settings = settings,
                         comicCount = comics.size,
                         bookmarkCount = bookmarks.size,
-                        playlistCount = playlists.size
+                        playlistCount = playlists.size,
+                        videoStatistics = videoStats
                     )
                 }
             }.catch { e ->
@@ -103,6 +109,16 @@ class SettingsViewModel(
     }
 
     /**
+     * Menghapus seluruh riwayat menonton video (Phase 8.3.4).
+     */
+    fun clearWatchingHistory() {
+        viewModelScope.launch {
+            videoRepository.clearWatchingHistory()
+            _snackbarMessage.emit("Watching history cleared")
+        }
+    }
+
+    /**
      * Memicu pemindaian manual untuk mendeteksi perubahan di filesystem.
      * REVISION 6.7.6: Ditambahkan guard agar rescan tidak berjalan paralel.
      */
@@ -132,7 +148,8 @@ sealed class SettingsUiState {
         val settings: SettingsEntity,
         val comicCount: Int,
         val bookmarkCount: Int,
-        val playlistCount: Int
+        val playlistCount: Int,
+        val videoStatistics: VideoStatistics = VideoStatistics()
     ) : SettingsUiState()
     data class Error(val message: String) : SettingsUiState()
 }

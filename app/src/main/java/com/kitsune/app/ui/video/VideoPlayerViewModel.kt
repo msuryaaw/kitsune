@@ -574,7 +574,7 @@ class VideoPlayerViewModel(
      * Mengidentifikasi area interaksi (Left, Center, Right).
      */
     fun onGestureDown(x: Float, viewWidth: Float, currentBrightness: Float) {
-        userInteraction()
+        userInteraction(isGesture = true)
         _gestureState.value = GestureState.DETECTING
         
         _gestureArea.value = when {
@@ -601,7 +601,7 @@ class VideoPlayerViewModel(
      * Mengidentifikasi arah pergerakan (Horizontal, Vertical).
      */
     fun onGestureMove(dx: Float, dy: Float) {
-        userInteraction()
+        userInteraction(isGesture = true)
 
         if (_gestureState.value == GestureState.DETECTING) {
             totalDx += dx
@@ -727,8 +727,21 @@ class VideoPlayerViewModel(
 
     // --- VISIBILITY API (Phase 8.1.3) ---
 
-    fun userInteraction() {
-        showControls()
+    /**
+     * Mencatat interaksi pengguna untuk mengelola visibilitas kontrol.
+     * @param isGesture Jika true, interaksi dianggap sebagai gesture dan tidak akan memicu munculnya kontrol.
+     */
+    fun userInteraction(isGesture: Boolean = false) {
+        if (isGesture) {
+            // REVISION 8.3.1: Gesture Policy
+            // Jika controls sedang tampil, reset timer agar tidak menghilang saat sedang gesture.
+            // Jika controls sedang sembunyi, tetap sembunyi (jangan panggil showControls).
+            if (_isControlsVisible.value) {
+                startAutoHideTimer()
+            }
+        } else {
+            showControls()
+        }
     }
 
     fun showControls() {

@@ -55,6 +55,9 @@ interface VideoDao {
     @Query("DELETE FROM video_progress WHERE episodeRelativePath IN (:episodePaths)")
     suspend fun deleteEpisodeProgressList(episodePaths: List<String>)
 
+    @Query("DELETE FROM video_progress")
+    suspend fun deleteAllProgress()
+
     @Query("SELECT * FROM video_progress ORDER BY lastWatchedAt DESC LIMIT 1")
     fun getLatestProgress(): Flow<VideoProgressEntity?>
 
@@ -63,6 +66,20 @@ interface VideoDao {
 
     @Query("SELECT * FROM video_progress")
     suspend fun getAllProgressSync(): List<VideoProgressEntity>
+
+    // --- Statistics Queries (Phase 8.3.5) ---
+
+    @Query("SELECT COUNT(*) FROM videos")
+    fun getTotalVideoCount(): Flow<Int>
+
+    @Query("SELECT COUNT(DISTINCT videoRelativePath) FROM video_progress")
+    fun getWatchedVideoCount(): Flow<Int>
+
+    @Query("SELECT COUNT(DISTINCT videoRelativePath) FROM video_progress WHERE lastPositionMs >= (durationMs * 0.95)")
+    fun getCompletedVideoCount(): Flow<Int>
+
+    @Query("SELECT SUM(lastPositionMs) FROM video_progress")
+    fun getTotalWatchTimeMs(): Flow<Long?>
 
     /**
      * Membersihkan progres yang tidak lagi memiliki VideoEntity terkait (Orphan).

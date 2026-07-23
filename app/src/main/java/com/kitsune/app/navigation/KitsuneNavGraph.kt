@@ -239,6 +239,7 @@ fun MainContainer(
                                 playlistId = playlistId,
                                 playlistRepository = playlistRepository,
                                 scannerRepository = scannerRepository,
+                                videoRepository = videoRepository,
                                 settingsRepository = settingsRepository,
                                 bookmarkRepository = bookmarkRepository
                             ) as T
@@ -247,8 +248,12 @@ fun MainContainer(
                 )
                 PlaylistDetailScreen(
                     viewModel = detailViewModel,
-                    onComicClick = { comic ->
-                        innerNavController.navigate(Screen.ComicDetail.createRoute(comic.relativePath))
+                    onItemClick = { item ->
+                        if (item.mediaType == com.kitsune.app.domain.model.MediaType.COMIC) {
+                            innerNavController.navigate(Screen.ComicDetail.createRoute(item.id))
+                        } else {
+                            innerNavController.navigate(Screen.VideoDetail.createRoute(item.id))
+                        }
                     },
                     onBackClick = { innerNavController.popBackStack() }
                 )

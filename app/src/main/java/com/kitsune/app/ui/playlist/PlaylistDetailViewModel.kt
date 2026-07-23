@@ -6,18 +6,28 @@ import com.kitsune.app.data.repository.BookmarkRepository
 import com.kitsune.app.data.repository.PlaylistRepository
 import com.kitsune.app.data.repository.ScannerRepository
 import com.kitsune.app.data.repository.SettingsRepository
+import com.kitsune.app.data.repository.VideoRepository
 import com.kitsune.app.domain.model.Comic
+import com.kitsune.app.domain.model.Video
+import com.kitsune.app.ui.components.media.MediaUiModel
+import com.kitsune.app.ui.components.media.mapper.toMediaUiModel
 import com.kitsune.app.ui.library.CollectionSortOrder
-import com.kitsune.app.ui.library.ComicStatus
 import com.kitsune.app.ui.library.ComicStatusSets
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
+/**
+ * ViewModel untuk menampilkan detail Playlist (Unified Media).
+ * Mampu menampilkan Komik dan Video secara bersamaan.
+ * 
+ * REVISION 8.4.1: Unified Media Indexing (Comics + Videos).
+ */
 class PlaylistDetailViewModel(
     private val playlistId: Long,
     private val playlistRepository: PlaylistRepository,
     private val scannerRepository: ScannerRepository,
+    private val videoRepository: VideoRepository,
     private val settingsRepository: SettingsRepository,
     private val bookmarkRepository: BookmarkRepository
 ) : ViewModel() {
@@ -25,9 +35,6 @@ class PlaylistDetailViewModel(
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
-    /**
-     * OPTIMIZATION 6.8.2: Debounce Search Query.
-     */
     @OptIn(FlowPreview::class)
     private val debouncedSearchQuery = _searchQuery
         .debounce(300)
@@ -39,7 +46,6 @@ class PlaylistDetailViewModel(
     private val _uiState = MutableStateFlow<PlaylistDetailUiState>(PlaylistDetailUiState.Loading)
     val uiState: StateFlow<PlaylistDetailUiState> = _uiState.asStateFlow()
 
-    // Selection Mode State
     private val _selectedPaths = MutableStateFlow<Set<String>>(emptySet())
     val selectedPaths: StateFlow<Set<String>> = _selectedPaths.asStateFlow()
 
@@ -48,13 +54,18 @@ class PlaylistDetailViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     /**
-     * OPTIMIZATION 6.8.2: Indexing Library.
-     * Index ini hanya dibangun ulang jika data library berubah.
+     * UNIFIED MEDIA INDEX (REVISION 8.4.1)
+     * Menggabungkan Komik dan Video dalam satu lookup map O(1).
      */
-    private val comicIndex = scannerRepository.allComics
-        .map { it.associateBy { comic -> comic.relativePath } }
-        .distinctUntilChanged()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+    private val mediaIndex = combine(
+        scannerRepository.allComics,
+        videoRepository.allVideos
+    ) { comics, videos ->
+        val index = mutableMapOf<String, Any>()
+        comics.forEach { index[it.relativePath] = it }
+        videos.forEach { index[it.relativePath] = it }
+        index
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
     init {
         loadPlaylistDetail()
@@ -68,14 +79,14 @@ class PlaylistDetailViewModel(
                 return@launch
             }
 
-            val comicsInPlaylistFlow = playlistRepository.getComicsInPlaylist(playlistId).distinctUntilChanged()
+            val pathsInPlaylistFlow = playlistRepository.getComicsInPlaylist(playlistId).distinctUntilChanged()
             val settingsFlow = settingsRepository.settings.distinctUntilChanged()
             val allBookmarksFlow = bookmarkRepository.getAllBookmarkedComics().map { it.toSet() }.distinctUntilChanged()
             val allPlaylistsFlow = playlistRepository.getAllPlaylistComics().map { it.toSet() }.distinctUntilChanged()
 
             combine(
-                comicsInPlaylistFlow,
-                comicIndex,
+                pathsInPlaylistFlow,
+                mediaIndex,
                 settingsFlow,
                 debouncedSearchQuery,
                 _sortOrder,
@@ -83,9 +94,9 @@ class PlaylistDetailViewModel(
                 allPlaylistsFlow
             ) { array ->
                 @Suppress("UNCHECKED_CAST")
-                val playlistPathsInThisCategory = array[0] as List<String>
+                val pathsInThisPlaylist = array[0] as List<String>
                 @Suppress("UNCHECKED_CAST")
-                val comicMap = array[1] as Map<String, Comic>
+                val mediaMap = array[1] as Map<String, Any>
                 val settings = array[2] as com.kitsune.app.database.entity.SettingsEntity?
                 val query = array[3] as String
                 val order = array[4] as CollectionSortOrder
@@ -95,34 +106,38 @@ class PlaylistDetailViewModel(
                 val allPlaylists = array[6] as Set<String>
 
                 val gridSize = settings?.gridSize ?: 3
-                val comicsInPlaylist = playlistPathsInThisCategory.mapNotNull { comicMap[it] }
-                
-                // 1. Filtering
-                var result = if (query.isBlank()) {
-                    comicsInPlaylist
-                } else {
-                    comicsInPlaylist.filter { it.title.contains(query, ignoreCase = true) }
-                }
 
-                // 2. Sorting
-                result = when (order) {
-                    CollectionSortOrder.NAME_ASC -> result.sortedBy { it.title.lowercase() }
-                    CollectionSortOrder.NAME_DESC -> result.sortedByDescending { it.title.lowercase() }
-                }
-
-                // 3. Optimized Status Mapping (REVISION 6.8.2)
-                val statusMap = result.associate { comic ->
-                    val path = comic.relativePath
+                // 1. Unified Mapping (REVISION 8.4.1)
+                val items = pathsInThisPlaylist.mapNotNull { path ->
+                    val media = mediaMap[path] ?: return@mapNotNull null
+                    
                     val hasBookmark = allBookmarks.contains(path)
                     val hasPlaylist = allPlaylists.contains(path)
-                    
                     val statuses = when {
                         hasBookmark && hasPlaylist -> ComicStatusSets.BOTH
                         hasBookmark -> ComicStatusSets.BOOKMARKED
                         hasPlaylist -> ComicStatusSets.IN_PLAYLIST
                         else -> ComicStatusSets.EMPTY
                     }
-                    path to statuses
+
+                    when (media) {
+                        is Comic -> media.toMediaUiModel(statuses)
+                        is Video -> media.toMediaUiModel(statuses)
+                        else -> null
+                    }
+                }
+                
+                // 2. Filtering
+                var result = if (query.isBlank()) {
+                    items
+                } else {
+                    items.filter { it.title.contains(query, ignoreCase = true) }
+                }
+
+                // 3. Sorting
+                result = when (order) {
+                    CollectionSortOrder.NAME_ASC -> result.sortedBy { it.title.lowercase() }
+                    CollectionSortOrder.NAME_DESC -> result.sortedByDescending { it.title.lowercase() }
                 }
 
                 if (result.isEmpty() && query.isBlank()) {
@@ -130,8 +145,7 @@ class PlaylistDetailViewModel(
                 } else {
                     PlaylistDetailUiState.Success(
                         playlistName = playlist.name,
-                        comics = result,
-                        comicStatuses = statusMap,
+                        items = result,
                         gridSize = gridSize
                     )
                 }
@@ -163,7 +177,7 @@ class PlaylistDetailViewModel(
     fun selectAll() {
         val state = _uiState.value
         if (state is PlaylistDetailUiState.Success) {
-            _selectedPaths.value = state.comics.map { it.relativePath }.toSet()
+            _selectedPaths.value = state.items.map { it.id }.toSet()
         }
     }
 
@@ -199,8 +213,7 @@ sealed class PlaylistDetailUiState {
     data class Empty(val playlistName: String) : PlaylistDetailUiState()
     data class Success(
         val playlistName: String,
-        val comics: List<Comic>,
-        val comicStatuses: Map<String, Set<ComicStatus>>,
+        val items: List<MediaUiModel>,
         val gridSize: Int
     ) : PlaylistDetailUiState()
     data class Error(val message: String) : PlaylistDetailUiState()

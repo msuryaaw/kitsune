@@ -1,7 +1,10 @@
 package com.kitsune.app.ui.playlist
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
@@ -11,15 +14,16 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.kitsune.app.domain.model.Comic
+import com.kitsune.app.ui.components.media.*
 import com.kitsune.app.ui.library.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlaylistDetailScreen(
     viewModel: PlaylistDetailViewModel,
-    onComicClick: (Comic) -> Unit,
+    onItemClick: (MediaUiModel) -> Unit,
     onBackClick: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -88,7 +92,6 @@ fun PlaylistDetailScreen(
                             Icon(Icons.Default.Search, contentDescription = "Search")
                         }
 
-                        // REVISION 6.7.7: Sort Menu
                         Box {
                             IconButton(onClick = { showSortMenu = true }) {
                                 Icon(Icons.Default.SortByAlpha, contentDescription = "Sort")
@@ -167,7 +170,7 @@ fun PlaylistDetailScreen(
                 }
                 is PlaylistDetailUiState.Empty -> {
                     EmptyLibraryState(
-                        message = if (searchQuery.isNotEmpty()) "No results for \"$searchQuery\"" else "No comics in this playlist",
+                        message = if (searchQuery.isNotEmpty()) "No results for \"$searchQuery\"" else "No items in this playlist",
                         icon = if (searchQuery.isNotEmpty()) Icons.Default.SearchOff else Icons.AutoMirrored.Filled.List
                     )
                 }
@@ -175,20 +178,19 @@ fun PlaylistDetailScreen(
                     EmptyLibraryState(message = state.message, icon = Icons.Default.Error)
                 }
                 is PlaylistDetailUiState.Success -> {
-                    ComicGrid(
-                        comics = state.comics,
+                    PlaylistMediaGrid(
+                        items = state.items,
                         gridSize = state.gridSize,
-                        comicStatuses = state.comicStatuses,
                         selectedPaths = selectedPaths,
-                        onComicClick = { comic ->
+                        onItemClick = { item ->
                             if (selectionMode) {
-                                viewModel.toggleSelection(comic.relativePath)
+                                viewModel.toggleSelection(item.id)
                             } else {
-                                onComicClick(comic)
+                                onItemClick(item)
                             }
                         },
-                        onComicLongClick = { comic ->
-                            viewModel.toggleSelection(comic.relativePath)
+                        onItemLongClick = { item ->
+                            viewModel.toggleSelection(item.id)
                         }
                     )
                 }
@@ -236,7 +238,7 @@ fun PlaylistDetailScreen(
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
             title = { Text("Delete Playlist") },
-            text = { Text("Are you sure you want to delete this playlist category? The comics won't be deleted.") },
+            text = { Text("Are you sure you want to delete this playlist category? The media won't be deleted.") },
             confirmButton = {
                 TextButton(onClick = {
                     viewModel.deletePlaylist()
@@ -257,8 +259,8 @@ fun PlaylistDetailScreen(
     if (showBulkRemoveConfirm) {
         AlertDialog(
             onDismissRequest = { showBulkRemoveConfirm = false },
-            title = { Text("Remove Comics") },
-            text = { Text("Remove ${selectedPaths.size} comics from this playlist?") },
+            title = { Text("Remove Items") },
+            text = { Text("Remove ${selectedPaths.size} items from this playlist?") },
             confirmButton = {
                 TextButton(onClick = {
                     viewModel.removeSelected()
@@ -273,5 +275,81 @@ fun PlaylistDetailScreen(
                 }
             }
         )
+    }
+}
+
+/**
+ * REVISION 8.4.1: Unified Media Grid for Playlist.
+ */
+@Composable
+fun PlaylistMediaGrid(
+    items: List<MediaUiModel>,
+    gridSize: Int,
+    selectedPaths: Set<String> = emptySet(),
+    state: LazyGridState = rememberLazyGridState(),
+    onItemClick: (MediaUiModel) -> Unit,
+    onItemLongClick: (MediaUiModel) -> Unit = {}
+) {
+    MediaGrid(
+        items = items,
+        gridSize = gridSize,
+        keySelector = { it.id },
+        state = state,
+        contentType = { it.mediaType }
+    ) { item ->
+        val isSelected = remember(selectedPaths, item.id) {
+            selectedPaths.contains(item.id)
+        }
+
+        MediaCardContainer(
+            onClick = { onItemClick(item) },
+            onLongClick = { onItemLongClick(item) },
+            isSelected = isSelected
+        ) {
+            Box {
+                MediaThumbnail(
+                    thumbnailUri = item.thumbnailUri,
+                    mediaType = item.mediaType,
+                    modifier = if (isSelected) Modifier.border(
+                        2.dp,
+                        MaterialTheme.colorScheme.primary,
+                        MaterialTheme.shapes.medium
+                    ) else Modifier
+                )
+
+                if (!isSelected) {
+                    MediaCollectionBadges(
+                        statuses = item.statuses,
+                        modifier = Modifier.align(Alignment.TopStart)
+                    )
+                }
+
+                if (isSelected) {
+                    Surface(
+                        modifier = Modifier.matchParentSize(),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                        shape = MaterialTheme.shapes.medium
+                    ) {}
+                    Icon(
+                        imageVector = Icons.Default.CheckCircle,
+                        contentDescription = "Selected",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier
+                            .padding(8.dp)
+                            .size(24.dp)
+                            .align(Alignment.TopEnd)
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(4.dp))
+            
+            MediaTitle(
+                title = item.title,
+                color = if (isSelected) MaterialTheme.colorScheme.primary else Color.White,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                modifier = Modifier.padding(horizontal = 4.dp)
+            )
+        }
     }
 }

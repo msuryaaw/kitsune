@@ -325,7 +325,8 @@ fun MainContainer(
                             return VideoLibraryViewModel(
                                 videoRepository = videoRepository, 
                                 settingsRepository = settingsRepository,
-                                collectionRepository = collectionRepository
+                                collectionRepository = collectionRepository,
+                                playlistRepository = playlistRepository
                             ) as T
                         }
                     }

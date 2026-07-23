@@ -21,6 +21,7 @@ import com.kitsune.app.ui.components.media.mapper.toMediaUiModel
  * REVISION 7.8.11: Added status badges for Bookmark and Playlist.
  * REVISION 7.9.2: Migrated to Unified Media Badges.
  * REVISION 8.3.3: Added Selection support.
+ * REVISION 8.3.7: Simplified indicators by removing progress and finished badges.
  */
 @Composable
 fun VideoCard(
@@ -48,17 +49,11 @@ fun VideoCard(
             )
 
             // Collection Badges (Top Start) - Unified 7.9.2
+            // Tetap dipertahankan untuk menampilkan indikator Playlist.
             if (!isSelected) {
                 MediaCollectionBadges(
                     statuses = mediaUiModel.statuses,
                     modifier = Modifier.align(Alignment.TopStart)
-                )
-            }
-
-            // Finished Badge (Top End) - Unified 7.9.2
-            if (state.isFinished && !isSelected) {
-                MediaFinishedBadge(
-                    modifier = Modifier.align(Alignment.TopEnd)
                 )
             }
 
@@ -79,22 +74,14 @@ fun VideoCard(
                         .align(Alignment.TopEnd)
                 )
             }
-
-            // Progress Bar (Bottom) - Phase 7.7.3.3 (Unified via MediaProgressBar)
-            MediaProgressBar(
-                progress = state.watchedPercentage,
-                modifier = Modifier.align(Alignment.BottomCenter)
-            )
         }
         
         Spacer(modifier = Modifier.height(4.dp))
         
         MediaTitle(
             title = mediaUiModel.title,
-            fontWeight = if (state.watchedPercentage > 0 || isSelected) FontWeight.Bold else FontWeight.Normal,
-            color = if (isSelected) MaterialTheme.colorScheme.primary 
-                    else if (state.isFinished) Color.White.copy(alpha = 0.7f) 
-                    else Color.White,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+            color = if (isSelected) MaterialTheme.colorScheme.primary else Color.White,
             modifier = Modifier.padding(horizontal = 4.dp)
         )
     }

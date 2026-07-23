@@ -3,8 +3,10 @@ package com.kitsune.app.ui.video
 import androidx.core.net.toUri
 import androidx.lifecycle.viewModelScope
 import com.kitsune.app.data.repository.CollectionRepository
+import com.kitsune.app.data.repository.PlaylistRepository
 import com.kitsune.app.data.repository.SettingsRepository
 import com.kitsune.app.data.repository.VideoRepository
+import com.kitsune.app.database.entity.PlaylistEntity
 import com.kitsune.app.domain.model.MediaType
 import com.kitsune.app.ui.library.ComicStatus
 import com.kitsune.app.ui.library.base.BaseLibraryViewModel
@@ -16,12 +18,22 @@ import kotlinx.coroutines.launch
  * REVISION 7.8.7: Migrasi ke BaseLibraryViewModel untuk standarisasi logika pencarian dan penyegaran.
  * REVISION 7.8.11: Integrasi CollectionRepository untuk indikator Bookmark dan Playlist.
  * REVISION 8.3.3: Integrasi Selection Mode dari BaseLibraryViewModel.
+ * REVISION 8.3.6: Added Playlist support for batch operations.
  */
 class VideoLibraryViewModel(
     private val videoRepository: VideoRepository,
     private val settingsRepository: SettingsRepository,
-    private val collectionRepository: CollectionRepository
+    private val collectionRepository: CollectionRepository,
+    private val playlistRepository: PlaylistRepository
 ) : BaseLibraryViewModel() {
+
+    /**
+     * Mengamati seluruh daftar playlist yang tersedia.
+     */
+    val allPlaylists: StateFlow<List<PlaylistEntity>> = playlistRepository.getAllPlaylistsWithCount()
+        .map { list -> list.map { it.playlist } }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     /**
      * Menggabungkan data inti library (Video, Progress, Collections).
@@ -128,5 +140,22 @@ class VideoLibraryViewModel(
         if (state is VideoLibraryUiState.Success) {
             _selectedPaths.value = state.videos.map { it.video.relativePath }.toSet()
         }
+    }
+
+    // --- Bulk Operations (REVISION 8.3.6) ---
+
+    fun addSelectedToPlaylists(playlistIds: List<Long>) {
+        val paths = _selectedPaths.value.toList()
+        if (paths.isEmpty() || playlistIds.isEmpty()) return
+        
+        viewModelScope.launch {
+            playlistRepository.addMediaToPlaylists(playlistIds, paths)
+            _snackbarMessage.emit("Added ${paths.size} videos to ${playlistIds.size} playlists.")
+            clearSelection()
+        }
+    }
+
+    suspend fun createPlaylist(name: String): Long {
+        return playlistRepository.createPlaylist(name)
     }
 }

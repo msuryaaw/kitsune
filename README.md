@@ -11,10 +11,10 @@ Kitsune is a high-performance, unified media manager designed for local consumpt
 - **Privacy Focused:** Uses Android's Storage Access Framework (SAF) for secure file access.
 
 ## 2. Current Status
-- **Current Phase:** 7.9 (Architecture Cleanup & Unified Foundation)
+- **Current Phase:** 8.3.5 (Advanced UX & Library Management)
 - **Status:** Stable Candidate
-- **Milestone:** Phase 7 (Video & Unified Foundation) successfully implemented.
-- **Next Goal:** Phase 8 - Backup & Restore System.
+- **Milestone:** Phase 8.3 (Advanced Video UX & Management) successfully implemented.
+- **Next Goal:** Phase 9 - Backup & Restore System.
 
 ## 3. Core Features
 
@@ -25,10 +25,11 @@ Kitsune is a high-performance, unified media manager designed for local consumpt
 - **Auto-Cover:** Automatically generates covers from chapter content if missing.
 
 ### 🎬 Video Engine
-- **Video Library:** Grid-based browsing for serials and movies.
-- **High-Performance Player:** Powered by Media3 ExoPlayer with custom overlay controls.
-- **Playback Management:** Resume Playback (save/restore position), Progress Saving, and "Finished" badges (>90% watched).
-- **Navigation:** Quick episode switching, Auto-Next episode, and "Continue Watching" support.
+- **Video Library:** Grid-based browsing with **Selection Mode** and **Bulk Select** support.
+- **High-Performance Player:** Powered by Media3 ExoPlayer with advanced gesture controls.
+- **Advanced Gestures:** Horizontal Seek, Vertical Brightness (left), and Volume (right) with non-conflicting UI.
+- **Playback Management:** Resume Playback, Manual **Orientation Toggle** (Portrait/Landscape), and "Finished" badges.
+- **Video Statistics:** Total watch time, completed videos, and usage tracking.
 
 ### 📂 Unified Media Foundation
 - **Unified Components:** Consistent UI using `MediaGrid`, `MediaLibraryScaffold`, and `MediaCardContainer`.

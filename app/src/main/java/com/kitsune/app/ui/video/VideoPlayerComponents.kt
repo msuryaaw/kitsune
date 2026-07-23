@@ -28,6 +28,7 @@ import androidx.media3.common.Player
  * REVISION 8.2.3: Added Gesture Foundation Support to Interaction Layer.
  * REVISION 8.2.6: Added GesturePreviewOverlay for Polished UX.
  * REVISION 8.3.2: Added Manual Orientation Toggle Button.
+ * REVISION 8.3.4: Moved Playback Controls to Bottom Area for improved visibility.
  */
 
 /**
@@ -267,7 +268,7 @@ fun PlayerControls(
             .fillMaxSize()
             .background(Color.Black.copy(alpha = 0.3f))
     ) {
-        // Top Controls (Back Button) - Added in Phase 8.1.6
+        // Top Controls (Back Button)
         Row(
             modifier = Modifier
                 .align(Alignment.TopStart)
@@ -285,74 +286,9 @@ fun PlayerControls(
             }
         }
 
-        // Center Controls (Previous, Play/Pause, Next)
-        Row(
-            modifier = Modifier.align(Alignment.Center),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(if (isLandscape) 64.dp else 32.dp)
-        ) {
-            // Previous Episode Button
-            IconButton(
-                onClick = { 
-                    onPreviousClick()
-                    onInteraction()
-                },
-                enabled = hasPrevious,
-                modifier = Modifier.size(if (isLandscape) 56.dp else 48.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.SkipPrevious,
-                    contentDescription = "Previous Episode",
-                    tint = Color.White.copy(alpha = if (hasPrevious) 1f else 0.3f),
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
+        // Area Tengah sengaja dikosongkan untuk Gesture Overlay & Buffering Indicator
 
-            // Main Play/Pause/Replay Button
-            if (playbackState == Player.STATE_ENDED) {
-                ReplayButton(
-                    onClick = {
-                        onReplay()
-                        onInteraction()
-                    },
-                    isLandscape = isLandscape
-                )
-            } else {
-                IconButton(
-                    onClick = {
-                        onPlayPauseToggle()
-                        onInteraction()
-                    },
-                    modifier = Modifier.size(if (isLandscape) 84.dp else 64.dp)
-                ) {
-                    Icon(
-                        imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                        contentDescription = if (isPlaying) "Pause" else "Play",
-                        tint = Color.White,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
-            }
-
-            // Next Episode Button
-            IconButton(
-                onClick = {
-                    onNextClick()
-                    onInteraction()
-                },
-                enabled = hasNext,
-                modifier = Modifier.size(if (isLandscape) 56.dp else 48.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.SkipNext,
-                    contentDescription = "Next Episode",
-                    tint = Color.White.copy(alpha = if (hasNext) 1f else 0.3f),
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
-        }
-
-        // Bottom Controls (Slider & Timer)
+        // Bottom Controls (Slider, Buttons & Timer)
         Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -361,6 +297,7 @@ fun PlayerControls(
                 .padding(bottom = if (isLandscape) 24.dp else 16.dp)
                 .navigationBarsPadding()
         ) {
+            // Section 1: Progress Slider
             PlaybackSlider(
                 currentPosition = currentPosition,
                 duration = duration,
@@ -368,7 +305,80 @@ fun PlayerControls(
                 onSeek = onSeek,
                 onInteraction = onInteraction
             )
+
+            // Section 2: Playback Buttons (Moved from Center)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = if (isLandscape) 12.dp else 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(
+                    space = if (isLandscape) 64.dp else 32.dp,
+                    alignment = Alignment.CenterHorizontally
+                )
+            ) {
+                // Previous Episode Button
+                IconButton(
+                    onClick = { 
+                        onPreviousClick()
+                        onInteraction()
+                    },
+                    enabled = hasPrevious,
+                    modifier = Modifier.size(if (isLandscape) 56.dp else 48.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.SkipPrevious,
+                        contentDescription = "Previous Episode",
+                        tint = Color.White.copy(alpha = if (hasPrevious) 1f else 0.3f),
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+
+                // Main Play/Pause/Replay Button
+                if (playbackState == Player.STATE_ENDED) {
+                    ReplayButton(
+                        onClick = {
+                            onReplay()
+                            onInteraction()
+                        },
+                        isLandscape = isLandscape
+                    )
+                } else {
+                    IconButton(
+                        onClick = {
+                            onPlayPauseToggle()
+                            onInteraction()
+                        },
+                        modifier = Modifier.size(if (isLandscape) 84.dp else 64.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                            contentDescription = if (isPlaying) "Pause" else "Play",
+                            tint = Color.White,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                }
+
+                // Next Episode Button
+                IconButton(
+                    onClick = {
+                        onNextClick()
+                        onInteraction()
+                    },
+                    enabled = hasNext,
+                    modifier = Modifier.size(if (isLandscape) 56.dp else 48.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.SkipNext,
+                        contentDescription = "Next Episode",
+                        tint = Color.White.copy(alpha = if (hasNext) 1f else 0.3f),
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+            }
             
+            // Section 3: Timers & Orientation Toggle
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,

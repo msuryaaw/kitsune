@@ -36,8 +36,14 @@ enum class GestureDirection { HORIZONTAL, VERTICAL, UNKNOWN }
 enum class GestureArea { LEFT, CENTER, RIGHT }
 
 /**
+ * Sumber operasi seek untuk menentukan kebijakan visibilitas UI.
+ */
+enum class SeekSource { GESTURE, SLIDER, RESUME, AUTO, NEXT_EPISODE }
+
+/**
  * ViewModel untuk mengelola instance ExoPlayer dan lifecycle pemutaran video secara sekuensial.
  * REVISION 8.2.5: Implementasi Vertical Brightness & Volume Gesture.
+ * REVISION 8.3.5: Fixed Controls visibility after Horizontal Seek Gesture using SeekSource.
  */
 class VideoPlayerViewModel(
     application: Application,
@@ -538,12 +544,18 @@ class VideoPlayerViewModel(
         positionPollingJob = null
     }
 
-    fun seekTo(positionMs: Long) {
+    /**
+     * Melakukan pemindahan posisi (seek) video.
+     * @param positionMs Posisi target dalam milidetik.
+     * @param source Sumber operasi seek untuk menentukan kebijakan visibilitas UI.
+     */
+    fun seekTo(positionMs: Long, source: SeekSource = SeekSource.SLIDER) {
         _player.value?.let {
             it.seekTo(positionMs)
             _currentPosition.value = positionMs
         }
-        userInteraction()
+        // Gunakan konteks isGesture jika sumbernya adalah Gesture
+        userInteraction(isGesture = source == SeekSource.GESTURE)
     }
 
     fun togglePlayPause() {
@@ -663,10 +675,12 @@ class VideoPlayerViewModel(
      * Menangani penyelesaian gesture.
      * REVISION 8.2.4: Added Commit Seek logic.
      * REVISION 8.2.5: Added Vertical reset logic.
+     * REVISION 8.3.5: Use SeekSource.GESTURE to maintain UI visibility.
      */
     fun onGestureUp() {
         if (_gestureState.value == GestureState.ACTIVE && _gestureDirection.value == GestureDirection.HORIZONTAL) {
-            seekTo(_seekPreviewPosition.value)
+            // REVISION 8.3.5: Specify source as GESTURE
+            seekTo(_seekPreviewPosition.value, SeekSource.GESTURE)
         }
 
         _gestureState.value = GestureState.FINISHED

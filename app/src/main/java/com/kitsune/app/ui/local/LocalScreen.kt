@@ -77,19 +77,21 @@ fun LocalScreen(
                     Spacer(modifier = Modifier.height(24.dp))
 
                     // Continue Watching (Videos) - Phase 7.7.3.2
+                    Text(
+                        text = "Continue Watching",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
                     if (state.lastWatched != null) {
-                        Text(
-                            text = "Continue Watching",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(bottom = 12.dp)
-                        )
                         ContinueWatchingCard(
                             lastWatched = state.lastWatched,
                             onClick = { onContinueWatching(state.lastWatched) }
                         )
-                        Spacer(modifier = Modifier.height(24.dp))
+                    } else {
+                        EmptyContinueWatchingCard()
                     }
+                    Spacer(modifier = Modifier.height(24.dp))
                 }
             }
 
@@ -302,6 +304,26 @@ fun EmptyLastReadCard() {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text(
                 text = "No reading history yet",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+fun EmptyContinueWatchingCard() {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(100.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        )
+    ) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text(
+                text = "No watching history yet",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

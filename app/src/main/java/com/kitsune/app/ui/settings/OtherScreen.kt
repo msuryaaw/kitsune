@@ -30,6 +30,8 @@ import kotlinx.coroutines.flow.collectLatest
  * Menangani konfigurasi reader, library, storage, appearance, dan menampilkan statistik.
  * REVISION 8.3.4: Added Clear Watching History support.
  * REVISION 8.3.5: Integrated Video Statistics.
+ * REVISION 8.3.6: Simplified Video Statistics to only show Total Videos.
+ * REVISION 8.3.7: Theme Compliance - Removed hardcoded colors.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -70,7 +72,9 @@ fun OtherScreen(
                 title = { Text("Settings") },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color.Transparent,
-                    titleContentColor = Color.White
+                    titleContentColor = MaterialTheme.colorScheme.onBackground,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onBackground,
+                    actionIconContentColor = MaterialTheme.colorScheme.onBackground
                 )
             )
         },
@@ -265,7 +269,7 @@ fun SettingsContent(
                     Text("General", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
                     Spacer(modifier = Modifier.height(8.dp))
                     StatRow(label = "Total Bookmarks", value = bookmarkCount.toString())
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = Color.Gray.copy(alpha = 0.3f))
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f))
                     StatRow(label = "Total Playlists", value = playlistCount.toString())
                     
                     Spacer(modifier = Modifier.height(16.dp))
@@ -277,12 +281,6 @@ fun SettingsContent(
                     Text("Video Statistics", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
                     Spacer(modifier = Modifier.height(8.dp))
                     StatRow(label = "Total Videos", value = videoStatistics.totalVideos.toString())
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = Color.Gray.copy(alpha = 0.3f))
-                    StatRow(label = "Watched Videos", value = videoStatistics.watchedVideos.toString())
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = Color.Gray.copy(alpha = 0.3f))
-                    StatRow(label = "Completed Videos", value = videoStatistics.completedVideos.toString())
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = Color.Gray.copy(alpha = 0.3f))
-                    StatRow(label = "Total Watch Time", value = formatWatchTime(videoStatistics.totalWatchTimeMs))
                 }
             }
         }
@@ -315,21 +313,14 @@ fun SettingsContent(
     }
 }
 
-private fun formatWatchTime(ms: Long): String {
-    val totalMinutes = ms / (1000 * 60)
-    val hours = totalMinutes / 60
-    val minutes = totalMinutes % 60
-    return if (hours > 0) "${hours}h ${minutes}m" else "${minutes}m"
-}
-
 @Composable
 fun StatRow(label: String, value: String) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(text = label, color = Color.Gray, style = MaterialTheme.typography.bodyMedium)
-        Text(text = value, color = Color.White, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+        Text(text = label, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
+        Text(text = value, color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -359,13 +350,13 @@ fun SettingsItem(
         modifier = Modifier.clickable(enabled = enabled) { onClick() }
     ) {
         ListItem(
-            headlineContent = { Text(title, color = if (enabled) Color.White else Color.Gray) },
-            supportingContent = { Text(subtitle, color = Color.Gray) },
+            headlineContent = { Text(title, color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)) },
+            supportingContent = { Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant) },
             leadingContent = {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = if (enabled) Color.White else Color.Gray
+                    tint = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
                 )
             },
             colors = ListItemDefaults.colors(

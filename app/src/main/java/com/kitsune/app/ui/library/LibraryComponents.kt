@@ -68,6 +68,7 @@ data class SelectionAction(
 /**
  * REVISION 7.8.3: Migrated to Unified Media Foundation.
  * REVISION 7.9.2: Migrated to Unified Media Badges.
+ * REVISION 8.3.6: Theme Compliance - Removed hardcoded colors.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -126,7 +127,7 @@ fun ComicCard(
         
         MediaTitle(
             title = mediaUiModel.title,
-            color = if (state.isSelected) MaterialTheme.colorScheme.primary else Color.White,
+            color = if (state.isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground,
             fontWeight = if (state.isSelected) FontWeight.Bold else FontWeight.Normal,
             modifier = Modifier.padding(horizontal = 4.dp)
         )
@@ -201,13 +202,21 @@ fun SearchTopAppBar(
                     disabledContainerColor = Color.Transparent,
                     focusedIndicatorColor = Color.Transparent,
                     unfocusedIndicatorColor = Color.Transparent,
+                    focusedTextColor = MaterialTheme.colorScheme.onBackground,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onBackground,
+                    focusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    unfocusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant
                 ),
                 singleLine = true
             )
         },
         navigationIcon = {
             IconButton(onClick = onCloseClick) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack, 
+                    contentDescription = "Back",
+                    tint = MaterialTheme.colorScheme.onBackground
+                )
             }
         },
         actions = {
@@ -217,15 +226,19 @@ fun SearchTopAppBar(
                 exit = fadeOut()
             ) {
                 IconButton(onClick = { onQueryChange("") }) {
-                    Icon(Icons.Default.Close, contentDescription = "Clear")
+                    Icon(
+                        imageVector = Icons.Default.Close, 
+                        contentDescription = "Clear",
+                        tint = MaterialTheme.colorScheme.onBackground
+                    )
                 }
             }
         },
         colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = Color.Black,
-            titleContentColor = Color.White,
-            navigationIconContentColor = Color.White,
-            actionIconContentColor = Color.White
+            containerColor = MaterialTheme.colorScheme.background,
+            titleContentColor = MaterialTheme.colorScheme.onBackground,
+            navigationIconContentColor = MaterialTheme.colorScheme.onBackground,
+            actionIconContentColor = MaterialTheme.colorScheme.onBackground
         )
     )
 }
@@ -266,6 +279,7 @@ fun SelectionTopAppBar(
 
 /**
  * Dialog pemilihan kategori generic.
+ * REVISION 8.3.6: Theme Compliance.
  */
 @Composable
 fun CollectionPickerDialog(
@@ -294,7 +308,7 @@ fun CollectionPickerDialog(
         text = {
             if (collections.isEmpty()) {
                 Box(modifier = Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
-                    Text("No categories found", color = Color.Gray)
+                    Text("No categories found", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             } else {
                 LazyColumn(modifier = Modifier.fillMaxWidth()) {
@@ -378,6 +392,9 @@ fun GenericCreateDialog(
     )
 }
 
+/**
+ * REVISION 8.3.6: Theme Compliance.
+ */
 @Composable
 fun EmptyLibraryState(
     message: String,
@@ -394,13 +411,13 @@ fun EmptyLibraryState(
             imageVector = icon,
             contentDescription = null,
             modifier = Modifier.size(64.dp),
-            tint = Color.Gray
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(modifier = Modifier.height(16.dp))
         Text(
             text = message,
             style = MaterialTheme.typography.bodyLarge,
-            color = Color.Gray,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
         )
     }

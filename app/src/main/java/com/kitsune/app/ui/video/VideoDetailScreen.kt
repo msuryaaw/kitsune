@@ -33,6 +33,7 @@ import com.kitsune.app.ui.components.media.MediaSingleSelectDialog
  * REVISION 7.7.4: Integrasi Finished Badge pada EpisodeItem.
  * REVISION 7.8.10: Integrasi Bookmark dan Playlist Actions.
  * REVISION 7.9.1: Migrated to Unified Collection Dialogs.
+ * REVISION 8.3.7: Theme Compliance - Removed hardcoded colors.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -63,26 +64,26 @@ fun VideoDetailScreen(
                         Icon(
                             imageVector = Icons.Filled.Star,
                             contentDescription = "Bookmark",
-                            tint = if (isBookmarked) MaterialTheme.colorScheme.primary else Color.White
+                            tint = if (isBookmarked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground
                         )
                     }
                     IconButton(onClick = { showPlaylistDialog = true }) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.List,
                             contentDescription = "Add to Playlist",
-                            tint = Color.White
+                            tint = MaterialTheme.colorScheme.onBackground
                         )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Black,
-                    titleContentColor = Color.White,
-                    navigationIconContentColor = Color.White,
-                    actionIconContentColor = Color.White
+                    containerColor = MaterialTheme.colorScheme.background,
+                    titleContentColor = MaterialTheme.colorScheme.onBackground,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onBackground,
+                    actionIconContentColor = MaterialTheme.colorScheme.onBackground
                 )
             )
         },
-        containerColor = Color.Black
+        containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
         Box(
             modifier = Modifier
@@ -162,7 +163,7 @@ fun VideoDetailContent(
                 text = "Episodes (${episodes.size})",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = MaterialTheme.colorScheme.onBackground
             )
             Spacer(modifier = Modifier.height(8.dp))
         }
@@ -172,7 +173,7 @@ fun VideoDetailContent(
                 Text(
                     text = "No episodes found",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = Color.Gray,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(vertical = 16.dp)
                 )
             }
@@ -202,7 +203,7 @@ fun VideoHeader(video: Video) {
                 .width(120.dp)
                 .aspectRatio(5f / 7f),
             elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
         ) {
             if (video.coverUri != null) {
                 AsyncImage(
@@ -220,7 +221,7 @@ fun VideoHeader(video: Video) {
                         imageVector = Icons.Default.Movie,
                         contentDescription = null,
                         modifier = Modifier.size(48.dp),
-                        tint = Color.Gray
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -233,14 +234,14 @@ fun VideoHeader(video: Video) {
                 text = video.title,
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onBackground,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
             Text(
                 text = "Video Library",
                 style = MaterialTheme.typography.bodyMedium,
-                color = Color.Gray
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
                 text = "${video.episodeCount} Episodes",
@@ -263,7 +264,7 @@ fun EpisodeItem(
         headlineContent = { 
             Text(
                 text = episode.name,
-                color = if (state.isFinished) MaterialTheme.colorScheme.primary.copy(alpha = 0.7f) else Color.White,
+                color = if (state.isFinished) MaterialTheme.colorScheme.primary.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurface,
                 fontWeight = if (state.watchedPercentage > 0) FontWeight.Bold else FontWeight.Normal
             ) 
         },
@@ -287,14 +288,14 @@ fun EpisodeItem(
                             .fillMaxWidth()
                             .height(2.dp),
                         color = MaterialTheme.colorScheme.primary,
-                        trackColor = Color.White.copy(alpha = 0.1f),
+                        trackColor = MaterialTheme.colorScheme.surfaceVariant,
                         strokeCap = StrokeCap.Round
                     )
                 } else {
                     Text(
                         text = "Video File",
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color.Gray
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }

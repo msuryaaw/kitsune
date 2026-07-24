@@ -14,6 +14,10 @@ import androidx.compose.ui.unit.dp
 import com.kitsune.app.domain.model.Comic
 import com.kitsune.app.ui.library.*
 
+/**
+ * Screen detail bookmark yang menampilkan daftar komik dalam kategori tertentu.
+ * REVISION 8.3.7: Theme Compliance - Removed hardcoded colors.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BookmarkDetailScreen(
@@ -145,15 +149,15 @@ fun BookmarkDetailScreen(
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Color.Black,
-                        titleContentColor = Color.White,
-                        navigationIconContentColor = Color.White,
-                        actionIconContentColor = Color.White
+                        containerColor = MaterialTheme.colorScheme.background,
+                        titleContentColor = MaterialTheme.colorScheme.onBackground,
+                        navigationIconContentColor = MaterialTheme.colorScheme.onBackground,
+                        actionIconContentColor = MaterialTheme.colorScheme.onBackground
                     )
                 )
             }
         },
-        containerColor = Color.Black
+        containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
         Box(
             modifier = Modifier
@@ -210,7 +214,8 @@ fun BookmarkDetailScreen(
                 TextField(
                     value = newName,
                     onValueChange = { newName = it },
-                    singleLine = true
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
                 )
             },
             confirmButton = {

@@ -19,6 +19,10 @@ import androidx.compose.ui.unit.dp
 import com.kitsune.app.ui.components.media.*
 import com.kitsune.app.ui.library.*
 
+/**
+ * Screen detail playlist yang menampilkan daftar media dalam kategori tertentu.
+ * REVISION 8.3.7: Theme Compliance - Removed hardcoded colors.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlaylistDetailScreen(
@@ -149,15 +153,15 @@ fun PlaylistDetailScreen(
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Color.Black,
-                        titleContentColor = Color.White,
-                        navigationIconContentColor = Color.White,
-                        actionIconContentColor = Color.White
+                        containerColor = MaterialTheme.colorScheme.background,
+                        titleContentColor = MaterialTheme.colorScheme.onBackground,
+                        navigationIconContentColor = MaterialTheme.colorScheme.onBackground,
+                        actionIconContentColor = MaterialTheme.colorScheme.onBackground
                     )
                 )
             }
         },
-        containerColor = Color.Black
+        containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
         Box(
             modifier = Modifier
@@ -213,7 +217,8 @@ fun PlaylistDetailScreen(
                 TextField(
                     value = newName,
                     onValueChange = { newName = it },
-                    singleLine = true
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
                 )
             },
             confirmButton = {
@@ -346,7 +351,7 @@ fun PlaylistMediaGrid(
             
             MediaTitle(
                 title = item.title,
-                color = if (isSelected) MaterialTheme.colorScheme.primary else Color.White,
+                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground,
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                 modifier = Modifier.padding(horizontal = 4.dp)
             )

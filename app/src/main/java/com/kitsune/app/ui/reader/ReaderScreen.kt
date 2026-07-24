@@ -38,6 +38,7 @@ import kotlin.math.abs
 /**
  * Layar utama Reader untuk membaca komik.
  * Dioptimasi untuk meminimalkan recomposition (Phase 6.6.4.3) dan transisi mulus (Phase 6.7.4).
+ * REVISION 8.3.7: Theme Compliance - Removed hardcoded colors.
  */
 @Composable
 fun ReaderScreen(
@@ -70,7 +71,7 @@ fun ReaderScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black)
+            .background(MaterialTheme.colorScheme.background)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
@@ -122,7 +123,7 @@ private fun ReaderContent(
         }
         is ReaderUiState.Empty -> {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(text = "No pages found in this chapter", color = Color.White)
+                Text(text = "No pages found in this chapter", color = MaterialTheme.colorScheme.onBackground)
             }
         }
         is ReaderUiState.Error -> {
@@ -131,7 +132,7 @@ private fun ReaderContent(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                Text(text = state.message, color = Color.Red)
+                Text(text = state.message, color = MaterialTheme.colorScheme.error)
                 Spacer(modifier = Modifier.height(8.dp))
                 Button(onClick = onBackClick) { Text("Go Back") }
             }
@@ -170,7 +171,10 @@ private fun BoxScope.ReaderControlsOverlay(
         exit = slideOutVertically { -it },
         modifier = Modifier.align(Alignment.TopCenter)
     ) {
-        Surface(color = Color.Black.copy(alpha = 0.8f), contentColor = Color.White) {
+        Surface(
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+            contentColor = MaterialTheme.colorScheme.onSurface
+        ) {
             TopAppBar(
                 title = { Text(text = chapterName, style = MaterialTheme.typography.titleMedium, maxLines = 1) },
                 navigationIcon = {
@@ -180,8 +184,8 @@ private fun BoxScope.ReaderControlsOverlay(
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color.Transparent,
-                    titleContentColor = Color.White,
-                    navigationIconContentColor = Color.White
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onSurface
                 ),
                 modifier = Modifier.statusBarsPadding()
             )
@@ -269,9 +273,9 @@ fun VerticalReader(
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        CircularProgressIndicator(color = Color.Gray)
+                        CircularProgressIndicator(color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(modifier = Modifier.height(16.dp))
-                        Text(text = "Tap to load Next Chapter", color = Color.Gray)
+                        Text(text = "Tap to load Next Chapter", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -340,8 +344,8 @@ fun HorizontalReader(
             modifier = Modifier.fillMaxSize()
         ) { index ->
             when {
-                hasPrev && index == 0 -> Box(modifier = Modifier.fillMaxSize().background(Color.Black))
-                hasNext && index == totalCount - 1 -> Box(modifier = Modifier.fillMaxSize().background(Color.Black))
+                hasPrev && index == 0 -> Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background))
+                hasNext && index == totalCount - 1 -> Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background))
                 else -> {
                     val pageIdx = if (hasPrev) index - 1 else index
                     if (pageIdx in state.pages.indices) {
@@ -389,7 +393,10 @@ fun ReaderBottomBar(
     onNextChapter: () -> Unit,
     onPrevChapter: () -> Unit
 ) {
-    Surface(color = Color.Black.copy(alpha = 0.8f), contentColor = Color.White) {
+    Surface(
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+        contentColor = MaterialTheme.colorScheme.onSurface
+    ) {
         val currentPage by viewModel.currentPage.collectAsState()
         Column(
             modifier = Modifier
@@ -408,7 +415,11 @@ fun ReaderBottomBar(
                 IconButton(onClick = onPrevChapter, enabled = hasPrev) {
                     Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Prev Chapter")
                 }
-                Text(text = "Chapter Navigation", style = MaterialTheme.typography.labelMedium, color = Color.Gray)
+                Text(
+                    text = "Chapter Navigation", 
+                    style = MaterialTheme.typography.labelMedium, 
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 IconButton(onClick = onNextChapter, enabled = hasNext) {
                     Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Next Chapter")
                 }

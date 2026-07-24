@@ -20,6 +20,7 @@ import com.kitsune.app.ui.library.EmptyLibraryState
 /**
  * BookmarkScreen yang menampilkan daftar kategori bookmark.
  * REVISION 6.8.3: Fokus pada list kategori dengan urutan normal.
+ * REVISION 8.3.7: Theme Compliance - Removed hardcoded colors.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -35,8 +36,8 @@ fun BookmarkScreen(
             TopAppBar(
                 title = { Text("Bookmarks") },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Black,
-                    titleContentColor = Color.White
+                    containerColor = MaterialTheme.colorScheme.background,
+                    titleContentColor = MaterialTheme.colorScheme.onBackground
                 )
             )
         },
@@ -48,7 +49,7 @@ fun BookmarkScreen(
                 Icon(Icons.Default.Add, contentDescription = "Add Category")
             }
         },
-        containerColor = Color.Black
+        containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
         if (categories.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize().padding(padding)) {
@@ -118,8 +119,9 @@ fun BookmarkCategoryItem(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        color = Color(0xFF1E1E1E),
-        shape = MaterialTheme.shapes.medium
+        color = MaterialTheme.colorScheme.surface,
+        shape = MaterialTheme.shapes.medium,
+        tonalElevation = 2.dp
     ) {
         Row(
             modifier = Modifier
@@ -138,7 +140,7 @@ fun BookmarkCategoryItem(
                 Text(
                     text = name,
                     style = MaterialTheme.typography.titleMedium,
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.Bold
                 )
             }

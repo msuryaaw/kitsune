@@ -21,6 +21,7 @@ import com.kitsune.app.ui.library.EmptyLibraryState
 /**
  * PlaylistScreen yang menampilkan daftar kategori playlist.
  * REVISION 6.8.3: Fokus pada list kategori dengan urutan normal.
+ * REVISION 8.3.7: Theme Compliance - Removed hardcoded colors.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -36,8 +37,8 @@ fun PlaylistScreen(
             TopAppBar(
                 title = { Text("Playlists") },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Black,
-                    titleContentColor = Color.White
+                    containerColor = MaterialTheme.colorScheme.background,
+                    titleContentColor = MaterialTheme.colorScheme.onBackground
                 )
             )
         },
@@ -49,7 +50,7 @@ fun PlaylistScreen(
                 Icon(Icons.Default.Add, contentDescription = "Add Playlist")
             }
         },
-        containerColor = Color.Black
+        containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
         if (categories.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize().padding(padding)) {
@@ -119,8 +120,9 @@ fun PlaylistCategoryItem(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        color = Color(0xFF1E1E1E),
-        shape = MaterialTheme.shapes.medium
+        color = MaterialTheme.colorScheme.surface,
+        shape = MaterialTheme.shapes.medium,
+        tonalElevation = 2.dp
     ) {
         Row(
             modifier = Modifier
@@ -139,7 +141,7 @@ fun PlaylistCategoryItem(
                 Text(
                     text = name,
                     style = MaterialTheme.typography.titleMedium,
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.Bold
                 )
             }

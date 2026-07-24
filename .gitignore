@@ -12,7 +12,7 @@
 /assets
 /build
 /captures
-
+/docs
 .externalNativeBuild
 .cxx
 local.properties

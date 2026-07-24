@@ -193,8 +193,7 @@ fun MainContainer(
                                 bookmarkId = bookmarkId,
                                 bookmarkRepository = bookmarkRepository,
                                 scannerRepository = scannerRepository,
-                                settingsRepository = settingsRepository,
-                                playlistRepository = playlistRepository
+                                settingsRepository = settingsRepository
                             ) as T
                         }
                     }
@@ -421,8 +420,7 @@ fun MainContainer(
                                 scannerRepository = scannerRepository,
                                 settingsRepository = settingsRepository,
                                 progressRepository = progressRepository,
-                                bookmarkRepository = bookmarkRepository,
-                                playlistRepository = playlistRepository
+                                bookmarkRepository = bookmarkRepository
                             ) as T
                         }
                     }

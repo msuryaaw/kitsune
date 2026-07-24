@@ -3,7 +3,6 @@ package com.kitsune.app.ui.bookmark
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kitsune.app.data.repository.BookmarkRepository
-import com.kitsune.app.data.repository.PlaylistRepository
 import com.kitsune.app.data.repository.ScannerRepository
 import com.kitsune.app.data.repository.SettingsRepository
 import com.kitsune.app.domain.model.Comic
@@ -18,8 +17,7 @@ class BookmarkDetailViewModel(
     private val bookmarkId: Long,
     private val bookmarkRepository: BookmarkRepository,
     private val scannerRepository: ScannerRepository,
-    private val settingsRepository: SettingsRepository,
-    private val playlistRepository: PlaylistRepository
+    private val settingsRepository: SettingsRepository
 ) : ViewModel() {
 
     private val _searchQuery = MutableStateFlow("")
@@ -68,7 +66,6 @@ class BookmarkDetailViewModel(
             val bookmarkedInThisCategoryFlow = bookmarkRepository.getComicsInBookmark(bookmarkId).distinctUntilChanged()
             val settingsFlow = settingsRepository.settings.distinctUntilChanged()
             val allBookmarksFlow = bookmarkRepository.getAllBookmarkedComics().map { it.toSet() }.distinctUntilChanged()
-            val allPlaylistsFlow = playlistRepository.getAllPlaylistComics().map { it.toSet() }.distinctUntilChanged()
 
             combine(
                 bookmarkedInThisCategoryFlow,
@@ -76,8 +73,7 @@ class BookmarkDetailViewModel(
                 settingsFlow,
                 debouncedSearchQuery,
                 _sortOrder,
-                allBookmarksFlow,
-                allPlaylistsFlow
+                allBookmarksFlow
             ) { array ->
                 @Suppress("UNCHECKED_CAST")
                 val bookmarkedInThisCategory = array[0] as List<String>
@@ -88,8 +84,6 @@ class BookmarkDetailViewModel(
                 val order = array[4] as CollectionSortOrder
                 @Suppress("UNCHECKED_CAST")
                 val allBookmarks = array[5] as Set<String>
-                @Suppress("UNCHECKED_CAST")
-                val allPlaylists = array[6] as Set<String>
 
                 val gridSize = settings?.gridSize ?: 3
                 val comicsInBookmark = bookmarkedInThisCategory.mapNotNull { comicMap[it] }
@@ -111,12 +105,9 @@ class BookmarkDetailViewModel(
                 val statusMap = result.associate { comic ->
                     val path = comic.relativePath
                     val hasBookmark = allBookmarks.contains(path)
-                    val hasPlaylist = allPlaylists.contains(path)
                     
                     val statuses = when {
-                        hasBookmark && hasPlaylist -> ComicStatusSets.BOTH
                         hasBookmark -> ComicStatusSets.BOOKMARKED
-                        hasPlaylist -> ComicStatusSets.IN_PLAYLIST
                         else -> ComicStatusSets.EMPTY
                     }
                     path to statuses

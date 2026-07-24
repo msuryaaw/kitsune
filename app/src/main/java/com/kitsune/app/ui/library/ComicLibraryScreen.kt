@@ -2,7 +2,6 @@ package com.kitsune.app.ui.library
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.BookmarkAdd
 import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material3.*
@@ -27,21 +26,17 @@ fun ComicLibraryScreen(
     val selectedPaths by viewModel.selectedPaths.collectAsState()
     
     val allBookmarks by viewModel.allBookmarks.collectAsState()
-    val allPlaylists by viewModel.allPlaylists.collectAsState()
 
     var isSearchActive by remember { mutableStateOf(false) }
     
     // Picker Visibility
     var showBookmarkPicker by remember { mutableStateOf(false) }
-    var showPlaylistPicker by remember { mutableStateOf(false) }
     
     // Create Category Visibility
     var showCreateBookmarkDialog by remember { mutableStateOf(false) }
-    var showCreatePlaylistDialog by remember { mutableStateOf(false) }
 
     // Selection States for Dialogs
     var selectedBookmarkIds by remember { mutableStateOf(setOf<Long>()) }
-    var selectedPlaylistIds by remember { mutableStateOf(setOf<Long>()) }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -56,9 +51,6 @@ fun ComicLibraryScreen(
     LaunchedEffect(showBookmarkPicker) {
         if (showBookmarkPicker) selectedBookmarkIds = emptySet()
     }
-    LaunchedEffect(showPlaylistPicker) {
-        if (showPlaylistPicker) selectedPlaylistIds = emptySet()
-    }
 
     // OPTIMIZATION: Remember selection actions
     val selectionActions = remember {
@@ -67,11 +59,6 @@ fun ComicLibraryScreen(
                 icon = Icons.Default.BookmarkAdd,
                 label = "Add to Bookmark",
                 onClick = { showBookmarkPicker = true }
-            ),
-            SelectionAction(
-                icon = Icons.AutoMirrored.Filled.List,
-                label = "Add to Playlist",
-                onClick = { showPlaylistPicker = true }
             )
         )
     }
@@ -155,22 +142,6 @@ fun ComicLibraryScreen(
         )
     }
 
-    if (showPlaylistPicker) {
-        val playlistCollections = remember(allPlaylists) { allPlaylists.map { it.id to it.name } }
-        CollectionPickerDialog(
-            title = "Add to Playlist",
-            collections = playlistCollections,
-            selectedIds = selectedPlaylistIds,
-            onSelectionChanged = { selectedPlaylistIds = it },
-            onConfirm = {
-                viewModel.addSelectedToPlaylists(selectedPlaylistIds.toList())
-                showPlaylistPicker = false
-            },
-            onDismiss = { showPlaylistPicker = false },
-            onCreateNew = { showCreatePlaylistDialog = true }
-        )
-    }
-
     // Reusable Create Dialogs
     if (showCreateBookmarkDialog) {
         GenericCreateDialog(
@@ -184,21 +155,6 @@ fun ComicLibraryScreen(
                 }
             },
             onDismiss = { showCreateBookmarkDialog = false }
-        )
-    }
-
-    if (showCreatePlaylistDialog) {
-        GenericCreateDialog(
-            title = "New Playlist",
-            hint = "Playlist name",
-            onConfirm = { name ->
-                scope.launch {
-                    val newId = viewModel.createPlaylist(name)
-                    selectedPlaylistIds = selectedPlaylistIds + newId
-                    showCreatePlaylistDialog = false
-                }
-            },
-            onDismiss = { showCreatePlaylistDialog = false }
         )
     }
 }

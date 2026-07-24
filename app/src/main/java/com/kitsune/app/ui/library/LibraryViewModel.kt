@@ -3,12 +3,10 @@ package com.kitsune.app.ui.library
 import androidx.core.net.toUri
 import androidx.lifecycle.viewModelScope
 import com.kitsune.app.data.repository.BookmarkRepository
-import com.kitsune.app.data.repository.PlaylistRepository
 import com.kitsune.app.data.repository.ScannerRepository
 import com.kitsune.app.data.repository.SettingsRepository
 import com.kitsune.app.domain.model.Comic
 import com.kitsune.app.database.entity.BookmarkEntity
-import com.kitsune.app.database.entity.PlaylistEntity
 import com.kitsune.app.ui.library.base.BaseLibraryViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -20,8 +18,7 @@ import kotlinx.coroutines.launch
 class LibraryViewModel(
     private val scannerRepository: ScannerRepository,
     private val settingsRepository: SettingsRepository,
-    private val bookmarkRepository: BookmarkRepository,
-    private val playlistRepository: PlaylistRepository
+    private val bookmarkRepository: BookmarkRepository
 ) : BaseLibraryViewModel() {
 
     private val _errorMessage = MutableStateFlow<String?>(null)
@@ -34,18 +31,8 @@ class LibraryViewModel(
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
-    val playlistPaths: StateFlow<Set<String>> = playlistRepository.getAllPlaylistComics()
-        .map { it.toSet() }
-        .distinctUntilChanged()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
-
     val allBookmarks: StateFlow<List<BookmarkEntity>> = bookmarkRepository.getAllBookmarksWithCount()
         .map { list -> list.map { it.bookmark } }
-        .distinctUntilChanged()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    val allPlaylists: StateFlow<List<PlaylistEntity>> = playlistRepository.getAllPlaylistsWithCount()
-        .map { list -> list.map { it.playlist } }
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -71,18 +58,14 @@ class LibraryViewModel(
      */
     private val comicStatuses = combine(
         filteredComics,
-        bookmarkedPaths,
-        playlistPaths
-    ) { comics, bookmarks, playlists ->
+        bookmarkedPaths
+    ) { comics, bookmarks ->
         comics.associate { comic ->
             val path = comic.relativePath
             val hasBookmark = bookmarks.contains(path)
-            val hasPlaylist = playlists.contains(path)
             
             val statuses = when {
-                hasBookmark && hasPlaylist -> ComicStatusSets.BOTH
                 hasBookmark -> ComicStatusSets.BOOKMARKED
-                hasPlaylist -> ComicStatusSets.IN_PLAYLIST
                 else -> ComicStatusSets.EMPTY
             }
             path to statuses
@@ -143,23 +126,8 @@ class LibraryViewModel(
         }
     }
 
-    fun addSelectedToPlaylists(playlistIds: List<Long>) {
-        val paths = _selectedPaths.value.toList()
-        if (paths.isEmpty() || playlistIds.isEmpty()) return
-        
-        viewModelScope.launch {
-            playlistRepository.addComicsToPlaylists(playlistIds, paths)
-            _snackbarMessage.emit("Added ${paths.size} comics to ${playlistIds.size} playlists.")
-            clearSelection()
-        }
-    }
-
     suspend fun createBookmark(name: String): Long {
         return bookmarkRepository.createBookmark(name)
-    }
-
-    suspend fun createPlaylist(name: String): Long {
-        return playlistRepository.createPlaylist(name)
     }
 
     /**

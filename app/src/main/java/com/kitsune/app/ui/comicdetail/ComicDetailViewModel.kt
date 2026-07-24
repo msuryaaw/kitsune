@@ -5,8 +5,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kitsune.app.data.repository.BookmarkRepository
 import com.kitsune.app.data.repository.BookmarkWithCount
-import com.kitsune.app.data.repository.PlaylistRepository
-import com.kitsune.app.data.repository.PlaylistWithCount
 import com.kitsune.app.data.repository.ReadingProgressRepository
 import com.kitsune.app.data.repository.ScannerRepository
 import com.kitsune.app.data.repository.SettingsRepository
@@ -18,15 +16,14 @@ import kotlinx.coroutines.launch
 
 /**
  * ViewModel untuk mengelola data detail sebuah komik.
- * Memuat metadata komik, daftar chapter, progres membaca, status bookmark, dan playlist secara lazy.
+ * Memuat metadata komik, daftar chapter, progres membaca, dan status bookmark secara lazy.
  */
 class ComicDetailViewModel(
     private val comicRelativePath: String,
     private val scannerRepository: ScannerRepository,
     private val settingsRepository: SettingsRepository,
     private val progressRepository: ReadingProgressRepository,
-    private val bookmarkRepository: BookmarkRepository,
-    private val playlistRepository: PlaylistRepository
+    private val bookmarkRepository: BookmarkRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<ComicDetailUiState>(ComicDetailUiState.Loading)
@@ -34,9 +31,6 @@ class ComicDetailViewModel(
 
     private val _availableBookmarks = MutableStateFlow<List<BookmarkWithMembership>>(emptyList())
     val availableBookmarks: StateFlow<List<BookmarkWithMembership>> = _availableBookmarks.asStateFlow()
-
-    private val _availablePlaylists = MutableStateFlow<List<PlaylistWithCount>>(emptyList())
-    val availablePlaylists: StateFlow<List<PlaylistWithCount>> = _availablePlaylists.asStateFlow()
 
     val isBookmarked: StateFlow<Boolean> = bookmarkRepository.getBookmarkIdsForComic(comicRelativePath)
         .map { it.isNotEmpty() }
@@ -94,12 +88,6 @@ class ComicDetailViewModel(
         }.onEach { 
             _availableBookmarks.value = it 
         }.launchIn(viewModelScope)
-
-        viewModelScope.launch {
-            playlistRepository.getAllPlaylistsWithCount().onEach { playlists ->
-                _availablePlaylists.value = playlists
-            }.launchIn(this)
-        }
     }
 
     fun toggleBookmarkMembership(bookmarkId: Long, isMember: Boolean) {
@@ -109,12 +97,6 @@ class ComicDetailViewModel(
             } else {
                 bookmarkRepository.addComicToBookmark(bookmarkId, comicRelativePath)
             }
-        }
-    }
-
-    fun addComicToPlaylist(playlistId: Long) {
-        viewModelScope.launch {
-            playlistRepository.addComicToPlaylist(playlistId, comicRelativePath)
         }
     }
 }

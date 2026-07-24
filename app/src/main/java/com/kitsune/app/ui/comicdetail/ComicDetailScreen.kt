@@ -6,7 +6,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
@@ -24,7 +23,6 @@ import com.kitsune.app.domain.model.Chapter
 import com.kitsune.app.domain.model.Comic
 import com.kitsune.app.ui.components.media.CollectionDialogItem
 import com.kitsune.app.ui.components.media.MediaMultiSelectDialog
-import com.kitsune.app.ui.components.media.MediaSingleSelectDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -36,11 +34,9 @@ fun ComicDetailScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val availableBookmarks by viewModel.availableBookmarks.collectAsState()
-    val availablePlaylists by viewModel.availablePlaylists.collectAsState()
     val isBookmarked by viewModel.isBookmarked.collectAsState()
     
     var showBookmarkDialog by remember { mutableStateOf(false) }
-    var showPlaylistDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -58,9 +54,6 @@ fun ComicDetailScreen(
                             contentDescription = "Bookmark",
                             tint = if (isBookmarked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                         )
-                    }
-                    IconButton(onClick = { showPlaylistDialog = true }) {
-                        Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Add to Playlist")
                     }
                 }
             )
@@ -108,23 +101,6 @@ fun ComicDetailScreen(
                 viewModel.toggleBookmarkMembership(id, isMember)
             },
             onDismiss = { showBookmarkDialog = false }
-        )
-    }
-
-    if (showPlaylistDialog) {
-        val dialogItems = remember(availablePlaylists) {
-            availablePlaylists.map { 
-                CollectionDialogItem(it.playlist.id, it.playlist.name) 
-            }
-        }
-        MediaSingleSelectDialog(
-            title = "Add to Playlist",
-            items = dialogItems,
-            onSelect = { id ->
-                viewModel.addComicToPlaylist(id)
-                showPlaylistDialog = false
-            },
-            onDismiss = { showPlaylistDialog = false }
         )
     }
 }

@@ -4,13 +4,25 @@ import kotlinx.serialization.Serializable
 
 /**
  * Domain model for media metadata.
- * Consistent with the decision in Phase 9.1.
+ * Consistent with the decisions in Phase 9.1 - 9.4 (Future Prep).
  * 
- * @property version Metadata format version for migration.
+ * DESIGN RULE: 
+ * All new fields added to this class MUST have a default value to ensure 
+ * backward compatibility with older metadata.json files.
+ * 
+ * @property version Metadata format version for future migrations.
  * @property tags List of strings for categorization.
  */
 @Serializable
 data class MediaMetadata(
-    val version: Int = 1,
+    val version: Int = CURRENT_VERSION,
     val tags: List<String> = emptyList()
-)
+) {
+    companion object {
+        /**
+         * The current version of the metadata schema.
+         * Incremented only when breaking changes are introduced.
+         */
+        const val CURRENT_VERSION = 1
+    }
+}

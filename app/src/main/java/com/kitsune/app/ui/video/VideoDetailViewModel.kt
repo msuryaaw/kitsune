@@ -3,6 +3,8 @@ package com.kitsune.app.ui.video
 import androidx.core.net.toUri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.kitsune.app.data.metadata.MediaMetadata
+import com.kitsune.app.data.metadata.MetadataManager
 import com.kitsune.app.data.repository.CollectionRepository
 import com.kitsune.app.data.repository.PlaylistWithCount
 import com.kitsune.app.data.repository.SettingsRepository
@@ -14,17 +16,18 @@ import kotlinx.coroutines.launch
 
 /**
  * ViewModel untuk mengelola data detail sebuah video.
- * REVISION 7.7.3.4: Integrasi indikator progres playback pada setiap episode.
- * REVISION 7.8.10: Integrasi CollectionRepository untuk Bookmark dan Playlist.
+ * REVISION 9.2.2: Integrated MetadataManager for Tags Management.
  */
 class VideoDetailViewModel(
     private val videoRelativePath: String,
     private val videoRepository: VideoRepository,
     private val settingsRepository: SettingsRepository,
-    private val collectionRepository: CollectionRepository
+    private val collectionRepository: CollectionRepository,
+    private val metadataManager: MetadataManager
 ) : ViewModel() {
 
     private val _episodes = MutableStateFlow<List<Episode>>(emptyList())
+    private val _metadata = MutableStateFlow(MediaMetadata())
 
     private val _availableBookmarks = MutableStateFlow<List<VideoBookmarkWithMembership>>(emptyList())
     val availableBookmarks: StateFlow<List<VideoBookmarkWithMembership>> = _availableBookmarks.asStateFlow()
@@ -32,20 +35,27 @@ class VideoDetailViewModel(
     private val _availablePlaylists = MutableStateFlow<List<PlaylistWithCount>>(emptyList())
     val availablePlaylists: StateFlow<List<PlaylistWithCount>> = _availablePlaylists.asStateFlow()
 
+    private val _isEditMode = MutableStateFlow(false)
+    val isEditMode: StateFlow<Boolean> = _isEditMode.asStateFlow()
+
+    private val _snackbarMessage = MutableSharedFlow<String>()
+    val snackbarMessage = _snackbarMessage.asSharedFlow()
+
     val isBookmarked: StateFlow<Boolean> = collectionRepository.getBookmarkIdsForMedia(videoRelativePath)
         .map { it.isNotEmpty() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     /**
      * Alur pengolahan data UI State:
-     * 1. Gabungkan metadata video (reaktif) dengan daftar episode dan map progres.
+     * 1. Gabungkan metadata video (reaktif) dengan daftar episode, map progres, dan metadata filesystem.
      * 2. Transformasi menjadi EpisodeItemState.
      */
     val uiState: StateFlow<VideoDetailUiState> = combine(
         videoRepository.getVideoFlow(videoRelativePath),
         _episodes,
-        videoRepository.getAllProgressMap()
-    ) { video, episodes, progressMap ->
+        videoRepository.getAllProgressMap(),
+        _metadata
+    ) { video, episodes, progressMap, meta ->
         
         if (video == null) {
             VideoDetailUiState.Error("Video not found")
@@ -67,7 +77,8 @@ class VideoDetailViewModel(
 
             VideoDetailUiState.Success(
                 video = video,
-                episodes = episodeStates
+                episodes = episodeStates,
+                metadata = meta
             )
         }
     }.stateIn(
@@ -86,16 +97,67 @@ class VideoDetailViewModel(
             try {
                 val settings = settingsRepository.settings.first()
                 val rootUriString = settings?.rootFolderUri ?: return@launch
-                val episodes = videoRepository.getEpisodes(rootUriString.toUri(), videoRelativePath)
+                val rootUri = rootUriString.toUri()
+                
+                val episodes = videoRepository.getEpisodes(rootUri, videoRelativePath)
                 _episodes.value = episodes
+
+                // REVISION 9.2.3: Load metadata from filesystem
+                val meta = metadataManager.readMetadata(rootUri, videoRelativePath)
+                _metadata.value = meta
             } catch (e: Exception) {
                 e.printStackTrace()
             }
         }
     }
 
+    /**
+     * Menambahkan tag baru ke metadata video.
+     */
+    fun addTag(tagName: String) {
+        viewModelScope.launch {
+            val settings = settingsRepository.settings.first()
+            val rootUri = settings?.rootFolderUri?.toUri() ?: return@launch
+
+            val updatedMetadata = _metadata.value.copy(
+                tags = _metadata.value.tags + tagName
+            )
+
+            val result = metadataManager.writeMetadata(rootUri, videoRelativePath, updatedMetadata)
+            if (result.isSuccess) {
+                _metadata.value = metadataManager.readMetadata(rootUri, videoRelativePath)
+            } else {
+                _snackbarMessage.emit("Failed to save tag")
+            }
+        }
+    }
+
+    /**
+     * Menghapus tag dari metadata video.
+     */
+    fun removeTag(tagName: String) {
+        viewModelScope.launch {
+            val settings = settingsRepository.settings.first()
+            val rootUri = settings?.rootFolderUri?.toUri() ?: return@launch
+
+            val updatedMetadata = _metadata.value.copy(
+                tags = _metadata.value.tags.filter { it != tagName }
+            )
+
+            val result = metadataManager.writeMetadata(rootUri, videoRelativePath, updatedMetadata)
+            if (result.isSuccess) {
+                _metadata.value = metadataManager.readMetadata(rootUri, videoRelativePath)
+            } else {
+                _snackbarMessage.emit("Failed to remove tag")
+            }
+        }
+    }
+
+    fun toggleEditMode() {
+        _isEditMode.value = !_isEditMode.value
+    }
+
     private fun loadCollectionData() {
-        // Observe bookmarks and membership status
         combine(
             collectionRepository.observeBookmarks(),
             collectionRepository.getBookmarkIdsForMedia(videoRelativePath)
@@ -110,7 +172,6 @@ class VideoDetailViewModel(
             _availableBookmarks.value = it 
         }.launchIn(viewModelScope)
 
-        // Observe playlists
         collectionRepository.observePlaylists().onEach { playlists ->
             _availablePlaylists.value = playlists
         }.launchIn(viewModelScope)
@@ -133,9 +194,6 @@ class VideoDetailViewModel(
     }
 }
 
-/**
- * Model data untuk menampilkan status keanggotaan bookmark video dalam dialog.
- */
 data class VideoBookmarkWithMembership(
     val bookmark: com.kitsune.app.data.repository.BookmarkWithCount,
     val isMember: Boolean

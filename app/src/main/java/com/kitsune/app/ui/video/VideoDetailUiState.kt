@@ -1,6 +1,7 @@
 package com.kitsune.app.ui.video
 
 import androidx.compose.runtime.Immutable
+import com.kitsune.app.data.metadata.MediaMetadata
 import com.kitsune.app.domain.model.Episode
 import com.kitsune.app.domain.model.Video
 
@@ -19,12 +20,14 @@ data class EpisodeItemState(
 
 /**
  * Representasi State UI untuk layar Detail Video.
+ * REVISION 9.2.2: Added MediaMetadata.
  */
 sealed class VideoDetailUiState {
     data object Loading : VideoDetailUiState()
     data class Success(
         val video: Video,
-        val episodes: List<EpisodeItemState>
+        val episodes: List<EpisodeItemState>,
+        val metadata: MediaMetadata
     ) : VideoDetailUiState()
     data class Error(val message: String) : VideoDetailUiState()
 }

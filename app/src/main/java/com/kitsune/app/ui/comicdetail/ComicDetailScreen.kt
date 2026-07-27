@@ -6,6 +6,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.EditOff
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
@@ -18,11 +20,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.kitsune.app.core.DateUtils
+import com.kitsune.app.data.metadata.MediaMetadata
 import com.kitsune.app.database.entity.ReadingProgressEntity
 import com.kitsune.app.domain.model.Chapter
 import com.kitsune.app.domain.model.Comic
-import com.kitsune.app.ui.components.media.CollectionDialogItem
-import com.kitsune.app.ui.components.media.MediaMultiSelectDialog
+import com.kitsune.app.ui.components.media.*
+import kotlinx.coroutines.flow.collectLatest
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -35,10 +38,20 @@ fun ComicDetailScreen(
     val uiState by viewModel.uiState.collectAsState()
     val availableBookmarks by viewModel.availableBookmarks.collectAsState()
     val isBookmarked by viewModel.isBookmarked.collectAsState()
+    val isEditMode by viewModel.isEditMode.collectAsState()
     
+    val snackbarHostState = remember { SnackbarHostState() }
     var showBookmarkDialog by remember { mutableStateOf(false) }
+    var showTagDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        viewModel.snackbarMessage.collectLatest { message ->
+            snackbarHostState.showSnackbar(message)
+        }
+    }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("Comic Detail") },
@@ -48,6 +61,13 @@ fun ComicDetailScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { viewModel.toggleEditMode() }) {
+                        Icon(
+                            imageVector = if (isEditMode) Icons.Default.EditOff else Icons.Default.Edit,
+                            contentDescription = "Toggle Edit Mode",
+                            tint = if (isEditMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                        )
+                    }
                     IconButton(onClick = { showBookmarkDialog = true }) {
                         Icon(
                             imageVector = Icons.Filled.Star,
@@ -80,9 +100,24 @@ fun ComicDetailScreen(
                         comic = state.comic,
                         chapters = state.chapters,
                         progress = state.progress,
+                        metadata = state.metadata,
+                        isEditMode = isEditMode,
                         onChapterClick = onChapterClick,
-                        onContinueClick = onContinueClick
+                        onContinueClick = onContinueClick,
+                        onAddTagClick = { showTagDialog = true },
+                        onRemoveTag = { viewModel.removeTag(it) }
                     )
+
+                    if (showTagDialog) {
+                        TagInputDialog(
+                            existingTags = state.metadata.tags,
+                            onAdd = {
+                                viewModel.addTag(it)
+                                showTagDialog = false
+                            },
+                            onDismiss = { showTagDialog = false }
+                        )
+                    }
                 }
             }
         }
@@ -110,8 +145,12 @@ fun ComicDetailContent(
     comic: Comic,
     chapters: List<Chapter>,
     progress: ReadingProgressEntity?,
+    metadata: MediaMetadata,
+    isEditMode: Boolean,
     onChapterClick: (Chapter) -> Unit,
-    onContinueClick: (ReadingProgressEntity) -> Unit
+    onContinueClick: (ReadingProgressEntity) -> Unit,
+    onAddTagClick: () -> Unit,
+    onRemoveTag: (String) -> Unit
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -119,6 +158,15 @@ fun ComicDetailContent(
     ) {
         item {
             ComicHeader(comic = comic)
+            
+            // REVISION 9.2.4: Integrated Tags Section
+            Spacer(modifier = Modifier.height(16.dp))
+            MediaTagsSection(
+                tags = metadata.tags,
+                isEditMode = isEditMode,
+                onAddClick = onAddTagClick,
+                onRemoveTag = onRemoveTag
+            )
             
             if (progress != null) {
                 Spacer(modifier = Modifier.height(16.dp))

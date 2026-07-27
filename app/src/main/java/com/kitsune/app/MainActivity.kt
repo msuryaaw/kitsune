@@ -12,6 +12,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.navigation.compose.rememberNavController
 import com.kitsune.app.core.StorageHelper
+import com.kitsune.app.data.metadata.MetadataManager
 import com.kitsune.app.data.repository.*
 import com.kitsune.app.database.AppDatabase
 import com.kitsune.app.navigation.KitsuneNavGraph
@@ -51,6 +52,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var settingsRepository: SettingsRepository
     private lateinit var progressRepository: ReadingProgressRepository
     private lateinit var storageHelper: StorageHelper
+    private lateinit var metadataManager: MetadataManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
@@ -63,6 +65,7 @@ class MainActivity : ComponentActivity() {
         val database = AppDatabase.getDatabase(this)
         settingsRepository = SettingsRepository(database.settingsDao())
         storageHelper = StorageHelper(this)
+        metadataManager = MetadataManager(this, storageHelper)
         
         val comicScanner = com.kitsune.app.scanner.ComicScanner(this)
         val videoScanner = com.kitsune.app.scanner.VideoScanner(this)
@@ -100,7 +103,7 @@ class MainActivity : ComponentActivity() {
                 ) {
                     val navController = rememberNavController()
                     
-                    // REVISION 7.9.3: Modularized Navigation Graph
+                    // REVISION 9.2.1: Integrated MetadataManager
                     KitsuneNavGraph(
                         navController = navController,
                         application = application,
@@ -113,6 +116,7 @@ class MainActivity : ComponentActivity() {
                         bookmarkRepository = bookmarkRepository,
                         playlistRepository = playlistRepository,
                         collectionRepository = collectionRepository,
+                        metadataManager = metadataManager,
                         libraryViewModel = libraryViewModelInstance,
                         splashViewModel = splashViewModelInstance
                     )

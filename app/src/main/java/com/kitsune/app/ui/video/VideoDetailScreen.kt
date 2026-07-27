@@ -7,9 +7,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Movie
-import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -22,18 +20,15 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.kitsune.app.core.DateUtils
+import com.kitsune.app.data.metadata.MediaMetadata
 import com.kitsune.app.domain.model.Episode
 import com.kitsune.app.domain.model.Video
-import com.kitsune.app.ui.components.media.CollectionDialogItem
-import com.kitsune.app.ui.components.media.MediaMultiSelectDialog
-import com.kitsune.app.ui.components.media.MediaSingleSelectDialog
+import com.kitsune.app.ui.components.media.*
+import kotlinx.coroutines.flow.collectLatest
 
 /**
  * Screen untuk menampilkan detail video dan daftar episode dengan indikator progres.
- * REVISION 7.7.4: Integrasi Finished Badge pada EpisodeItem.
- * REVISION 7.8.10: Integrasi Bookmark dan Playlist Actions.
- * REVISION 7.9.1: Migrated to Unified Collection Dialogs.
- * REVISION 8.3.7: Theme Compliance - Removed hardcoded colors.
+ * REVISION 9.2.2: Integrated Tags Management and Edit Mode.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -46,11 +41,21 @@ fun VideoDetailScreen(
     val isBookmarked by viewModel.isBookmarked.collectAsState()
     val availableBookmarks by viewModel.availableBookmarks.collectAsState()
     val availablePlaylists by viewModel.availablePlaylists.collectAsState()
+    val isEditMode by viewModel.isEditMode.collectAsState()
 
+    val snackbarHostState = remember { SnackbarHostState() }
     var showBookmarkDialog by remember { mutableStateOf(false) }
     var showPlaylistDialog by remember { mutableStateOf(false) }
+    var showTagDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        viewModel.snackbarMessage.collectLatest { message ->
+            snackbarHostState.showSnackbar(message)
+        }
+    }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("Video Detail") },
@@ -60,6 +65,13 @@ fun VideoDetailScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { viewModel.toggleEditMode() }) {
+                        Icon(
+                            imageVector = if (isEditMode) Icons.Default.EditOff else Icons.Default.Edit,
+                            contentDescription = "Toggle Edit Mode",
+                            tint = if (isEditMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground
+                        )
+                    }
                     IconButton(onClick = { showBookmarkDialog = true }) {
                         Icon(
                             imageVector = Icons.Filled.Star,
@@ -105,8 +117,23 @@ fun VideoDetailScreen(
                     VideoDetailContent(
                         video = state.video,
                         episodes = state.episodes,
-                        onEpisodeClick = onEpisodeClick
+                        metadata = state.metadata,
+                        isEditMode = isEditMode,
+                        onEpisodeClick = onEpisodeClick,
+                        onAddTagClick = { showTagDialog = true },
+                        onRemoveTag = { viewModel.removeTag(it) }
                     )
+
+                    if (showTagDialog) {
+                        TagInputDialog(
+                            existingTags = state.metadata.tags,
+                            onAdd = {
+                                viewModel.addTag(it)
+                                showTagDialog = false
+                            },
+                            onDismiss = { showTagDialog = false }
+                        )
+                    }
                 }
             }
         }
@@ -150,7 +177,11 @@ fun VideoDetailScreen(
 fun VideoDetailContent(
     video: Video,
     episodes: List<EpisodeItemState>,
-    onEpisodeClick: (Episode) -> Unit
+    metadata: MediaMetadata,
+    isEditMode: Boolean,
+    onEpisodeClick: (Episode) -> Unit,
+    onAddTagClick: () -> Unit,
+    onRemoveTag: (String) -> Unit
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -158,6 +189,16 @@ fun VideoDetailContent(
     ) {
         item {
             VideoHeader(video = video)
+            
+            // REVISION 9.2.4: Integrated Tags Section
+            Spacer(modifier = Modifier.height(16.dp))
+            MediaTagsSection(
+                tags = metadata.tags,
+                isEditMode = isEditMode,
+                onAddClick = onAddTagClick,
+                onRemoveTag = onRemoveTag
+            )
+
             Spacer(modifier = Modifier.height(24.dp))
             Text(
                 text = "Episodes (${episodes.size})",

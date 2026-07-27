@@ -23,6 +23,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.navArgument
 import com.kitsune.app.core.StorageHelper
+import com.kitsune.app.data.metadata.MetadataManager
 import com.kitsune.app.data.repository.*
 import com.kitsune.app.ui.bookmark.BookmarkDetailScreen
 import com.kitsune.app.ui.bookmark.BookmarkDetailViewModel
@@ -54,6 +55,7 @@ data class BottomNavItem(val label: String, val route: String, val icon: ImageVe
 /**
  * REVISION 7.9.3: Unified Navigation Graph.
  * Segregates navigation logic from MainActivity into a modular structure.
+ * REVISION 9.2.1: Added MetadataManager.
  */
 @Composable
 fun KitsuneNavGraph(
@@ -68,6 +70,7 @@ fun KitsuneNavGraph(
     bookmarkRepository: BookmarkRepository,
     playlistRepository: PlaylistRepository,
     collectionRepository: CollectionRepository,
+    metadataManager: MetadataManager,
     libraryViewModel: LibraryViewModel,
     splashViewModel: SplashViewModel
 ) {
@@ -96,6 +99,7 @@ fun KitsuneNavGraph(
                 bookmarkRepository = bookmarkRepository,
                 playlistRepository = playlistRepository,
                 collectionRepository = collectionRepository,
+                metadataManager = metadataManager,
                 storageHelper = storageHelper
             )
         }
@@ -114,6 +118,7 @@ fun MainContainer(
     bookmarkRepository: BookmarkRepository,
     playlistRepository: PlaylistRepository,
     collectionRepository: CollectionRepository,
+    metadataManager: MetadataManager,
     storageHelper: StorageHelper
 ) {
     val innerNavController = androidx.navigation.compose.rememberNavController()
@@ -359,7 +364,8 @@ fun MainContainer(
                                 videoRelativePath = videoRelativePath,
                                 videoRepository = videoRepository,
                                 settingsRepository = settingsRepository,
-                                collectionRepository = collectionRepository
+                                collectionRepository = collectionRepository,
+                                metadataManager = metadataManager
                             ) as T
                         }
                     }
@@ -420,7 +426,8 @@ fun MainContainer(
                                 scannerRepository = scannerRepository,
                                 settingsRepository = settingsRepository,
                                 progressRepository = progressRepository,
-                                bookmarkRepository = bookmarkRepository
+                                bookmarkRepository = bookmarkRepository,
+                                metadataManager = metadataManager
                             ) as T
                         }
                     }

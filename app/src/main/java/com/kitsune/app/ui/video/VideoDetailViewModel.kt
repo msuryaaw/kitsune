@@ -16,7 +16,8 @@ import kotlinx.coroutines.launch
 
 /**
  * ViewModel untuk mengelola data detail sebuah video.
- * REVISION 9.2.2: Integrated MetadataManager for Tags Management.
+ * REVISION 9.3.5: Optimized Metadata Lifecycle.
+ * Metadata is treated as a non-blocking enhancement, consistent with ComicDetailViewModel.
  */
 class VideoDetailViewModel(
     private val videoRelativePath: String,
@@ -95,16 +96,17 @@ class VideoDetailViewModel(
     private fun loadInitialData() {
         viewModelScope.launch {
             try {
+                // 1. Load Primary Data
                 val settings = settingsRepository.settings.first()
                 val rootUriString = settings?.rootFolderUri ?: return@launch
                 val rootUri = rootUriString.toUri()
                 
-                val episodes = videoRepository.getEpisodes(rootUri, videoRelativePath)
-                _episodes.value = episodes
+                _episodes.value = videoRepository.getEpisodes(rootUri, videoRelativePath)
 
-                // REVISION 9.2.3: Load metadata from filesystem
-                val meta = metadataManager.readMetadata(rootUri, videoRelativePath)
-                _metadata.value = meta
+                // 2. Load Metadata Enhancement (Separate Job to be non-blocking)
+                launch {
+                    _metadata.value = metadataManager.readMetadata(rootUri, videoRelativePath)
+                }
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -113,6 +115,7 @@ class VideoDetailViewModel(
 
     /**
      * Menambahkan tag baru ke metadata video.
+     * REVISION 9.3.6: Targeted refresh of metadata only.
      */
     fun addTag(tagName: String) {
         viewModelScope.launch {
@@ -125,6 +128,7 @@ class VideoDetailViewModel(
 
             val result = metadataManager.writeMetadata(rootUri, videoRelativePath, updatedMetadata)
             if (result.isSuccess) {
+                // Refresh ONLY metadata
                 _metadata.value = metadataManager.readMetadata(rootUri, videoRelativePath)
             } else {
                 _snackbarMessage.emit("Failed to save tag")
@@ -146,6 +150,7 @@ class VideoDetailViewModel(
 
             val result = metadataManager.writeMetadata(rootUri, videoRelativePath, updatedMetadata)
             if (result.isSuccess) {
+                // Refresh ONLY metadata
                 _metadata.value = metadataManager.readMetadata(rootUri, videoRelativePath)
             } else {
                 _snackbarMessage.emit("Failed to remove tag")

@@ -17,7 +17,8 @@ import kotlinx.coroutines.launch
 
 /**
  * ViewModel untuk mengelola data detail sebuah komik.
- * REVISION 9.2.5: Fully reactive UI State with Metadata integration.
+ * REVISION 9.3.3: Optimized Metadata Lifecycle.
+ * Metadata is treated as a non-blocking enhancement.
  */
 class ComicDetailViewModel(
     private val comicRelativePath: String,
@@ -45,6 +46,10 @@ class ComicDetailViewModel(
         .map { it.isNotEmpty() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
+    /**
+     * UI State combining multiple sources. 
+     * Success is emitted as soon as _comic is available (Metadata is optional).
+     */
     val uiState: StateFlow<ComicDetailUiState> = combine(
         _comic,
         _chapters,
@@ -73,28 +78,34 @@ class ComicDetailViewModel(
     }
 
     private fun loadInitialData() {
+        // 1. Load Primary Data (Comic metadata from DB)
         viewModelScope.launch {
             try {
                 val comic = scannerRepository.getComicByPath(comicRelativePath)
-                if (comic == null) {
-                    // Note: In combine, if comic is null it stays Loading. 
-                    // We can use a separate error signal if needed.
-                    return@launch
-                }
+                if (comic == null) return@launch
                 _comic.value = comic
 
+                // 2. Load Secondary Data (Chapters from Filesystem)
                 val settings = settingsRepository.settings.first()
                 val rootUriString = settings?.rootFolderUri ?: return@launch
                 val rootUri = rootUriString.toUri()
 
                 _chapters.value = scannerRepository.getChapters(rootUri, comicRelativePath)
-                _metadata.value = metadataManager.readMetadata(rootUri, comicRelativePath)
+                
+                // 3. Load Metadata Enhancement (Separate Job to be non-blocking)
+                launch {
+                    _metadata.value = metadataManager.readMetadata(rootUri, comicRelativePath)
+                }
             } catch (e: Exception) {
                 e.printStackTrace()
             }
         }
     }
 
+    /**
+     * Menambahkan tag baru ke metadata.
+     * REVISION 9.3.4: Targeted metadata refresh only.
+     */
     fun addTag(tagName: String) {
         viewModelScope.launch {
             val settings = settingsRepository.settings.first()
@@ -106,6 +117,7 @@ class ComicDetailViewModel(
 
             val result = metadataManager.writeMetadata(rootUri, comicRelativePath, updatedMetadata)
             if (result.isSuccess) {
+                // Refresh ONLY metadata
                 _metadata.value = metadataManager.readMetadata(rootUri, comicRelativePath)
             } else {
                 _snackbarMessage.emit("Failed to save tag: ${result.exceptionOrNull()?.message}")
@@ -113,6 +125,9 @@ class ComicDetailViewModel(
         }
     }
 
+    /**
+     * Menghapus tag dari metadata.
+     */
     fun removeTag(tagName: String) {
         viewModelScope.launch {
             val settings = settingsRepository.settings.first()
@@ -124,6 +139,7 @@ class ComicDetailViewModel(
 
             val result = metadataManager.writeMetadata(rootUri, comicRelativePath, updatedMetadata)
             if (result.isSuccess) {
+                // Refresh ONLY metadata
                 _metadata.value = metadataManager.readMetadata(rootUri, comicRelativePath)
             } else {
                 _snackbarMessage.emit("Failed to remove tag")

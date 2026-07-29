@@ -1,15 +1,12 @@
-<p align="center">
-  <img src="https://raw.githubusercontent.com/user-attachments/assets/placeholder-logo.png" width="128" height="128" alt="Kitsune Logo">
-</p>
+# KITSUNE
 
-<h1 align="center">KITSUNE</h1>
+**Offline First Media Library & Reader for Android**
 
-<p align="center">
-  <strong>Offline First Media Library & Reader for Android</strong><br>
-  Filesystem First • Hybrid SAF • Jetpack Compose
-</p>
+Kitsune is a high-performance, unified media manager designed for local consumption of digital comics and videos on Android. It prioritizes user privacy and data ownership by treating your local storage as the absolute source of truth.
 
-<p align="center">
+Built with Jetpack Compose • Filesystem First • Hybrid SAF
+
+<p align="left">
   <img src="https://img.shields.io/badge/Kotlin-1.9+-7F52FF?style=for-the-badge&logo=kotlin" alt="Kotlin">
   <img src="https://img.shields.io/badge/Android-Min%20SDK%2026-3DDC84?style=for-the-badge&logo=android" alt="Android Min SDK">
   <img src="https://img.shields.io/badge/UI-Jetpack%20Compose-4285F4?style=for-the-badge&logo=jetpackcompose" alt="Jetpack Compose">
@@ -23,9 +20,9 @@
 ## 📋 Table of Contents
 - [Overview](#-overview)
 - [Why Kitsune?](#-why-kitsune)
-- [Screenshots](#-screenshots)
 - [Features](#-features)
 - [Supported Media](#-supported-media)
+- [Media Directory Structure](#-media-directory-structure)
 - [How It Works](#-how-it-works)
 - [Architecture](#-architecture)
 - [Design Principles](#-design-principles)
@@ -41,37 +38,19 @@
 ---
 
 ## 📖 Overview
+Kitsune was created to solve the problem of fragmented and online-dependent media consumption. Most modern readers rely on cloud sync or centralized databases that break when files are moved. Kitsune changes this by using a **Filesystem First** approach where metadata follows the media, ensuring your library remains portable, resilient, and lightning-fast.
 
-**Kitsune** is a modern, high-performance media manager designed for Android users who value privacy and data ownership. It provides a unified platform to organize and consume your local collection of digital comics (Manga) and video series.
-
-### The Problem
-Most modern media applications rely heavily on cloud synchronization or centralized databases. When you move your files, your metadata, bookmarks, and progress are often lost. Furthermore, existing solutions frequently mix online streaming with local playback, leading to cluttered interfaces and privacy concerns.
-
-### The Solution
-Kitsune introduces a **Filesystem First** philosophy. By using the Android Storage Access Framework (SAF) and storing metadata (`metadata.json`) directly within your media folders, Kitsune ensures that your library is portable, resilient, and entirely offline. Whether you move your SD card to a new phone or reorganize your folders, Kitsune keeps your collection intact.
+Our goal is to provide a single, modern entry point for all your local media, combining a powerful Manga reader with a robust Video player, all wrapped in a consistent and responsive Jetpack Compose interface.
 
 ---
 
 ## ✨ Why Kitsune?
-
-*   **🌐 100% Offline:** No internet connection is ever required. Your data never leaves your device.
-*   **📂 Filesystem Source of Truth:** Your folders define your library. No brittle database silos.
-*   **📦 Metadata Portability:** Tags and info are stored in `metadata.json` alongside your media files.
-*   **⚡ Blazing Fast:** Built with a custom modular scanner and URI caching for instant response.
-*   **📺 Unified Foundation:** A single, consistent UI for both comics and videos.
-*   **🛠️ Developer Friendly:** Clean code, manual DI, and modern Android standards.
-
----
-
-## 📸 Screenshots
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/user-attachments/assets/placeholder-sc-library.png" width="200" alt="Library View">
-  <img src="https://raw.githubusercontent.com/user-attachments/assets/placeholder-sc-detail.png" width="200" alt="Detail View">
-  <img src="https://raw.githubusercontent.com/user-attachments/assets/placeholder-sc-reader.png" width="200" alt="Manga Reader">
-  <img src="https://raw.githubusercontent.com/user-attachments/assets/placeholder-sc-player.png" width="200" alt="Video Player">
-</p>
-<p align="center"><em>Note: Placeholders for visual representation. Actual screenshots coming soon.</em></p>
+*   **✔ Offline First:** Zero internet dependency. Your media stays on your device.
+*   **✔ Filesystem First:** If the file is in your folder, it's in your library. No brittle database silos.
+*   **✔ Metadata Portability:** Tags and information are stored in `metadata.json` alongside your media.
+*   **✔ Hybrid SAF:** High-performance storage access using optimized Storage Access Framework implementation.
+*   **✔ Modular Architecture:** Independent, stateless engines for Comics and Videos.
+*   **✔ Privacy Focused:** No trackers, no accounts, and no telemetry.
 
 ---
 
@@ -79,15 +58,15 @@ Kitsune introduces a **Filesystem First** philosophy. By using the Android Stora
 
 | Feature | Description |
 | :--- | :--- |
-| **Comic Library** | Organized grid view with automatic cover generation from chapter content. |
-| **Video Library** | Support for series and movies with lazy episode discovery and "Finished" badges. |
+| **Comic Library** | Organized grid view with automatic cover generation from CBZ content. |
+| **Video Library** | Support for series and movies with lazy episode discovery and progress badges. |
 | **Advanced Reader** | High-performance CBZ reader with Vertical, LTR, and RTL support. |
-| **Video Player** | Integrated Media3 ExoPlayer with gesture controls for Volume, Brightness, and Seek. |
-| **Tag System** | Portable tagging system using `metadata.json` with async loading. |
-| **Unified Bookmarks** | Organize both comics and videos into custom categories. |
-| **Video Playlists** | Exclusive playlist management for sequential video consumption. |
-| **Incremental Scan** | Intelligent scanning that only processes modified folders to save battery. |
-| **Selection Mode** | Bulk management for bookmarks, playlists, and library cleanups. |
+| **Video Player** | Powered by Media3 ExoPlayer with gesture controls for Volume, Brightness, and Seek. |
+| **Tag System** | Portable tagging system using `metadata.json` with asynchronous loading. |
+| **Unified Bookmarks** | Organize both comics and videos in a single unified interface. |
+| **Video Playlists** | Create and manage video-only playlists for sequential consumption. |
+| **Incremental Scan** | Lightning-fast library updates using parallel scanning and modification checks. |
+| **Search & Sort** | Debounced search and natural alphanumeric sorting (Chapter 2 < Chapter 10). |
 
 ---
 
@@ -95,8 +74,38 @@ Kitsune introduces a **Filesystem First** philosophy. By using the Android Stora
 
 | Type | Formats |
 | :--- | :--- |
-| **Comic** | `.cbz`, Folders (containing `jpg`, `jpeg`, `png`, `webp`) |
+| **Comic** | `.cbz`, Folder-based images (`jpg`, `jpeg`, `png`, `webp`) |
 | **Video** | `mp4`, `mkv`, `mov`, `avi`, `webm`, `m4v`, `ts`, `3gp` |
+
+---
+
+## 📁 Media Directory Structure
+
+Kitsune allows you to select any folder as your library root. For the application to correctly identify and categorize your media, it is required to use the following structure:
+
+```text
+Library-Root/ (User Selected)
+├── Comics/             # Required folder for Comic scanner
+│   ├── Series Title A/ # Title folder
+│   │   ├── Chapter 01.cbz
+│   │   ├── Chapter 02.cbz
+│   │   ├── cover.jpg   # Optional (autogenerated if missing)
+│   │   └── metadata.json
+│   └── Series Title B/
+│       └── ...
+└── Videos/             # Required folder for Video scanner
+    ├── Movie Title/    # Movie folder
+    │   ├── Movie.mp4
+    │   └── cover.jpg
+    └── Show Title/     # Series folder
+        ├── Episode 01.mkv
+        ├── Episode 02.mp4
+        └── metadata.json
+```
+
+- **Root Selection:** You define the entry point during initial setup.
+- **Categorization:** The scanner looks specifically for `Comics/` and `Videos/` subdirectories to start the discovery process.
+- **Portability:** Title metadata (`metadata.json`) is stored inside each title's folder. If you move the series folder, your tags and info move with it.
 
 ---
 
@@ -122,7 +131,6 @@ graph TD
 ---
 
 ## 🏗️ Architecture
-
 Kitsune follows a **Clean MVVM (Model-View-ViewModel)** pattern, highly optimized for the high-latency nature of Android's Storage Access Framework.
 
 *   **Filesystem First:** The filesystem is the only Source of Truth. The Room database acts as a transient, reactive cache.
@@ -133,28 +141,39 @@ Kitsune follows a **Clean MVVM (Model-View-ViewModel)** pattern, highly optimize
 ---
 
 ## 🛡️ Design Principles
-
-1.  **Separation of Concerns:** Strict boundaries between Scanner, Data, and UI layers.
+1.  **Separation of Concerns:** Business logic is strictly kept out of UI and Scanner layers.
 2.  **Stateless Engines:** Scanners do not hold mutable state, ensuring thread safety during parallel runs.
 3.  **Relative Path Identification:** Media is identified by its path relative to the library root, ensuring portability.
 4.  **Natural Sorting:** Mandatory alphanumeric sorting (e.g., `Chapter 2` comes before `Chapter 10`).
 
 ---
 
+## 🛠️ Technology Stack
+
+| Technology | Purpose |
+| :--- | :--- |
+| **Kotlin** | Primary programming language. |
+| **Jetpack Compose** | Modern declarative UI framework. |
+| **Room DB** | Reactive local caching and user data persistence. |
+| **Media3 (ExoPlayer)** | Professional-grade video playback engine. |
+| **Coil** | High-performance image loading with custom URI caching. |
+| **Kotlin Coroutines** | Asynchronous task management and parallel scanning. |
+| **Navigation Compose** | Single-activity routing with safe navigation guards. |
+| **Kotlinx Serialization** | Fast and portable JSON metadata parsing. |
+
+---
+
 ## ⚡ Performance
-
-Kitsune is engineered for a 60fps experience on physical hardware:
-
-*   **🚀 URI LRU Cache:** Caches resolved SAF URIs in memory, reducing system Binder calls by up to 90%.
+Kitsune is tuned for real-world performance on physical devices:
+*   **🚀 URI LRU Cache:** Avoids repeated expensive SAF Binder calls by caching resolved URIs.
 *   **🛡️ Navigation Guards:** Prevents duplicate screen launches and backstack bloat via `navigateSafe`.
-*   **🧵 Parallel Scanning:** Comics and Videos are scanned simultaneously without blocking the main thread.
+*   **🧵 Parallel Scanning:** Scans Comics and Videos simultaneously without blocking the main thread.
 *   **📦 Stage-based Flow:** Heavy list processing is divided into stages with `distinctUntilChanged` to minimize recompositions.
 *   **🖼️ Image Tuning:** Aggressive disk/memory cache for covers and CBZ pages.
 
 ---
 
 ## 📂 Project Structure
-
 ```text
 app/src/main/java/com/kitsune/app/
 ├── core/         # SAF Helpers, URI Cache, Natural Sort, Date Utils
@@ -162,7 +181,7 @@ app/src/main/java/com/kitsune/app/
 ├── database/     # Room Entities, DAOs, and Migration logic
 ├── domain/       # Pure Business Logic Models (Comic, Video, Episode)
 ├── navigation/   # Routing logic and navigateSafe guards
-├── reader/       # Comic Engine - CBZ Parsing and image handling
+├── reader/       # Comic Engine - CBZ Parsing and speculation
 ├── scanner/      # Modular Scanner Engines and Coordinator
 └── ui/           # Feature screens (Library, Detail, Reader) and Components
 ```
@@ -170,56 +189,40 @@ app/src/main/java/com/kitsune/app/
 ---
 
 ## 🚀 Getting Started
-
-### Prerequisites
-- Android device running Android 8.0 (API 26) or higher.
-- A collection of media organized into folders.
-
-### Installation
 1.  **Clone the Repo:** `git clone https://github.com/youruser/kitsune.git`
 2.  **Gradle Sync:** Open the project in Android Studio and allow it to sync.
-3.  **Build & Run:** Deploy the `app` module to your device.
-
-### Library Setup
-1.  On first launch, select a root folder (we recommend creating a folder named `/Kitsune`).
-2.  Inside your root folder, Kitsune will expect (or create):
-    - `/Comics` - Place your `.cbz` files or image folders here.
-    - `/Videos` - Place your video titles (each title in its own folder) here.
-3.  The app will automatically perform an initial scan and build your library.
+3.  **Build & Run:** Deploy the `app` module to an Android 8.0+ device.
+4.  **Setup Library:**
+    *   On launch, select a root folder (e.g., `/Kitsune`).
+    *   Place your comics in `/Comics` (CBZ format or image folders).
+    *   Place your videos in `/Videos` (folder-per-title format).
+5.  **Scan:** The app will automatically build your library from the filesystem.
 
 ---
 
 ## 🗺️ Roadmap
-
-- [x] **Phase 1-9:** Core Foundation, Unified Media, Metadata (`metadata.json`).
-- [x] **Phase 10:** Performance Tuning & Modular Scanner Refactor.
-- [ ] **Phase 11: Backup & Restore:** Exporting and importing collection data to/from the `/Backup` folder.
-- [ ] **Phase 12: Advanced UI:** Custom accent colors and multi-column grid configurations.
+- [x] **Core Foundation:** Hybrid SAF and Room integration.
+- [x] **Unified Media:** Comic and Video engines sharing UI components.
+- [x] **Metadata System:** Portable `metadata.json` and tag management.
+- [x] **Performance Tuning:** Parallel scanning and URI caching.
+- [ ] **Phase 11: Backup & Restore:** Export collection data to the `/Backup` folder.
+- [ ] **Phase 12: Advanced UI:** Custom accent colors and multi-column grid settings.
 - [ ] **Future:** Folder monitoring (FileObserver) and external plugin system.
 
 ---
 
 ## 📍 Current Status
-
-Kitsune has successfully completed **Phase 10.5 (Performance & Architecture Refactor)**. The application is stable, highly responsive, and feature-complete for local media management. We are currently moving toward the **Backup & Restore** milestone.
+Kitsune has successfully completed **Phase 10.5 (Performance & Architecture Refactor)**. The application is stable, highly responsive, and feature-complete for local media management.
 
 ---
 
 ## 🤝 Contributing
-
-Kitsune is an open-source project. We welcome pull requests for:
-- Performance improvements.
-- Support for new media formats.
-- UI/UX refinements.
-
-Please ensure your code follows the **Manual DI** and **MVVM** guidelines established in the project.
+Kitsune is an open-source project. We welcome pull requests for performance improvements, support for new media formats, and UI/UX refinements. Please ensure your code follows the **Manual DI** and **MVVM** guidelines established in the project.
 
 ---
 
 ## 📄 License
-
-Kitsune is licensed under the **MIT License**. See the `LICENSE` file for more details.
+This project is licensed under the **MIT License**. See the `LICENSE` file for details.
 
 ---
-
 <p align="center">Developed with ❤️ for the Offline Media Community.</p>

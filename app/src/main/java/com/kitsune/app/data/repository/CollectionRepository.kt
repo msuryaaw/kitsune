@@ -3,6 +3,7 @@ package com.kitsune.app.data.repository
 import com.kitsune.app.domain.model.MediaType
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 
 /**
@@ -10,9 +11,8 @@ import kotlinx.coroutines.flow.map
  * Menjadi entry point tunggal untuk operasi Bookmark dan Playlist.
  * Membawahi BookmarkRepository dan PlaylistRepository untuk menyatukan akses data.
  * 
- * REVISION 7.8.9: Unified Collection Repository Foundation.
- * REVISION 7.8.10: Added membership query for Detail Screen integration.
- * REVISION 7.8.11: Added path set observation for Library integration.
+ * REVISION 10.1.2: Restrict Playlist access to Video only. 
+ * Comics are restricted to Bookmarks only.
  */
 class CollectionRepository(
     private val bookmarkRepository: BookmarkRepository,
@@ -35,16 +35,20 @@ class CollectionRepository(
 
     /**
      * Mengamati status bookmark untuk media tertentu di dalam kategori tertentu.
-     * Dapat digunakan baik untuk Komik maupun Video berkat Relative Path Identification.
      */
     fun isBookmarked(mediaPath: String, bookmarkId: Long): Flow<Boolean> =
         bookmarkRepository.isComicInBookmark(bookmarkId, mediaPath)
 
     /**
      * Mengamati status playlist untuk media tertentu di dalam kategori tertentu.
+     * REVISION 10.1.2: Returns false if mediaPath is not a Video.
      */
     fun isInPlaylist(mediaPath: String, playlistId: Long): Flow<Boolean> =
-        playlistRepository.isComicInPlaylist(playlistId, mediaPath)
+        if (mediaPath.startsWith("Videos/")) {
+            playlistRepository.isVideoInPlaylist(playlistId, mediaPath)
+        } else {
+            flowOf(false)
+        }
 
     /**
      * Mendapatkan daftar ID bookmark yang berisi media tertentu.
@@ -54,16 +58,20 @@ class CollectionRepository(
 
     /**
      * Mengamati seluruh jalur media yang ter-bookmark untuk tipe media tertentu.
-     * Mengembalikan Set untuk lookup O(1) di ViewModel.
      */
     fun getBookmarkedPaths(mediaType: MediaType): Flow<Set<String>> =
         bookmarkRepository.getBookmarkedPaths(mediaType).map { it.toSet() }
 
     /**
      * Mengamati seluruh jalur media yang ada di playlist manapun untuk tipe media tertentu.
+     * REVISION 10.1.2: Only returns data for Video.
      */
     fun getPlaylistPaths(mediaType: MediaType): Flow<Set<String>> =
-        playlistRepository.getPlaylistPaths(mediaType).map { it.toSet() }
+        if (mediaType == MediaType.VIDEO) {
+            playlistRepository.getPlaylistPaths(mediaType).map { it.toSet() }
+        } else {
+            flowOf(emptySet())
+        }
 
     // --- Write APIs ---
 
@@ -82,17 +90,22 @@ class CollectionRepository(
     }
 
     /**
-     * Menambahkan media (Komik/Video) ke dalam kategori playlist.
+     * Menambahkan media (Video) ke dalam kategori playlist.
+     * REVISION 10.1.2: Restrict to Video paths.
      */
     suspend fun addPlaylist(mediaPath: String, playlistId: Long) {
-        playlistRepository.addMediaToPlaylists(listOf(playlistId), listOf(mediaPath))
+        if (mediaPath.startsWith("Videos/")) {
+            playlistRepository.addVideoToPlaylist(playlistId, mediaPath)
+        }
     }
 
     /**
-     * Menghapus media (Komik/Video) dari kategori playlist.
+     * Menghapus media (Video) dari kategori playlist.
      */
     suspend fun removePlaylist(mediaPath: String, playlistId: Long) {
-        playlistRepository.removeComicFromPlaylist(playlistId, mediaPath)
+        if (mediaPath.startsWith("Videos/")) {
+            playlistRepository.removeVideoFromPlaylist(playlistId, mediaPath)
+        }
     }
 
     // --- Toggle APIs ---
@@ -111,8 +124,11 @@ class CollectionRepository(
 
     /**
      * Mengubah status playlist media (Add jika belum ada, Remove jika sudah ada).
+     * REVISION 10.1.2: Only valid for Video paths.
      */
     suspend fun togglePlaylist(mediaPath: String, playlistId: Long) {
+        if (!mediaPath.startsWith("Videos/")) return
+
         val currentlyInPlaylist = isInPlaylist(mediaPath, playlistId).first()
         if (currentlyInPlaylist) {
             removePlaylist(mediaPath, playlistId)

@@ -7,7 +7,6 @@ import com.kitsune.app.data.repository.PlaylistRepository
 import com.kitsune.app.data.repository.ScannerRepository
 import com.kitsune.app.data.repository.SettingsRepository
 import com.kitsune.app.data.repository.VideoRepository
-import com.kitsune.app.domain.model.Comic
 import com.kitsune.app.domain.model.Video
 import com.kitsune.app.ui.components.media.MediaUiModel
 import com.kitsune.app.ui.components.media.mapper.toMediaUiModel
@@ -18,15 +17,13 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 /**
- * ViewModel untuk menampilkan detail Playlist (Unified Media).
- * Mampu menampilkan Komik dan Video secara bersamaan.
+ * ViewModel untuk menampilkan detail Playlist (Video Only).
  * 
- * REVISION 8.4.1: Unified Media Indexing (Comics + Videos).
+ * REVISION 10.1.2: Restrict to Video only. Removed Comic indexing and support.
  */
 class PlaylistDetailViewModel(
     private val playlistId: Long,
     private val playlistRepository: PlaylistRepository,
-    private val scannerRepository: ScannerRepository,
     private val videoRepository: VideoRepository,
     private val settingsRepository: SettingsRepository,
     private val bookmarkRepository: BookmarkRepository
@@ -54,17 +51,11 @@ class PlaylistDetailViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     /**
-     * UNIFIED MEDIA INDEX (REVISION 8.4.1)
-     * Menggabungkan Komik dan Video dalam satu lookup map O(1).
+     * VIDEO MEDIA INDEX
+     * Only indexes videos for this playlist view.
      */
-    private val mediaIndex = combine(
-        scannerRepository.allComics,
-        videoRepository.allVideos
-    ) { comics, videos ->
-        val index = mutableMapOf<String, Any>()
-        comics.forEach { index[it.relativePath] = it }
-        videos.forEach { index[it.relativePath] = it }
-        index
+    private val videoIndex = videoRepository.allVideos.map { videos ->
+        videos.associateBy { it.relativePath }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
     init {
@@ -79,14 +70,15 @@ class PlaylistDetailViewModel(
                 return@launch
             }
 
-            val pathsInPlaylistFlow = playlistRepository.getComicsInPlaylist(playlistId).distinctUntilChanged()
+            // REVISION 10.1.2: Use video-only flow from repository
+            val pathsInPlaylistFlow = playlistRepository.getVideosInPlaylist(playlistId).distinctUntilChanged()
             val settingsFlow = settingsRepository.settings.distinctUntilChanged()
             val allBookmarksFlow = bookmarkRepository.getAllBookmarkedComics().map { it.toSet() }.distinctUntilChanged()
-            val allPlaylistsFlow = playlistRepository.getAllPlaylistComics().map { it.toSet() }.distinctUntilChanged()
+            val allPlaylistsFlow = playlistRepository.getAllPlaylistMedia().map { it.toSet() }.distinctUntilChanged()
 
             combine(
                 pathsInPlaylistFlow,
-                mediaIndex,
+                videoIndex,
                 settingsFlow,
                 debouncedSearchQuery,
                 _sortOrder,
@@ -96,7 +88,7 @@ class PlaylistDetailViewModel(
                 @Suppress("UNCHECKED_CAST")
                 val pathsInThisPlaylist = array[0] as List<String>
                 @Suppress("UNCHECKED_CAST")
-                val mediaMap = array[1] as Map<String, Any>
+                val mediaMap = array[1] as Map<String, Video>
                 val settings = array[2] as com.kitsune.app.database.entity.SettingsEntity?
                 val query = array[3] as String
                 val order = array[4] as CollectionSortOrder
@@ -107,7 +99,7 @@ class PlaylistDetailViewModel(
 
                 val gridSize = settings?.gridSize ?: 3
 
-                // 1. Unified Mapping (REVISION 8.4.1)
+                // 1. Video-Only Mapping
                 val items = pathsInThisPlaylist.mapNotNull { path ->
                     val media = mediaMap[path] ?: return@mapNotNull null
                     
@@ -120,11 +112,7 @@ class PlaylistDetailViewModel(
                         else -> ComicStatusSets.EMPTY
                     }
 
-                    when (media) {
-                        is Comic -> media.toMediaUiModel(statuses)
-                        is Video -> media.toMediaUiModel(statuses)
-                        else -> null
-                    }
+                    media.toMediaUiModel(statuses)
                 }
                 
                 // 2. Filtering
@@ -190,7 +178,8 @@ class PlaylistDetailViewModel(
         if (paths.isEmpty()) return
         
         viewModelScope.launch {
-            playlistRepository.removeComicsFromPlaylist(playlistId, paths)
+            // REVISION 10.1.2: Use video-specific removal
+            playlistRepository.removeVideosFromPlaylist(playlistId, paths)
             clearSelection()
         }
     }

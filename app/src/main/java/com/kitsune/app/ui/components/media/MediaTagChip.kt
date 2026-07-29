@@ -25,13 +25,9 @@ fun MediaTagChip(
         AssistChip(
             onClick = onClick,
             label = { Text("+") },
-            leadingIcon = {
-                Icon(
-                    Icons.Default.Add,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp)
-                )
-            },
+            // REVISION 10.1.1: Removed leadingIcon to fix duplicate "+" symbol issue.
+            // Keeping label as the only representation of the add action.
+            leadingIcon = null,
             colors = AssistChipDefaults.assistChipColors(
                 containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
                 labelColor = MaterialTheme.colorScheme.onPrimaryContainer

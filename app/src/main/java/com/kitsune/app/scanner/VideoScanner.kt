@@ -2,66 +2,35 @@ package com.kitsune.app.scanner
 
 import android.content.Context
 import android.net.Uri
-import androidx.documentfile.provider.DocumentFile
-import com.kitsune.app.core.NaturalOrderComparator
+import com.kitsune.app.core.StorageHelper
 import com.kitsune.app.database.entity.VideoEntity
 import com.kitsune.app.domain.model.Episode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * Engine untuk melakukan scanning folder video secara offline.
- * Mengikuti filosofi Filesystem First dan Lazy Metadata.
+ * Engine for scanning video folders offline.
+ * Inherits from BaseScanner for shared SAF and sorting logic.
+ * 
+ * REVISION 10.2.3: Refactored to be stateless for thread safety.
+ * Focused strictly on Video/Episode logic.
  */
-class VideoScanner(private val context: Context) {
+class VideoScanner(
+    context: Context,
+    storageHelper: StorageHelper
+) : BaseScanner(context, storageHelper) {
 
-    private val naturalOrderComparator = NaturalOrderComparator()
     private val allowedVideoExtensions = listOf("mp4", "mkv", "mov", "avi", "webm", "m4v", "ts", "3gp")
-    private val allowedImageExtensions = listOf("jpg", "jpeg", "png", "webp")
-
-    // Folder Cache (Mirip dengan ComicScanner untuk performa)
-    private var cachedRootUri: Uri? = null
-    private var cachedRootDoc: DocumentFile? = null
-    private var cachedVideosDoc: DocumentFile? = null
-
-    private fun getRootFolder(rootUri: Uri): DocumentFile? {
-        if (cachedRootUri != rootUri || cachedRootDoc == null || !cachedRootDoc!!.exists()) {
-            cachedRootUri = rootUri
-            cachedRootDoc = DocumentFile.fromTreeUri(context, rootUri)
-            cachedVideosDoc = null
-        }
-        return cachedRootDoc
-    }
-
-    private fun getVideosFolder(rootUri: Uri): DocumentFile? {
-        val root = getRootFolder(rootUri) ?: return null
-        if (cachedVideosDoc == null || !cachedVideosDoc!!.exists()) {
-            cachedVideosDoc = root.findFile("Videos")
-        }
-        return cachedVideosDoc
-    }
 
     /**
-     * Verifikasi apakah folder Videos valid.
-     */
-    fun isVideosFolderValid(rootUri: Uri): Boolean {
-        return try {
-            val folder = getVideosFolder(rootUri)
-            folder != null && folder.exists() && folder.isDirectory
-        } catch (e: Exception) {
-            false
-        }
-    }
-
-    /**
-     * Memindai folder 'Videos' untuk menghasilkan daftar VideoEntity.
-     * Hanya membaca metadata ringan sesuai spesifikasi Phase 7.1.2.
+     * Scans the 'Videos' folder to produce a list of VideoEntity.
+     * Only reads light metadata according to Phase 7.1.2 specs.
      */
     suspend fun scanVideos(
         rootUri: Uri,
         getExistingCover: (relativePath: String, lastModified: Long) -> String? = { _, _ -> null }
     ): List<VideoEntity> = withContext(Dispatchers.IO) {
-        val videosFolder = getVideosFolder(rootUri) ?: return@withContext emptyList()
+        val videosFolder = getCategoryFolder(rootUri, "Videos") ?: return@withContext emptyList()
         
         if (!videosFolder.isDirectory) return@withContext emptyList()
 
@@ -76,7 +45,7 @@ class VideoScanner(private val context: Context) {
             val relativePath = "Videos/$title"
             val currentLastModified = folder.lastModified()
 
-            // Cek apakah folder memiliki minimal satu file video valid
+            // Check if folder contains at least one valid video file
             val videoFiles = folder.listFiles().filter { file ->
                 val ext = file.name?.lowercase()?.substringAfterLast('.', "") ?: ""
                 file.isFile && ext in allowedVideoExtensions
@@ -98,10 +67,10 @@ class VideoScanner(private val context: Context) {
     }
 
     /**
-     * Memindai daftar episode (file video) di dalam folder video tertentu secara lazy.
+     * Scans for episodes (video files) within a specific video folder lazily.
      */
     suspend fun scanEpisodes(rootUri: Uri, videoRelativePath: String): List<Episode> = withContext(Dispatchers.IO) {
-        val videosFolder = getVideosFolder(rootUri) ?: return@withContext emptyList()
+        val videosFolder = getCategoryFolder(rootUri, "Videos") ?: return@withContext emptyList()
         val title = videoRelativePath.substringAfter("Videos/").removeSuffix("/")
         val videoFolder = videosFolder.findFile(title) ?: return@withContext emptyList()
 
@@ -121,12 +90,5 @@ class VideoScanner(private val context: Context) {
                     lastModified = file.lastModified()
                 )
             }
-    }
-
-    private fun findCover(folder: DocumentFile): Uri? {
-        return folder.listFiles().find { file ->
-            val fileName = file.name?.lowercase() ?: ""
-            allowedImageExtensions.any { ext -> fileName == "cover.$ext" }
-        }?.uri
     }
 }

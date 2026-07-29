@@ -16,6 +16,9 @@ import com.kitsune.app.data.metadata.MetadataManager
 import com.kitsune.app.data.repository.*
 import com.kitsune.app.database.AppDatabase
 import com.kitsune.app.navigation.KitsuneNavGraph
+import com.kitsune.app.scanner.ComicScanner
+import com.kitsune.app.scanner.ScannerCoordinator
+import com.kitsune.app.scanner.VideoScanner
 import com.kitsune.app.ui.library.LibraryViewModel
 import com.kitsune.app.ui.splash.SplashViewModel
 
@@ -67,14 +70,18 @@ class MainActivity : ComponentActivity() {
         storageHelper = StorageHelper(this)
         metadataManager = MetadataManager(this, storageHelper)
         
-        val comicScanner = com.kitsune.app.scanner.ComicScanner(this)
-        val videoScanner = com.kitsune.app.scanner.VideoScanner(this)
+        // REVISION 10.2.6: Initializing new Scanner Architecture components
+        val comicScanner = ComicScanner(this, storageHelper)
+        val videoScanner = VideoScanner(this, storageHelper)
+        val scannerCoordinator = ScannerCoordinator()
         
         scannerRepository = ScannerRepository(
             comicScanner = comicScanner,
             comicDao = database.comicDao(),
             videoScanner = videoScanner,
-            videoDao = database.videoDao()
+            videoDao = database.videoDao(),
+            database = database,
+            coordinator = scannerCoordinator
         )
         
         bookmarkRepository = BookmarkRepository(database.bookmarkDao())
@@ -103,7 +110,6 @@ class MainActivity : ComponentActivity() {
                 ) {
                     val navController = rememberNavController()
                     
-                    // REVISION 9.2.1: Integrated MetadataManager
                     KitsuneNavGraph(
                         navController = navController,
                         application = application,

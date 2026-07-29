@@ -17,8 +17,7 @@ import kotlinx.coroutines.launch
 
 /**
  * ViewModel untuk mengelola data detail sebuah komik.
- * REVISION 9.3.3: Optimized Metadata Lifecycle.
- * Metadata is treated as a non-blocking enhancement.
+ * REVISION 10.5.8: Optimized settings retrieval using memory cache.
  */
 class ComicDetailViewModel(
     private val comicRelativePath: String,
@@ -46,10 +45,6 @@ class ComicDetailViewModel(
         .map { it.isNotEmpty() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
-    /**
-     * UI State combining multiple sources. 
-     * Success is emitted as soon as _comic is available (Metadata is optional).
-     */
     val uiState: StateFlow<ComicDetailUiState> = combine(
         _comic,
         _chapters,
@@ -78,21 +73,19 @@ class ComicDetailViewModel(
     }
 
     private fun loadInitialData() {
-        // 1. Load Primary Data (Comic metadata from DB)
         viewModelScope.launch {
             try {
                 val comic = scannerRepository.getComicByPath(comicRelativePath)
                 if (comic == null) return@launch
                 _comic.value = comic
 
-                // 2. Load Secondary Data (Chapters from Filesystem)
-                val settings = settingsRepository.settings.first()
+                // REVISION 10.5.8: Use cached settings to avoid extra DB query on navigation
+                val settings = settingsRepository.getSettingsCached()
                 val rootUriString = settings?.rootFolderUri ?: return@launch
                 val rootUri = rootUriString.toUri()
 
                 _chapters.value = scannerRepository.getChapters(rootUri, comicRelativePath)
                 
-                // 3. Load Metadata Enhancement (Separate Job to be non-blocking)
                 launch {
                     _metadata.value = metadataManager.readMetadata(rootUri, comicRelativePath)
                 }
@@ -102,13 +95,9 @@ class ComicDetailViewModel(
         }
     }
 
-    /**
-     * Menambahkan tag baru ke metadata.
-     * REVISION 9.3.4: Targeted metadata refresh only.
-     */
     fun addTag(tagName: String) {
         viewModelScope.launch {
-            val settings = settingsRepository.settings.first()
+            val settings = settingsRepository.getSettingsCached()
             val rootUri = settings?.rootFolderUri?.toUri() ?: return@launch
 
             val updatedMetadata = _metadata.value.copy(
@@ -117,20 +106,16 @@ class ComicDetailViewModel(
 
             val result = metadataManager.writeMetadata(rootUri, comicRelativePath, updatedMetadata)
             if (result.isSuccess) {
-                // Refresh ONLY metadata
                 _metadata.value = metadataManager.readMetadata(rootUri, comicRelativePath)
             } else {
-                _snackbarMessage.emit("Failed to save tag: ${result.exceptionOrNull()?.message}")
+                _snackbarMessage.emit("Failed to save tag")
             }
         }
     }
 
-    /**
-     * Menghapus tag dari metadata.
-     */
     fun removeTag(tagName: String) {
         viewModelScope.launch {
-            val settings = settingsRepository.settings.first()
+            val settings = settingsRepository.getSettingsCached()
             val rootUri = settings?.rootFolderUri?.toUri() ?: return@launch
 
             val updatedMetadata = _metadata.value.copy(
@@ -139,7 +124,6 @@ class ComicDetailViewModel(
 
             val result = metadataManager.writeMetadata(rootUri, comicRelativePath, updatedMetadata)
             if (result.isSuccess) {
-                // Refresh ONLY metadata
                 _metadata.value = metadataManager.readMetadata(rootUri, comicRelativePath)
             } else {
                 _snackbarMessage.emit("Failed to remove tag")

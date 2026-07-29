@@ -53,9 +53,7 @@ import com.kitsune.app.ui.splash.SplashViewModel
 data class BottomNavItem(val label: String, val route: String, val icon: ImageVector)
 
 /**
- * REVISION 7.9.3: Unified Navigation Graph.
- * Segregates navigation logic from MainActivity into a modular structure.
- * REVISION 9.2.1: Added MetadataManager.
+ * REVISION 10.5.10: Using navigateSafe across all navigation points for responsiveness.
  */
 @Composable
 fun KitsuneNavGraph(
@@ -80,7 +78,7 @@ fun KitsuneNavGraph(
                 viewModel = splashViewModel,
                 storageHelper = storageHelper,
                 onNavigateToMain = {
-                    navController.navigate(Screen.Main.route) {
+                    navController.navigateSafe(Screen.Main.route) {
                         popUpTo(Screen.Splash.route) { inclusive = true }
                     }
                 }
@@ -145,7 +143,7 @@ fun MainContainer(
                             label = { Text(item.label) },
                             selected = currentDestination?.hierarchy?.any { it.route == item.route } == true,
                             onClick = {
-                                innerNavController.navigate(item.route) {
+                                innerNavController.navigateSafe(item.route) {
                                     popUpTo(innerNavController.graph.findStartDestination().id) {
                                         saveState = true
                                     }
@@ -179,7 +177,7 @@ fun MainContainer(
                 BookmarkScreen(
                     viewModel = bookmarkViewModel,
                     onCategoryClick = { item ->
-                        innerNavController.navigate(Screen.BookmarkDetail.createRoute(item.bookmark.id))
+                        innerNavController.navigateSafe(Screen.BookmarkDetail.createRoute(item.bookmark.id))
                     }
                 ) 
             }
@@ -206,7 +204,7 @@ fun MainContainer(
                 BookmarkDetailScreen(
                     viewModel = detailViewModel,
                     onComicClick = { comic ->
-                        innerNavController.navigate(Screen.ComicDetail.createRoute(comic.relativePath))
+                        innerNavController.navigateSafe(Screen.ComicDetail.createRoute(comic.relativePath))
                     },
                     onBackClick = { innerNavController.popBackStack() }
                 )
@@ -224,7 +222,7 @@ fun MainContainer(
                 PlaylistScreen(
                     viewModel = playlistViewModel,
                     onCategoryClick = { item ->
-                        innerNavController.navigate(Screen.PlaylistDetail.createRoute(item.playlist.id))
+                        innerNavController.navigateSafe(Screen.PlaylistDetail.createRoute(item.playlist.id))
                     }
                 ) 
             }
@@ -242,7 +240,6 @@ fun MainContainer(
                             return PlaylistDetailViewModel(
                                 playlistId = playlistId,
                                 playlistRepository = playlistRepository,
-                                scannerRepository = scannerRepository,
                                 videoRepository = videoRepository,
                                 settingsRepository = settingsRepository,
                                 bookmarkRepository = bookmarkRepository
@@ -254,9 +251,9 @@ fun MainContainer(
                     viewModel = detailViewModel,
                     onItemClick = { item ->
                         if (item.mediaType == com.kitsune.app.domain.model.MediaType.COMIC) {
-                            innerNavController.navigate(Screen.ComicDetail.createRoute(item.id))
+                            innerNavController.navigateSafe(Screen.ComicDetail.createRoute(item.id))
                         } else {
-                            innerNavController.navigate(Screen.VideoDetail.createRoute(item.id))
+                            innerNavController.navigateSafe(Screen.VideoDetail.createRoute(item.id))
                         }
                     },
                     onBackClick = { innerNavController.popBackStack() }
@@ -276,7 +273,7 @@ fun MainContainer(
                 LocalScreen(
                     viewModel = localViewModel,
                     onContinueReading = { lastRead ->
-                        innerNavController.navigate(
+                        innerNavController.navigateSafe(
                             Screen.Reader.createRoute(
                                 lastRead.progress.comicRelativePath,
                                 lastRead.progress.chapterRelativePath
@@ -284,15 +281,15 @@ fun MainContainer(
                         )
                     },
                     onContinueWatching = { lastWatched ->
-                        innerNavController.navigate(
+                        innerNavController.navigateSafe(
                             Screen.VideoPlayer.createRoute(
                                 lastWatched.video.relativePath,
                                 lastWatched.episodeRelativePath
                             )
                         )
                     },
-                    onComicsClick = { innerNavController.navigate(Screen.ComicLibrary.route) },
-                    onVideosClick = { innerNavController.navigate(Screen.VideoLibrary.route) }
+                    onComicsClick = { innerNavController.navigateSafe(Screen.ComicLibrary.route) },
+                    onVideosClick = { innerNavController.navigateSafe(Screen.VideoLibrary.route) }
                 ) 
             }
 
@@ -320,7 +317,7 @@ fun MainContainer(
                 ComicLibraryScreen(
                     viewModel = libraryViewModel,
                     onComicClick = { comic ->
-                        innerNavController.navigate(Screen.ComicDetail.createRoute(comic.relativePath))
+                        innerNavController.navigateSafe(Screen.ComicDetail.createRoute(comic.relativePath))
                     },
                     onBackClick = { innerNavController.popBackStack() }
                 )
@@ -343,7 +340,7 @@ fun MainContainer(
                 VideoLibraryScreen(
                     viewModel = videoLibraryViewModel,
                     onVideoClick = { video ->
-                        innerNavController.navigate(Screen.VideoDetail.createRoute(video.relativePath))
+                        innerNavController.navigateSafe(Screen.VideoDetail.createRoute(video.relativePath))
                     },
                     onBackClick = { innerNavController.popBackStack() }
                 )
@@ -373,7 +370,7 @@ fun MainContainer(
                 VideoDetailScreen(
                     viewModel = videoDetailViewModel,
                     onEpisodeClick = { episode ->
-                        innerNavController.navigate(Screen.VideoPlayer.createRoute(videoRelativePath, episode.relativePath))
+                        innerNavController.navigateSafe(Screen.VideoPlayer.createRoute(videoRelativePath, episode.relativePath))
                     },
                     onBackClick = { innerNavController.popBackStack() }
                 )
@@ -435,10 +432,10 @@ fun MainContainer(
                 ComicDetailScreen(
                     viewModel = comicDetailViewModel,
                     onChapterClick = { chapter ->
-                        innerNavController.navigate(Screen.Reader.createRoute(comicRelativePath, chapter.relativePath))
+                        innerNavController.navigateSafe(Screen.Reader.createRoute(comicRelativePath, chapter.relativePath))
                     },
                     onContinueClick = { progress ->
-                        innerNavController.navigate(Screen.Reader.createRoute(comicRelativePath, progress.chapterRelativePath))
+                        innerNavController.navigateSafe(Screen.Reader.createRoute(comicRelativePath, progress.chapterRelativePath))
                     },
                     onBackClick = { innerNavController.popBackStack() }
                 )

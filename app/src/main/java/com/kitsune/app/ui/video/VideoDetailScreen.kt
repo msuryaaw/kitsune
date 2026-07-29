@@ -28,7 +28,7 @@ import kotlinx.coroutines.flow.collectLatest
 
 /**
  * Screen untuk menampilkan detail video dan daftar episode dengan indikator progres.
- * REVISION 9.2.2: Integrated Tags Management and Edit Mode.
+ * REVISION 10.4.5: Added LazyColumn keys for better performance.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -190,7 +190,6 @@ fun VideoDetailContent(
         item {
             VideoHeader(video = video)
             
-            // REVISION 9.2.4: Integrated Tags Section
             Spacer(modifier = Modifier.height(16.dp))
             MediaTagsSection(
                 tags = metadata.tags,
@@ -219,6 +218,7 @@ fun VideoDetailContent(
                 )
             }
         } else {
+            // OPTIMIZATION: Use key for stable lists
             items(
                 items = episodes,
                 key = { it.episode.relativePath }

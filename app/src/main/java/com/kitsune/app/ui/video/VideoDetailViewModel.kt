@@ -15,9 +15,8 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 /**
- * ViewModel untuk mengelola data detail sebuah video.
- * REVISION 9.3.5: Optimized Metadata Lifecycle.
- * Metadata is treated as a non-blocking enhancement, consistent with ComicDetailViewModel.
+ * ViewModel for managing data of a video detail screen.
+ * REVISION 10.5.9: Optimized settings retrieval and flow stability.
  */
 class VideoDetailViewModel(
     private val videoRelativePath: String,
@@ -44,12 +43,11 @@ class VideoDetailViewModel(
 
     val isBookmarked: StateFlow<Boolean> = collectionRepository.getBookmarkIdsForMedia(videoRelativePath)
         .map { it.isNotEmpty() }
+        .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     /**
-     * Alur pengolahan data UI State:
-     * 1. Gabungkan metadata video (reaktif) dengan daftar episode, map progres, dan metadata filesystem.
-     * 2. Transformasi menjadi EpisodeItemState.
+     * UI State combining multiple sources.
      */
     val uiState: StateFlow<VideoDetailUiState> = combine(
         videoRepository.getVideoFlow(videoRelativePath),
@@ -96,14 +94,13 @@ class VideoDetailViewModel(
     private fun loadInitialData() {
         viewModelScope.launch {
             try {
-                // 1. Load Primary Data
-                val settings = settingsRepository.settings.first()
+                // REVISION 10.5.9: Use cached settings for faster navigation
+                val settings = settingsRepository.getSettingsCached()
                 val rootUriString = settings?.rootFolderUri ?: return@launch
                 val rootUri = rootUriString.toUri()
                 
                 _episodes.value = videoRepository.getEpisodes(rootUri, videoRelativePath)
 
-                // 2. Load Metadata Enhancement (Separate Job to be non-blocking)
                 launch {
                     _metadata.value = metadataManager.readMetadata(rootUri, videoRelativePath)
                 }
@@ -113,13 +110,9 @@ class VideoDetailViewModel(
         }
     }
 
-    /**
-     * Menambahkan tag baru ke metadata video.
-     * REVISION 9.3.6: Targeted refresh of metadata only.
-     */
     fun addTag(tagName: String) {
         viewModelScope.launch {
-            val settings = settingsRepository.settings.first()
+            val settings = settingsRepository.getSettingsCached()
             val rootUri = settings?.rootFolderUri?.toUri() ?: return@launch
 
             val updatedMetadata = _metadata.value.copy(
@@ -128,7 +121,6 @@ class VideoDetailViewModel(
 
             val result = metadataManager.writeMetadata(rootUri, videoRelativePath, updatedMetadata)
             if (result.isSuccess) {
-                // Refresh ONLY metadata
                 _metadata.value = metadataManager.readMetadata(rootUri, videoRelativePath)
             } else {
                 _snackbarMessage.emit("Failed to save tag")
@@ -136,12 +128,9 @@ class VideoDetailViewModel(
         }
     }
 
-    /**
-     * Menghapus tag dari metadata video.
-     */
     fun removeTag(tagName: String) {
         viewModelScope.launch {
-            val settings = settingsRepository.settings.first()
+            val settings = settingsRepository.getSettingsCached()
             val rootUri = settings?.rootFolderUri?.toUri() ?: return@launch
 
             val updatedMetadata = _metadata.value.copy(
@@ -150,7 +139,6 @@ class VideoDetailViewModel(
 
             val result = metadataManager.writeMetadata(rootUri, videoRelativePath, updatedMetadata)
             if (result.isSuccess) {
-                // Refresh ONLY metadata
                 _metadata.value = metadataManager.readMetadata(rootUri, videoRelativePath)
             } else {
                 _snackbarMessage.emit("Failed to remove tag")

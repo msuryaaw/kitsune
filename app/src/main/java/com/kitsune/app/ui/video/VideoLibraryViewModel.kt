@@ -14,11 +14,8 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 /**
- * ViewModel untuk mengelola data pada layar Video Library.
- * REVISION 7.8.7: Migrasi ke BaseLibraryViewModel untuk standarisasi logika pencarian dan penyegaran.
- * REVISION 7.8.11: Integrasi CollectionRepository untuk indikator Bookmark dan Playlist.
- * REVISION 8.3.3: Integrasi Selection Mode dari BaseLibraryViewModel.
- * REVISION 8.3.6: Added Playlist support for batch operations.
+ * ViewModel for managing data on the Video Library screen.
+ * REVISION 10.5.3: Optimized Flow pipeline to reduce redundant mappings and emissions.
  */
 class VideoLibraryViewModel(
     private val videoRepository: VideoRepository,
@@ -28,7 +25,7 @@ class VideoLibraryViewModel(
 ) : BaseLibraryViewModel() {
 
     /**
-     * Mengamati seluruh daftar playlist yang tersedia.
+     * Observable list of available playlists.
      */
     val allPlaylists: StateFlow<List<PlaylistEntity>> = playlistRepository.getAllPlaylistsWithCount()
         .map { list -> list.map { it.playlist } }
@@ -36,8 +33,8 @@ class VideoLibraryViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     /**
-     * Menggabungkan data inti library (Video, Progress, Collections).
-     * Dibagi menjadi dua tahap untuk menangani limitasi combine() overload (> 5 flows).
+     * OPTIMIZATION: Divided the flow pipeline into smaller chunks to improve stability.
+     * videoItemsFlow combines core video data and collection status.
      */
     private val videoItemsFlow: Flow<List<VideoItemState>> = combine(
         videoRepository.allVideos,
@@ -46,19 +43,17 @@ class VideoLibraryViewModel(
         collectionRepository.getPlaylistPaths(MediaType.VIDEO)
     ) { videos, progressMap, bookmarkedPaths, playlistPaths ->
         
-        // OPTIMIZATION: Group progress by video path once per emission to avoid O(N) filter in loop
+        // Group progress once per emission
         val groupedProgress = progressMap.values.groupBy { it.videoRelativePath }
         
         videos.map { video ->
             val path = video.relativePath
-            
             val latestProgress = groupedProgress[path]?.maxByOrNull { it.lastWatchedAt }
 
             val percentage = if (latestProgress != null && latestProgress.durationMs > 0) {
                 latestProgress.lastPositionMs.toFloat() / latestProgress.durationMs.toFloat()
             } else 0f
             
-            // Build Statuses
             val statusSet = mutableSetOf<ComicStatus>()
             if (bookmarkedPaths.contains(path)) statusSet.add(ComicStatus.BOOKMARKED)
             if (playlistPaths.contains(path)) statusSet.add(ComicStatus.IN_PLAYLIST)
@@ -71,10 +66,10 @@ class VideoLibraryViewModel(
                 statuses = statusSet
             )
         }
-    }
+    }.distinctUntilChanged()
 
     /**
-     * Perakitan final UI State dengan Filtering, Sorting, dan Settings.
+     * Final UI State assembly with Filtering, Sorting, and Settings integration.
      */
     val uiState: StateFlow<VideoLibraryUiState> = combine(
         videoItemsFlow,
@@ -83,7 +78,7 @@ class VideoLibraryViewModel(
         _isRefreshing
     ) { videoItems, query, gridSize, refreshing ->
 
-        // Filtering & Sorting
+        // Filtering & Sorting (performed only when necessary due to distinctUntilChanged upstream)
         val filteredItems = if (query.isBlank()) {
             videoItems
         } else {
@@ -110,16 +105,14 @@ class VideoLibraryViewModel(
         refreshLibrary()
     }
 
-    /**
-     * Implementasi refresh library untuk video.
-     */
     override fun refreshLibrary() {
         if (_isRefreshing.value) return
 
         viewModelScope.launch {
             _isRefreshing.value = true
             try {
-                val settings = settingsRepository.settings.first()
+                // REVISION 10.5.4: Use cached settings for one-shot retrieval
+                val settings = settingsRepository.getSettingsCached()
                 val rootUriString = settings?.rootFolderUri
                 
                 if (!rootUriString.isNullOrEmpty()) {
@@ -133,8 +126,6 @@ class VideoLibraryViewModel(
         }
     }
 
-    // --- Selection Methods (Specific implementation) ---
-
     fun selectAll() {
         val state = uiState.value
         if (state is VideoLibraryUiState.Success) {
@@ -142,14 +133,12 @@ class VideoLibraryViewModel(
         }
     }
 
-    // --- Bulk Operations (REVISION 8.3.6) ---
-
     fun addSelectedToPlaylists(playlistIds: List<Long>) {
         val paths = _selectedPaths.value.toList()
         if (paths.isEmpty() || playlistIds.isEmpty()) return
         
         viewModelScope.launch {
-            playlistRepository.addMediaToPlaylists(playlistIds, paths)
+            playlistRepository.addVideosToPlaylists(playlistIds, paths)
             _snackbarMessage.emit("Added ${paths.size} videos to ${playlistIds.size} playlists.")
             clearSelection()
         }

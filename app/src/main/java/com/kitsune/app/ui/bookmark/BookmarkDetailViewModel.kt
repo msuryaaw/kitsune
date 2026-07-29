@@ -13,6 +13,10 @@ import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
+/**
+ * ViewModel for Bookmark Category Detail.
+ * REVISION 10.5.11: Optimized Flow pipeline to separate mapping from filtering.
+ */
 class BookmarkDetailViewModel(
     private val bookmarkId: Long,
     private val bookmarkRepository: BookmarkRepository,
@@ -34,7 +38,6 @@ class BookmarkDetailViewModel(
     private val _uiState = MutableStateFlow<BookmarkDetailUiState>(BookmarkDetailUiState.Loading)
     val uiState: StateFlow<BookmarkDetailUiState> = _uiState.asStateFlow()
 
-    // Selection Mode State
     private val _selectedPaths = MutableStateFlow<Set<String>>(emptySet())
     val selectedPaths: StateFlow<Set<String>> = _selectedPaths.asStateFlow()
 
@@ -43,11 +46,10 @@ class BookmarkDetailViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     /**
-     * OPTIMIZATION 6.8.2: Indexing Library.
-     * Index ini hanya dibangun ulang jika data library berubah, bukan saat search berubah.
+     * Comic Index built once when library changes.
      */
     private val comicIndex = scannerRepository.allComics
-        .map { it.associateBy { comic -> comic.relativePath } }
+        .map { list -> list.associateBy { it.relativePath } }
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
@@ -63,54 +65,36 @@ class BookmarkDetailViewModel(
                 return@launch
             }
 
-            val bookmarkedInThisCategoryFlow = bookmarkRepository.getComicsInBookmark(bookmarkId).distinctUntilChanged()
-            val settingsFlow = settingsRepository.settings.distinctUntilChanged()
-            val allBookmarksFlow = bookmarkRepository.getAllBookmarkedComics().map { it.toSet() }.distinctUntilChanged()
-
-            combine(
-                bookmarkedInThisCategoryFlow,
+            // STAGE 1: Data Preparation (Heavier mapping only when membership or index changes)
+            val mappedComicsFlow = combine(
+                bookmarkRepository.getComicsInBookmark(bookmarkId),
                 comicIndex,
-                settingsFlow,
+                bookmarkRepository.getAllBookmarkedComics().map { it.toSet() }
+            ) { paths, index, allBookmarks ->
+                paths.mapNotNull { path ->
+                    val comic = index[path] ?: return@mapNotNull null
+                    val statuses = if (allBookmarks.contains(path)) ComicStatusSets.BOOKMARKED else ComicStatusSets.EMPTY
+                    comic to statuses
+                }
+            }.distinctUntilChanged()
+
+            // STAGE 2: UI Presentation (Lighter filtering/sorting)
+            combine(
+                mappedComicsFlow,
                 debouncedSearchQuery,
                 _sortOrder,
-                allBookmarksFlow
-            ) { array ->
-                @Suppress("UNCHECKED_CAST")
-                val bookmarkedInThisCategory = array[0] as List<String>
-                @Suppress("UNCHECKED_CAST")
-                val comicMap = array[1] as Map<String, Comic>
-                val settings = array[2] as com.kitsune.app.database.entity.SettingsEntity?
-                val query = array[3] as String
-                val order = array[4] as CollectionSortOrder
-                @Suppress("UNCHECKED_CAST")
-                val allBookmarks = array[5] as Set<String>
-
-                val gridSize = settings?.gridSize ?: 3
-                val comicsInBookmark = bookmarkedInThisCategory.mapNotNull { comicMap[it] }
+                settingsRepository.settings.map { it?.gridSize ?: 3 }.distinctUntilChanged()
+            ) { items, query, order, gridSize ->
                 
-                // 1. Filtering
                 var result = if (query.isBlank()) {
-                    comicsInBookmark
+                    items
                 } else {
-                    comicsInBookmark.filter { it.title.contains(query, ignoreCase = true) }
+                    items.filter { (comic, _) -> comic.title.contains(query, ignoreCase = true) }
                 }
 
-                // 2. Sorting - REVISION 6.8.3: Sorting now correctly affects comics inside category
                 result = when (order) {
-                    CollectionSortOrder.NAME_ASC -> result.sortedBy { it.title.lowercase() }
-                    CollectionSortOrder.NAME_DESC -> result.sortedByDescending { it.title.lowercase() }
-                }
-
-                // 3. Optimized Status Mapping (REVISION 6.8.2)
-                val statusMap = result.associate { comic ->
-                    val path = comic.relativePath
-                    val hasBookmark = allBookmarks.contains(path)
-                    
-                    val statuses = when {
-                        hasBookmark -> ComicStatusSets.BOOKMARKED
-                        else -> ComicStatusSets.EMPTY
-                    }
-                    path to statuses
+                    CollectionSortOrder.NAME_ASC -> result.sortedBy { it.first.title.lowercase() }
+                    CollectionSortOrder.NAME_DESC -> result.sortedByDescending { it.first.title.lowercase() }
                 }
 
                 if (result.isEmpty() && query.isBlank()) {
@@ -118,8 +102,8 @@ class BookmarkDetailViewModel(
                 } else {
                     BookmarkDetailUiState.Success(
                         bookmarkName = bookmark.name,
-                        comics = result,
-                        comicStatuses = statusMap,
+                        comics = result.map { it.first },
+                        comicStatuses = result.associate { it.first.relativePath to it.second },
                         gridSize = gridSize
                     )
                 }
@@ -149,7 +133,7 @@ class BookmarkDetailViewModel(
     }
 
     fun selectAll() {
-        val state = _uiState.value
+        val state = uiState.value
         if (state is BookmarkDetailUiState.Success) {
             _selectedPaths.value = state.comics.map { it.relativePath }.toSet()
         }
@@ -182,6 +166,9 @@ class BookmarkDetailViewModel(
     }
 }
 
+/**
+ * REVISION 10.5.12: Explicit UI State definitions for Bookmark Detail.
+ */
 sealed class BookmarkDetailUiState {
     data object Loading : BookmarkDetailUiState()
     data class Empty(val bookmarkName: String) : BookmarkDetailUiState()

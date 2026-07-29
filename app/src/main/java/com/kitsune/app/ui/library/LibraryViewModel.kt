@@ -14,6 +14,8 @@ import kotlinx.coroutines.launch
 /**
  * ViewModel untuk mengelola data pada layar Library Komik.
  * Menangani sinkronisasi antara Database dan Filesystem serta logika pencarian dan seleksi massal.
+ * 
+ * REVISION 10.5.6: Optimized settings retrieval and Flow pipeline stability.
  */
 class LibraryViewModel(
     private val scannerRepository: ScannerRepository,
@@ -24,21 +26,23 @@ class LibraryViewModel(
     private val _errorMessage = MutableStateFlow<String?>(null)
 
     /**
-     * REVISION 6.7.8: Added distinctUntilChanged to ensure stable set references.
+     * Observable set of bookmarked paths.
      */
     val bookmarkedPaths: StateFlow<Set<String>> = bookmarkRepository.getAllBookmarkedComics()
         .map { it.toSet() }
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
+    /**
+     * Observable list of all bookmarks.
+     */
     val allBookmarks: StateFlow<List<BookmarkEntity>> = bookmarkRepository.getAllBookmarksWithCount()
         .map { list -> list.map { it.bookmark } }
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     /**
-     * Tahap 1: Filtering Komik.
-     * Menggunakan debouncedSearchQuery dari Base.
+     * Stage 1: Filtering.
      */
     private val filteredComics = combine(
         scannerRepository.allComics,
@@ -54,7 +58,7 @@ class LibraryViewModel(
     }.distinctUntilChanged()
 
     /**
-     * Tahap 2: Mapping Status Visual.
+     * Stage 2: Visual Status Mapping.
      */
     private val comicStatuses = combine(
         filteredComics,
@@ -73,16 +77,15 @@ class LibraryViewModel(
     }.distinctUntilChanged()
 
     /**
-     * Tahap 3: Perakitan Final UI State.
+     * Stage 3: Final UI State assembly.
      */
     val uiState: StateFlow<LibraryUiState> = combine(
         filteredComics,
         comicStatuses,
-        settingsRepository.settings.distinctUntilChanged(),
+        settingsRepository.settings.map { it?.gridSize ?: 3 }.distinctUntilChanged(),
         _isRefreshing,
         _errorMessage
-    ) { comics, statuses, settings, refreshing, error ->
-        val gridSize = settings?.gridSize ?: 3
+    ) { comics, statuses, gridSize, refreshing, error ->
         val query = _searchQuery.value
 
         when {
@@ -106,7 +109,6 @@ class LibraryViewModel(
         refreshLibrary()
     }
 
-    // Selection Methods
     fun selectAll() {
         val state = uiState.value
         if (state is LibraryUiState.Success) {
@@ -114,7 +116,6 @@ class LibraryViewModel(
         }
     }
 
-    // Bulk Operations
     fun addSelectedToBookmarks(bookmarkIds: List<Long>) {
         val paths = _selectedPaths.value.toList()
         if (paths.isEmpty() || bookmarkIds.isEmpty()) return
@@ -130,9 +131,6 @@ class LibraryViewModel(
         return bookmarkRepository.createBookmark(name)
     }
 
-    /**
-     * Implementasi refresh library untuk komik.
-     */
     override fun refreshLibrary() {
         if (_isRefreshing.value) return
 
@@ -140,7 +138,8 @@ class LibraryViewModel(
             _isRefreshing.value = true
             _errorMessage.value = null
             try {
-                val settings = settingsRepository.settings.first()
+                // REVISION 10.5.7: Use cached settings
+                val settings = settingsRepository.getSettingsCached()
                 val rootUriString = settings?.rootFolderUri
                 
                 if (!rootUriString.isNullOrEmpty()) {
@@ -157,9 +156,6 @@ class LibraryViewModel(
     }
 }
 
-/**
- * Representasi State UI untuk layar Library.
- */
 sealed class LibraryUiState {
     data object Loading : LibraryUiState()
     data object Empty : LibraryUiState()

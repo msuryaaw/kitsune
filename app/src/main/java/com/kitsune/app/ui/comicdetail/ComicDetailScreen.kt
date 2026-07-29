@@ -27,6 +27,10 @@ import com.kitsune.app.domain.model.Comic
 import com.kitsune.app.ui.components.media.*
 import kotlinx.coroutines.flow.collectLatest
 
+/**
+ * Screen untuk menampilkan detail komik dan daftar chapter.
+ * REVISION 10.4.4: Added LazyColumn keys and optimized performance.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ComicDetailScreen(
@@ -159,7 +163,6 @@ fun ComicDetailContent(
         item {
             ComicHeader(comic = comic)
             
-            // REVISION 9.2.4: Integrated Tags Section
             Spacer(modifier = Modifier.height(16.dp))
             MediaTagsSection(
                 tags = metadata.tags,
@@ -191,7 +194,11 @@ fun ComicDetailContent(
                 )
             }
         } else {
-            items(chapters) { chapter ->
+            // OPTIMIZATION: Use key for stable lists
+            items(
+                items = chapters,
+                key = { it.relativePath }
+            ) { chapter ->
                 ChapterItem(chapter = chapter, onClick = { onChapterClick(chapter) })
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             }

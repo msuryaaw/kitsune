@@ -3,9 +3,20 @@ package com.kitsune.app.core
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.util.LruCache
 import androidx.documentfile.provider.DocumentFile
 
+/**
+ * Helper for Storage Access Framework (SAF) operations.
+ * Optimized with URI caching to minimize expensive recursive traversals.
+ * 
+ * REVISION 10.4.1: Implemented URI Cache for relative path resolution.
+ */
 class StorageHelper(private val context: Context) {
+
+    // OPTIMIZATION: Cache for relative path -> resolved URI.
+    // Significantly reduces Binder calls by avoiding repeated findFile() traversals.
+    private val uriCache = LruCache<String, Uri>(512)
 
     fun persistUriPermission(uri: Uri) {
         context.contentResolver.takePersistableUriPermission(
@@ -55,8 +66,31 @@ class StorageHelper(private val context: Context) {
 
     /**
      * Menelusuri DocumentFile berdasarkan jalur relatif.
+     * Menggunakan cache URI untuk mempercepat pencarian berulang.
      */
     fun findFileByRelativePath(rootUri: Uri, relativePath: String): DocumentFile? {
+        if (relativePath.isEmpty()) return DocumentFile.fromTreeUri(context, rootUri)
+
+        val cacheKey = "$rootUri|$relativePath"
+        uriCache.get(cacheKey)?.let { cachedUri ->
+            // Restore DocumentFile from cached URI
+            // Convention: Folders (categories/titles) don't have dots in the last segment.
+            // Files (CBZ, MP4, images) always have an extension.
+            val isDirectory = !relativePath.substringAfterLast('/').contains(".")
+            val cachedDoc = if (isDirectory) {
+                DocumentFile.fromTreeUri(context, cachedUri)
+            } else {
+                DocumentFile.fromSingleUri(context, cachedUri)
+            }
+            
+            if (cachedDoc != null && cachedDoc.exists()) {
+                return cachedDoc
+            } else {
+                uriCache.remove(cacheKey) // Remove invalid cache entry
+            }
+        }
+
+        // Slow path: recursive traversal
         val rootDoc = DocumentFile.fromTreeUri(context, rootUri) ?: return null
         var current: DocumentFile? = rootDoc
         val parts = relativePath.split("/").filter { it.isNotEmpty() }
@@ -64,6 +98,19 @@ class StorageHelper(private val context: Context) {
             current = current?.findFile(part)
             if (current == null) break
         }
+
+        // Cache the result if found
+        current?.uri?.let { resolvedUri ->
+            uriCache.put(cacheKey, resolvedUri)
+        }
+
         return current
+    }
+
+    /**
+     * Clears the URI cache.
+     */
+    fun clearCache() {
+        uriCache.evictAll()
     }
 }

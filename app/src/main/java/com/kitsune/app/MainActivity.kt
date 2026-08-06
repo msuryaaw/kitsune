@@ -75,13 +75,15 @@ class MainActivity : ComponentActivity() {
         val videoScanner = VideoScanner(this, storageHelper)
         val scannerCoordinator = ScannerCoordinator()
         
+        // REVISION 11.1.9: Added MetadataManager to ScannerRepository for Search Indexing
         scannerRepository = ScannerRepository(
             comicScanner = comicScanner,
             comicDao = database.comicDao(),
             videoScanner = videoScanner,
             videoDao = database.videoDao(),
             database = database,
-            coordinator = scannerCoordinator
+            coordinator = scannerCoordinator,
+            metadataManager = metadataManager
         )
         
         bookmarkRepository = BookmarkRepository(database.bookmarkDao())

@@ -16,6 +16,7 @@ import kotlinx.coroutines.launch
  * Menangani sinkronisasi antara Database dan Filesystem serta logika pencarian dan seleksi massal.
  * 
  * REVISION 10.5.6: Optimized settings retrieval and Flow pipeline stability.
+ * REVISION 11.1.6: Implemented metadata tag search support.
  */
 class LibraryViewModel(
     private val scannerRepository: ScannerRepository,
@@ -43,6 +44,7 @@ class LibraryViewModel(
 
     /**
      * Stage 1: Filtering.
+     * REVISION 11.1.6: Search now checks both title and searchTags index.
      */
     private val filteredComics = combine(
         scannerRepository.allComics,
@@ -51,8 +53,10 @@ class LibraryViewModel(
         if (query.isBlank()) {
             comics
         } else {
+            val trimmedQuery = query.trim()
             comics.filter { comic ->
-                comic.title.contains(query, ignoreCase = true)
+                comic.title.contains(trimmedQuery, ignoreCase = true) ||
+                comic.searchTags?.contains(trimmedQuery, ignoreCase = true) == true
             }
         }
     }.distinctUntilChanged()

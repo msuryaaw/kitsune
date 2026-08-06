@@ -21,6 +21,7 @@ import kotlinx.coroutines.withContext
  * REVISION 7.7.5: Implementasi History Cleanup & Database Maintenance.
  * REVISION 8.3.4: Added Clear Watching History support.
  * REVISION 8.3.5: Added Video Statistics support.
+ * REVISION 11.1.7: Support for searchTags in domain mapping.
  */
 class VideoRepository(
     private val videoDao: VideoDao,
@@ -289,6 +290,7 @@ class VideoRepository(
         relativePath = relativePath,
         coverUri = coverUri,
         episodeCount = episodeCount,
-        lastModified = lastModified
+        lastModified = lastModified,
+        searchTags = searchTags
     )
 }

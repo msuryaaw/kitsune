@@ -9,6 +9,8 @@ import com.kitsune.app.data.repository.CollectionRepository
 import com.kitsune.app.data.repository.PlaylistWithCount
 import com.kitsune.app.data.repository.SettingsRepository
 import com.kitsune.app.data.repository.VideoRepository
+import com.kitsune.app.data.repository.ScannerRepository
+import com.kitsune.app.data.repository.BookmarkWithCount
 import com.kitsune.app.domain.model.Episode
 import com.kitsune.app.domain.model.Video
 import kotlinx.coroutines.flow.*
@@ -17,10 +19,12 @@ import kotlinx.coroutines.launch
 /**
  * ViewModel for managing data of a video detail screen.
  * REVISION 10.5.9: Optimized settings retrieval and flow stability.
+ * REVISION 11.1.11: Integrated Search Tag Index synchronization after metadata write.
  */
 class VideoDetailViewModel(
     private val videoRelativePath: String,
     private val videoRepository: VideoRepository,
+    private val scannerRepository: ScannerRepository,
     private val settingsRepository: SettingsRepository,
     private val collectionRepository: CollectionRepository,
     private val metadataManager: MetadataManager
@@ -121,7 +125,9 @@ class VideoDetailViewModel(
 
             val result = metadataManager.writeMetadata(rootUri, videoRelativePath, updatedMetadata)
             if (result.isSuccess) {
-                _metadata.value = metadataManager.readMetadata(rootUri, videoRelativePath)
+                // SINKRONISASI SEARCH INDEX (REVISION 11.1.11)
+                scannerRepository.updateVideoSearchTags(videoRelativePath, updatedMetadata.tags)
+                _metadata.value = updatedMetadata
             } else {
                 _snackbarMessage.emit("Failed to save tag")
             }
@@ -139,7 +145,9 @@ class VideoDetailViewModel(
 
             val result = metadataManager.writeMetadata(rootUri, videoRelativePath, updatedMetadata)
             if (result.isSuccess) {
-                _metadata.value = metadataManager.readMetadata(rootUri, videoRelativePath)
+                // SINKRONISASI SEARCH INDEX (REVISION 11.1.11)
+                scannerRepository.updateVideoSearchTags(videoRelativePath, updatedMetadata.tags)
+                _metadata.value = updatedMetadata
             } else {
                 _snackbarMessage.emit("Failed to remove tag")
             }
@@ -188,6 +196,6 @@ class VideoDetailViewModel(
 }
 
 data class VideoBookmarkWithMembership(
-    val bookmark: com.kitsune.app.data.repository.BookmarkWithCount,
+    val bookmark: BookmarkWithCount,
     val isMember: Boolean
 )

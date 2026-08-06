@@ -16,6 +16,7 @@ import kotlinx.coroutines.launch
 /**
  * ViewModel for managing data on the Video Library screen.
  * REVISION 10.5.3: Optimized Flow pipeline to reduce redundant mappings and emissions.
+ * REVISION 11.1.8: Implemented metadata tag search support.
  */
 class VideoLibraryViewModel(
     private val videoRepository: VideoRepository,
@@ -70,6 +71,7 @@ class VideoLibraryViewModel(
 
     /**
      * Final UI State assembly with Filtering, Sorting, and Settings integration.
+     * REVISION 11.1.8: Search now checks both title and searchTags index.
      */
     val uiState: StateFlow<VideoLibraryUiState> = combine(
         videoItemsFlow,
@@ -82,7 +84,11 @@ class VideoLibraryViewModel(
         val filteredItems = if (query.isBlank()) {
             videoItems
         } else {
-            videoItems.filter { it.video.title.contains(query, ignoreCase = true) }
+            val trimmedQuery = query.trim()
+            videoItems.filter { item -> 
+                item.video.title.contains(trimmedQuery, ignoreCase = true) ||
+                item.video.searchTags?.contains(trimmedQuery, ignoreCase = true) == true
+            }
         }
         val sortedItems = filteredItems.sortedBy { it.video.title.lowercase() }
 

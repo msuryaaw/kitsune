@@ -22,6 +22,13 @@ interface VideoDao {
     @Query("DELETE FROM videos WHERE relativePath IN (:paths)")
     suspend fun deleteByPaths(paths: List<String>)
 
+    /**
+     * Updates the search tags index for a specific video.
+     * REVISION 11.1.2: Added partial update for search indexing.
+     */
+    @Query("UPDATE videos SET searchTags = :tags WHERE relativePath = :path")
+    suspend fun updateSearchTags(path: String, tags: String?)
+
     @Transaction
     suspend fun updateLibrary(toInsert: List<VideoEntity>, toDelete: List<String>) {
         if (toDelete.isNotEmpty()) {

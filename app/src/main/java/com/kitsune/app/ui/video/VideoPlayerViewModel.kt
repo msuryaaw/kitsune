@@ -13,6 +13,9 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.DefaultRenderersFactory
+import androidx.media3.exoplayer.analytics.AnalyticsListener
+import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import com.kitsune.app.data.repository.SettingsRepository
 import com.kitsune.app.data.repository.VideoRepository
 import com.kitsune.app.database.entity.VideoProgressEntity
@@ -44,6 +47,7 @@ enum class SeekSource { GESTURE, SLIDER, RESUME, AUTO, NEXT_EPISODE }
  * ViewModel untuk mengelola instance ExoPlayer dan lifecycle pemutaran video secara sekuensial.
  * REVISION 8.2.5: Implementasi Vertical Brightness & Volume Gesture.
  * REVISION 8.3.5: Fixed Controls visibility after Horizontal Seek Gesture using SeekSource.
+ * REVISION 11.0.1: Implemented Decoder Fallback and Detailed Error Logging for MKV Playback.
  */
 class VideoPlayerViewModel(
     application: Application,
@@ -157,6 +161,8 @@ class VideoPlayerViewModel(
     private var initialBrightnessValue = -1f
     private var verticalVolumeAccumulator = 0f
 
+    private var lastVideoDecoderName: String? = null
+
     companion object {
         // GESTURE CONFIGURATION (Phase 8.2.4 & 8.2.5)
         private const val GESTURE_THRESHOLD = 30f 
@@ -247,11 +253,32 @@ class VideoPlayerViewModel(
 
     @OptIn(UnstableApi::class)
     private fun setupPlayer() {
-        val exoPlayer = ExoPlayer.Builder(getApplication())
+        // REVISION 11.0.1: Explicit RenderersFactory with Decoder Fallback enabled
+        val renderersFactory = DefaultRenderersFactory(getApplication())
+            .setEnableDecoderFallback(true)
+            .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF)
+
+        // REVISION 11.0.2: Explicit TrackSelector audit (default configuration is preferred)
+        val trackSelector = DefaultTrackSelector(getApplication())
+
+        val exoPlayer = ExoPlayer.Builder(getApplication(), renderersFactory)
+            .setTrackSelector(trackSelector)
             .build()
             .apply {
                 this.playWhenReady = this@VideoPlayerViewModel.playWhenReady
                 
+                // AnalyticsListener to capture decoder information for debug logging
+                addAnalyticsListener(object : AnalyticsListener {
+                    override fun onVideoDecoderInitialized(
+                        eventTime: AnalyticsListener.EventTime,
+                        decoderName: String,
+                        initializedTimestampMs: Long,
+                        initializationDurationMs: Long
+                    ) {
+                        lastVideoDecoderName = decoderName
+                    }
+                })
+
                 addListener(object : Player.Listener {
                     override fun onPlaybackStateChanged(state: Int) {
                         _playbackState.value = state
@@ -283,7 +310,30 @@ class VideoPlayerViewModel(
                     }
 
                     override fun onPlayerError(error: PlaybackException) {
-                        _errorState.value = "Playback Error: ${error.message}"
+                        // REVISION 11.0.3: Enhanced Error Logging for MKV/Codec issues
+                        val format = videoFormat
+                        val errorDetail = StringBuilder().apply {
+                            append("Playback Error: ${error.message}\n\n")
+                            append("--- DEBUG INFO ---\n")
+                            append("Type: ${error.errorCodeName} (${error.errorCode})\n")
+                            
+                            format?.let {
+                                append("Mime: ${it.sampleMimeType}\n")
+                                append("Container: ${it.containerMimeType ?: "N/A"}\n")
+                                append("Codec: ${it.codecs ?: "N/A"}\n")
+                                append("Res: ${it.width}x${it.height}\n")
+                            }
+                            
+                            append("Decoder: ${lastVideoDecoderName ?: "None (Selection failed)"}\n")
+                            
+                            error.cause?.let { cause ->
+                                if (cause.message?.contains("NO_EXCEEDS_CAPABILITIES") == true) {
+                                    append("Note: Hardware decoder limit exceeded.")
+                                }
+                            }
+                        }.toString()
+                        
+                        _errorState.value = errorDetail
                     }
 
                     override fun onPositionDiscontinuity(

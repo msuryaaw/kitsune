@@ -28,9 +28,20 @@ interface ComicDao {
     @Query("DELETE FROM comics WHERE relativePath IN (:paths)")
     suspend fun deleteByPaths(paths: List<String>)
 
+    /**
+     * Updates the search tags index for a specific comic.
+     * REVISION 11.1.2: Added partial update for search indexing.
+     */
+    @Query("UPDATE comics SET searchTags = :tags WHERE relativePath = :path")
+    suspend fun updateSearchTags(path: String, tags: String?)
+
     @Transaction
     suspend fun updateLibrary(toInsert: List<ComicEntity>, toDelete: List<String>) {
-        deleteByPaths(toDelete)
-        insertComics(toInsert)
+        if (toDelete.isNotEmpty()) {
+            deleteByPaths(toDelete)
+        }
+        if (toInsert.isNotEmpty()) {
+            insertComics(toInsert)
+        }
     }
 }

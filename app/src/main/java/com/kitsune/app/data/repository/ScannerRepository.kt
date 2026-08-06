@@ -2,10 +2,12 @@ package com.kitsune.app.data.repository
 
 import android.net.Uri
 import androidx.room.withTransaction
+import com.kitsune.app.data.metadata.MetadataManager
 import com.kitsune.app.database.AppDatabase
 import com.kitsune.app.database.dao.ComicDao
 import com.kitsune.app.database.dao.VideoDao
 import com.kitsune.app.database.entity.ComicEntity
+import com.kitsune.app.database.entity.VideoEntity
 import com.kitsune.app.domain.model.Chapter
 import com.kitsune.app.domain.model.Comic
 import com.kitsune.app.domain.model.Episode
@@ -22,6 +24,7 @@ import kotlin.coroutines.coroutineContext
  * Coordinates between scanners and the database using ScannerCoordinator.
  * 
  * REVISION 10.2.5: Refactored to use modular scanner architecture and parallel coordination.
+ * REVISION 11.1.4: Integrated MetadataManager for search tag indexing during scans.
  */
 class ScannerRepository(
     private val comicScanner: ComicScanner,
@@ -29,7 +32,8 @@ class ScannerRepository(
     private val videoScanner: VideoScanner,
     private val videoDao: VideoDao,
     private val database: AppDatabase,
-    private val coordinator: ScannerCoordinator
+    private val coordinator: ScannerCoordinator,
+    private val metadataManager: MetadataManager
 ) {
     /**
      * Listener to notify other components that scanning is about to start.
@@ -53,6 +57,23 @@ class ScannerRepository(
      */
     suspend fun getComicByPath(relativePath: String): Comic? {
         return comicDao.getComicByPath(relativePath)?.toDomain()
+    }
+
+    /**
+     * Updates the search index for a specific comic.
+     * REVISION 11.1.5: Direct update for tag synchronization.
+     */
+    suspend fun updateComicSearchTags(path: String, tags: List<String>) {
+        val searchTags = if (tags.isEmpty()) null else tags.joinToString(" ")
+        comicDao.updateSearchTags(path, searchTags)
+    }
+
+    /**
+     * Updates the search index for a specific video.
+     */
+    suspend fun updateVideoSearchTags(path: String, tags: List<String>) {
+        val searchTags = if (tags.isEmpty()) null else tags.joinToString(" ")
+        videoDao.updateSearchTags(path, searchTags)
     }
 
     /**
@@ -107,8 +128,15 @@ class ScannerRepository(
             .filter { it.relativePath !in scannedPaths }
             .map { it.relativePath }
 
-        val toInsert = scannedComics.map { it.toEntity() }.filter { entity ->
+        val toInsert = scannedComics.map { comic ->
+            // Populate searchTags from metadata.json during scan
+            val metadata = metadataManager.readMetadata(rootUri, comic.relativePath)
+            val searchTags = if (metadata.tags.isEmpty()) null else metadata.tags.joinToString(" ")
+            
+            comic.toEntity(searchTags)
+        }.filter { entity ->
             val cached = cacheMap[entity.relativePath]
+            // Compare including searchTags to ensure index is updated if JSON changed
             cached == null || cached != entity
         }
 
@@ -129,7 +157,7 @@ class ScannerRepository(
         val cachedVideos = videoDao.getAllVideosSync()
         val cacheMap = cachedVideos.associateBy { it.relativePath }
 
-        val scannedVideos = videoScanner.scanVideos(rootUri) { path, lastMod ->
+        val scannedEntities = videoScanner.scanVideos(rootUri) { path, lastMod ->
             val cached = cacheMap[path]
             if (cached != null && cached.lastModified == lastMod) {
                 cached.coverUri
@@ -138,12 +166,18 @@ class ScannerRepository(
             }
         }
 
-        val scannedPaths = scannedVideos.map { it.relativePath }.toSet()
+        val scannedPaths = scannedEntities.map { it.relativePath }.toSet()
         val toDelete = cachedVideos
             .filter { it.relativePath !in scannedPaths }
             .map { it.relativePath }
 
-        val toInsert = scannedVideos.filter { entity ->
+        val toInsert = scannedEntities.map { entity ->
+            // Populate searchTags from metadata.json during scan
+            val metadata = metadataManager.readMetadata(rootUri, entity.relativePath)
+            val searchTags = if (metadata.tags.isEmpty()) null else metadata.tags.joinToString(" ")
+            
+            entity.copy(searchTags = searchTags)
+        }.filter { entity ->
             val cached = cacheMap[entity.relativePath]
             cached == null || cached != entity
         }
@@ -160,13 +194,15 @@ class ScannerRepository(
         title = title,
         relativePath = relativePath,
         coverUri = coverUri,
-        lastModified = lastModified
+        lastModified = lastModified,
+        searchTags = searchTags
     )
 
-    private fun Comic.toEntity() = ComicEntity(
+    private fun Comic.toEntity(searchTags: String?) = ComicEntity(
         title = title,
         relativePath = relativePath,
         coverUri = coverUri,
-        lastModified = lastModified
+        lastModified = lastModified,
+        searchTags = searchTags
     )
 }

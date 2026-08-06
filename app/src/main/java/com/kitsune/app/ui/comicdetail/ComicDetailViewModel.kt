@@ -18,6 +18,7 @@ import kotlinx.coroutines.launch
 /**
  * ViewModel untuk mengelola data detail sebuah komik.
  * REVISION 10.5.8: Optimized settings retrieval using memory cache.
+ * REVISION 11.1.10: Integrated Search Tag Index synchronization after metadata write.
  */
 class ComicDetailViewModel(
     private val comicRelativePath: String,
@@ -106,7 +107,9 @@ class ComicDetailViewModel(
 
             val result = metadataManager.writeMetadata(rootUri, comicRelativePath, updatedMetadata)
             if (result.isSuccess) {
-                _metadata.value = metadataManager.readMetadata(rootUri, comicRelativePath)
+                // SINKRONISASI SEARCH INDEX (REVISION 11.1.10)
+                scannerRepository.updateComicSearchTags(comicRelativePath, updatedMetadata.tags)
+                _metadata.value = updatedMetadata
             } else {
                 _snackbarMessage.emit("Failed to save tag")
             }
@@ -124,7 +127,9 @@ class ComicDetailViewModel(
 
             val result = metadataManager.writeMetadata(rootUri, comicRelativePath, updatedMetadata)
             if (result.isSuccess) {
-                _metadata.value = metadataManager.readMetadata(rootUri, comicRelativePath)
+                // SINKRONISASI SEARCH INDEX (REVISION 11.1.10)
+                scannerRepository.updateComicSearchTags(comicRelativePath, updatedMetadata.tags)
+                _metadata.value = updatedMetadata
             } else {
                 _snackbarMessage.emit("Failed to remove tag")
             }

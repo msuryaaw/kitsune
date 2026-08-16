@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Context
 import android.media.AudioManager
 import android.net.Uri
+import android.util.Log
 import androidx.annotation.OptIn
 import androidx.core.net.toUri
 import androidx.lifecycle.AndroidViewModel
@@ -22,6 +23,8 @@ import com.kitsune.app.database.entity.VideoProgressEntity
 import com.kitsune.app.domain.model.Episode
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
+import java.io.PrintWriter
+import java.io.StringWriter
 
 /**
  * State untuk siklus hidup gesture.
@@ -48,6 +51,8 @@ enum class SeekSource { GESTURE, SLIDER, RESUME, AUTO, NEXT_EPISODE }
  * REVISION 8.2.5: Implementasi Vertical Brightness & Volume Gesture.
  * REVISION 8.3.5: Fixed Controls visibility after Horizontal Seek Gesture using SeekSource.
  * REVISION 11.0.1: Implemented Decoder Fallback and Detailed Error Logging for MKV Playback.
+ * REVISION 11.2.1: Enhanced Source Error diagnostics and logging for SAF/IO issues.
+ * REVISION 11.3.1: Integrated FFmpeg Extension as software fallback and improved diagnostics.
  */
 class VideoPlayerViewModel(
     application: Application,
@@ -253,10 +258,11 @@ class VideoPlayerViewModel(
 
     @OptIn(UnstableApi::class)
     private fun setupPlayer() {
-        // REVISION 11.0.1: Explicit RenderersFactory with Decoder Fallback enabled
+        // REVISION 11.3.1: Updated RenderersFactory to use FFmpeg Extension as fallback
+        // mode ON: Prefer hardware, use software/extension only if hardware fails or is missing.
         val renderersFactory = DefaultRenderersFactory(getApplication())
             .setEnableDecoderFallback(true)
-            .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF)
+            .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
 
         // REVISION 11.0.2: Explicit TrackSelector audit (default configuration is preferred)
         val trackSelector = DefaultTrackSelector(getApplication())
@@ -267,7 +273,7 @@ class VideoPlayerViewModel(
             .apply {
                 this.playWhenReady = this@VideoPlayerViewModel.playWhenReady
                 
-                // AnalyticsListener to capture decoder information for debug logging
+                // AnalyticsListener to capture decoder and format information for debug logging
                 addAnalyticsListener(object : AnalyticsListener {
                     override fun onVideoDecoderInitialized(
                         eventTime: AnalyticsListener.EventTime,
@@ -276,6 +282,30 @@ class VideoPlayerViewModel(
                         initializationDurationMs: Long
                     ) {
                         lastVideoDecoderName = decoderName
+                        val isFfmpeg = decoderName.contains("ffmpeg", ignoreCase = true)
+                        val decoderType = if (isFfmpeg) "Software (FFmpeg)" else "Hardware/System"
+                        Log.i("KitsunePlayer", "Video Decoder Initialized: $decoderName ($decoderType)")
+                    }
+
+                    override fun onAudioDecoderInitialized(
+                        eventTime: AnalyticsListener.EventTime,
+                        decoderName: String,
+                        initializedTimestampMs: Long,
+                        initializationDurationMs: Long
+                    ) {
+                        Log.i("KitsunePlayer", "Audio Decoder Initialized: $decoderName")
+                    }
+
+                    override fun onTracksChanged(eventTime: AnalyticsListener.EventTime, tracks: androidx.media3.common.Tracks) {
+                        // Log media info when tracks are selected (Playback Started)
+                        val player = _player.value ?: return
+                        val vFormat = player.videoFormat
+                        Log.i("KitsunePlayer", "--- Playback Started ---")
+                        Log.i("KitsunePlayer", "Container: ${vFormat?.containerMimeType ?: "N/A"}")
+                        Log.i("KitsunePlayer", "MIME: ${vFormat?.sampleMimeType}")
+                        Log.i("KitsunePlayer", "Codec: ${vFormat?.codecs}")
+                        Log.i("KitsunePlayer", "Resolution: ${vFormat?.width}x${vFormat?.height}")
+                        Log.i("KitsunePlayer", "-----------------------")
                     }
                 })
 
@@ -310,7 +340,7 @@ class VideoPlayerViewModel(
                     }
 
                     override fun onPlayerError(error: PlaybackException) {
-                        // REVISION 11.0.3: Enhanced Error Logging for MKV/Codec issues
+                        // REVISION 11.2.1: Deep diagnostics for Source/IO Errors
                         val format = videoFormat
                         val errorDetail = StringBuilder().apply {
                             append("Playback Error: ${error.message}\n\n")
@@ -326,13 +356,36 @@ class VideoPlayerViewModel(
                             
                             append("Decoder: ${lastVideoDecoderName ?: "None (Selection failed)"}\n")
                             
-                            error.cause?.let { cause ->
-                                if (cause.message?.contains("NO_EXCEEDS_CAPABILITIES") == true) {
-                                    append("Note: Hardware decoder limit exceeded.")
+                            // Log Cause and Stack Trace
+                            val sw = StringWriter()
+                            error.printStackTrace(PrintWriter(sw))
+                            val stackTrace = sw.toString()
+                            
+                            append("\n--- CAUSE ---\n")
+                            append(error.cause?.toString() ?: "No Cause")
+                            
+                            // SAF Diagnostics
+                            val currentItem = currentEpisode.value
+                            if (currentItem != null && rootUri != null) {
+                                val uri = videoRepository.getEpisodeUri(rootUri!!, currentItem.relativePath)
+                                append("\n\n--- SAF DIAGNOSTICS ---\n")
+                                append("URI: $uri\n")
+                                if (uri != null) {
+                                    try {
+                                        getApplication<Application>().contentResolver.openFileDescriptor(uri, "r")?.use { pfd ->
+                                            append("FD Check: SUCCESS (Size: ${pfd.statSize})\n")
+                                        } ?: append("FD Check: FAILED (Null PFD)\n")
+                                    } catch (e: Exception) {
+                                        append("FD Check: FAILED (${e.message})\n")
+                                    }
                                 }
                             }
+                            
+                            append("\n\n--- STACK TRACE ---\n")
+                            append(stackTrace.take(1000) + "...")
                         }.toString()
                         
+                        Log.e("KitsunePlayer", errorDetail)
                         _errorState.value = errorDetail
                     }
 

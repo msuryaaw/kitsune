@@ -360,6 +360,7 @@ fun MainContainer(
                             return VideoDetailViewModel(
                                 videoRelativePath = videoRelativePath,
                                 videoRepository = videoRepository,
+                                scannerRepository = scannerRepository,
                                 settingsRepository = settingsRepository,
                                 collectionRepository = collectionRepository,
                                 metadataManager = metadataManager

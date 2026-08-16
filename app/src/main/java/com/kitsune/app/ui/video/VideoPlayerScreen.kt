@@ -39,7 +39,7 @@ fun VideoPlayerScreen(
 ) {
     val context = LocalContext.current
     val player by viewModel.player.collectAsState()
-    val errorState by viewModel.errorState.collectAsState()
+    val playerUiState by viewModel.playerUiState.collectAsState()
     val lifecycleOwner = LocalLifecycleOwner.current
     val configuration = LocalConfiguration.current
 
@@ -144,131 +144,135 @@ fun VideoPlayerScreen(
             .fillMaxSize()
             .background(Color.Black)
     ) {
-        if (errorState != null) {
-            Text(
-                text = errorState!!,
-                color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.align(Alignment.Center)
-            )
-        } else if (player == null) {
-            CircularProgressIndicator(
-                modifier = Modifier.align(Alignment.Center),
-                color = MaterialTheme.colorScheme.primary
-            )
-        } else {
-            // Player Surface
-            AndroidView(
-                factory = { playerView },
-                modifier = Modifier.fillMaxSize()
-            )
-
-            // INTERACTION LAYER (Connected to Gesture Foundation)
-            PlayerInteractionLayer(
-                onTap = { viewModel.toggleControls() },
-                onDown = { x, width -> 
-                    val currentBrightness = activity?.window?.attributes?.screenBrightness ?: -1f
-                    viewModel.onGestureDown(x, width, currentBrightness) 
-                },
-                onMove = { dx, dy -> viewModel.onGestureMove(dx, dy) },
-                onUp = { viewModel.onGestureUp() }
-            )
-
-            // Buffering Indicator
-            val isBuffering by viewModel.isBuffering.collectAsState()
-            if (isBuffering) {
+        when (val state = playerUiState) {
+            is PlayerUiState.Error -> {
+                PlayerErrorDialog(
+                    message = state.message,
+                    debugInfo = state.debugInfo,
+                    onBackClick = onBackClick
+                )
+            }
+            is PlayerUiState.Loading -> {
                 CircularProgressIndicator(
                     modifier = Modifier.align(Alignment.Center),
                     color = MaterialTheme.colorScheme.primary
                 )
             }
+            is PlayerUiState.Ready -> {
+                // Player Surface
+                AndroidView(
+                    factory = { playerView },
+                    modifier = Modifier.fillMaxSize()
+                )
 
-            // --- GESTURE PREVIEW UI (Phase 8.2.6 Final Polish) ---
-            GesturePreviewOverlay(
-                modifier = Modifier.align(Alignment.Center),
-                isVisible = gestureState == GestureState.ACTIVE || gestureState == GestureState.FINISHED,
-                gestureDirection = gestureDirection,
-                gestureArea = gestureArea,
-                seekPreviewDelta = seekPreviewDelta,
-                seekPreviewPosition = seekPreviewPosition,
-                currentPosition = currentPosition,
-                duration = duration,
-                brightnessPreview = brightnessPreview,
-                volumePreview = volumePreview,
-                maxVolume = maxVolume
-            )
+                // INTERACTION LAYER (Connected to Gesture Foundation)
+                PlayerInteractionLayer(
+                    onTap = { viewModel.toggleControls() },
+                    onDown = { x, width -> 
+                        val currentBrightness = activity?.window?.attributes?.screenBrightness ?: -1f
+                        viewModel.onGestureDown(x, width, currentBrightness) 
+                    },
+                    onMove = { dx, dy -> viewModel.onGestureMove(dx, dy) },
+                    onUp = { viewModel.onGestureUp() }
+                )
 
-            // Custom Controls Overlay
-            val isPlaying by viewModel.isPlaying.collectAsState()
-            val playbackState by viewModel.playbackState.collectAsState()
-            val bufferedPosition by viewModel.bufferedPosition.collectAsState()
-            
-            val hasNext by viewModel.hasNext.collectAsState()
-            val hasPrevious by viewModel.hasPrevious.collectAsState()
+                // Buffering Indicator
+                val isBuffering by viewModel.isBuffering.collectAsState()
+                if (isBuffering) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.align(Alignment.Center),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
 
-            AnimatedVisibility(
-                visible = isControlsVisible,
-                enter = fadeIn(),
-                exit = fadeOut()
-            ) {
-                PlayerControls(
-                    isPlaying = isPlaying,
-                    playbackState = playbackState,
+                // --- GESTURE PREVIEW UI (Phase 8.2.6 Final Polish) ---
+                GesturePreviewOverlay(
+                    modifier = Modifier.align(Alignment.Center),
+                    isVisible = gestureState == GestureState.ACTIVE || gestureState == GestureState.FINISHED,
+                    gestureDirection = gestureDirection,
+                    gestureArea = gestureArea,
+                    seekPreviewDelta = seekPreviewDelta,
+                    seekPreviewPosition = seekPreviewPosition,
                     currentPosition = currentPosition,
                     duration = duration,
-                    bufferedPosition = bufferedPosition,
-                    hasNext = hasNext,
-                    hasPrevious = hasPrevious,
-                    isLandscape = isLandscape,
-                    onPlayPauseToggle = { viewModel.togglePlayPause() },
-                    onSeek = { viewModel.seekTo(it) },
-                    onReplay = { viewModel.replay() },
-                    onNextClick = { viewModel.nextEpisode() },
-                    onPreviousClick = { viewModel.previousEpisode() },
-                    onToggleOrientation = {
-                        if (activity != null) {
-                            val targetOrientation = if (isLandscape) {
-                                ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-                            } else {
-                                ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-                            }
-                            activity.requestedOrientation = targetOrientation
-                        }
-                    },
-                    onInteraction = { viewModel.userInteraction() },
-                    onBackClick = onBackClick
+                    brightnessPreview = brightnessPreview,
+                    volumePreview = volumePreview,
+                    maxVolume = maxVolume
                 )
-            }
 
-            // Resume Playback Dialog
-            showResumeDialog?.let { progress ->
-                AlertDialog(
-                    onDismissRequest = { /* Force choice */ },
-                    title = { Text("Continue watching?") },
-                    text = {
-                        val totalSeconds = progress.lastPositionMs / 1000
-                        val minutes = totalSeconds / 60
-                        val seconds = totalSeconds % 60
-                        val hours = minutes / 60
-                        val remainingMinutes = minutes % 60
-                        val timeString = if (hours > 0) {
-                            "%02d:%02d:%02d".format(hours, remainingMinutes, seconds)
-                        } else {
-                            "%02d:%02d".format(remainingMinutes, seconds)
-                        }
-                        Text("Resume from $timeString?")
-                    },
-                    confirmButton = {
-                        Button(onClick = { viewModel.onResumePlayback() }) {
-                            Text("Resume")
-                        }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { viewModel.onStartOver() }) {
-                            Text("Start Over")
-                        }
-                    }
-                )
+                // Custom Controls Overlay
+                val isPlaying by viewModel.isPlaying.collectAsState()
+                val playbackState by viewModel.playbackState.collectAsState()
+                val bufferedPosition by viewModel.bufferedPosition.collectAsState()
+                
+                val hasNext by viewModel.hasNext.collectAsState()
+                val hasPrevious by viewModel.hasPrevious.collectAsState()
+
+                AnimatedVisibility(
+                    visible = isControlsVisible,
+                    enter = fadeIn(),
+                    exit = fadeOut()
+                ) {
+                    PlayerControls(
+                        isPlaying = isPlaying,
+                        playbackState = playbackState,
+                        currentPosition = currentPosition,
+                        duration = duration,
+                        bufferedPosition = bufferedPosition,
+                        hasNext = hasNext,
+                        hasPrevious = hasPrevious,
+                        isLandscape = isLandscape,
+                        onPlayPauseToggle = { viewModel.togglePlayPause() },
+                        onSeek = { viewModel.seekTo(it) },
+                        onReplay = { viewModel.replay() },
+                        onNextClick = { viewModel.nextEpisode() },
+                        onPreviousClick = { viewModel.previousEpisode() },
+                        onToggleOrientation = {
+                            if (activity != null) {
+                                val targetOrientation = if (isLandscape) {
+                                    ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                                } else {
+                                    ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+                                }
+                                activity.requestedOrientation = targetOrientation
+                            }
+                        },
+                        onInteraction = { viewModel.userInteraction() },
+                        onBackClick = onBackClick
+                    )
+                }
             }
+        }
+
+        // Resume Playback Dialog
+        showResumeDialog?.let { progress ->
+            AlertDialog(
+                onDismissRequest = { /* Force choice */ },
+                title = { Text("Continue watching?") },
+                text = {
+                    val totalSeconds = progress.lastPositionMs / 1000
+                    val minutes = totalSeconds / 60
+                    val seconds = totalSeconds % 60
+                    val hours = minutes / 60
+                    val remainingMinutes = minutes % 60
+                    val timeString = if (hours > 0) {
+                        "%02d:%02d:%02d".format(hours, remainingMinutes, seconds)
+                    } else {
+                        "%02d:%02d".format(remainingMinutes, seconds)
+                    }
+                    Text("Resume from $timeString?")
+                },
+                confirmButton = {
+                    Button(onClick = { viewModel.onResumePlayback() }) {
+                        Text("Resume")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { viewModel.onStartOver() }) {
+                        Text("Start Over")
+                    }
+                }
+            )
         }
     }
 }

@@ -243,6 +243,71 @@ private fun formatTimestamp(ms: Long): String {
     }
 }
 
+/**
+ * Dialog untuk menampilkan error playback dengan detail teknis opsional.
+ * REVISION 11.4.1: Added detailed error feedback for 1080p MKV playback issues.
+ */
+@Composable
+fun PlayerErrorDialog(
+    message: String,
+    debugInfo: String,
+    onBackClick: () -> Unit
+) {
+    var showDetails by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onBackClick,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.ErrorOutline,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Playback Error")
+            }
+        },
+        text = {
+            Column {
+                Text(text = message)
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                TextButton(
+                    onClick = { showDetails = !showDetails },
+                    contentPadding = PaddingValues(0.dp)
+                ) {
+                    Text(if (showDetails) "Hide Details" else "Show Technical Details")
+                }
+                
+                if (showDetails) {
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 200.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        shape = RoundedCornerShape(4.dp)
+                    ) {
+                        Box(modifier = Modifier.padding(8.dp)) {
+                            Text(
+                                text = debugInfo,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = onBackClick) {
+                Text("Go Back")
+            }
+        }
+    )
+}
+
 @Composable
 fun PlayerControls(
     modifier: Modifier = Modifier,

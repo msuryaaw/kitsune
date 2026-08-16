@@ -332,7 +332,8 @@ fun MainContainer(
                                 videoRepository = videoRepository, 
                                 settingsRepository = settingsRepository,
                                 collectionRepository = collectionRepository,
-                                playlistRepository = playlistRepository
+                                playlistRepository = playlistRepository,
+                                scannerRepository = scannerRepository
                             ) as T
                         }
                     }

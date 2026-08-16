@@ -19,10 +19,10 @@ import kotlinx.coroutines.launch
  * REVISION 11.1.6: Implemented metadata tag search support.
  */
 class LibraryViewModel(
-    private val scannerRepository: ScannerRepository,
+    scannerRepository: ScannerRepository,
     private val settingsRepository: SettingsRepository,
     private val bookmarkRepository: BookmarkRepository
-) : BaseLibraryViewModel() {
+) : BaseLibraryViewModel(scannerRepository) {
 
     private val _errorMessage = MutableStateFlow<String?>(null)
 
@@ -87,7 +87,7 @@ class LibraryViewModel(
         filteredComics,
         comicStatuses,
         settingsRepository.settings.map { it?.gridSize ?: 3 }.distinctUntilChanged(),
-        _isRefreshing,
+        isRefreshing,
         _errorMessage
     ) { comics, statuses, gridSize, refreshing, error ->
         val query = _searchQuery.value
@@ -136,10 +136,7 @@ class LibraryViewModel(
     }
 
     override fun refreshLibrary() {
-        if (_isRefreshing.value) return
-
         viewModelScope.launch {
-            _isRefreshing.value = true
             _errorMessage.value = null
             try {
                 // REVISION 10.5.7: Use cached settings
@@ -153,8 +150,6 @@ class LibraryViewModel(
                 }
             } catch (e: Exception) {
                 _errorMessage.value = "Failed to scan library: ${e.message}"
-            } finally {
-                _isRefreshing.value = false
             }
         }
     }

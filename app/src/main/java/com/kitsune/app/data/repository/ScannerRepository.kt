@@ -16,6 +16,8 @@ import com.kitsune.app.scanner.ScannerCoordinator
 import com.kitsune.app.scanner.VideoScanner
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlin.coroutines.coroutineContext
 
@@ -51,6 +53,18 @@ class ScannerRepository(
     val allComics: Flow<List<Comic>> = comicDao.getAllComics().map { entities ->
         entities.map { it.toDomain() }
     }
+
+    /**
+     * Observable scanning states from Coordinator.
+     * REVISION 11.2.6: Exposed for UI synchronization.
+     */
+    val isScanningComics: StateFlow<Boolean> = coordinator.isScanningComics
+    val isScanningVideos: StateFlow<Boolean> = coordinator.isScanningVideos
+
+    val isScanning: Flow<Boolean> = combine(
+        isScanningComics,
+        isScanningVideos
+    ) { comics, videos -> comics || videos }
 
     /**
      * Get a single comic by its relative path.

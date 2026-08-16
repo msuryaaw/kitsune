@@ -15,6 +15,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.DefaultRenderersFactory
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import com.kitsune.app.data.repository.SettingsRepository
@@ -47,12 +48,21 @@ enum class GestureArea { LEFT, CENTER, RIGHT }
 enum class SeekSource { GESTURE, SLIDER, RESUME, AUTO, NEXT_EPISODE }
 
 /**
+ * State untuk UI Player yang lebih terstruktur.
+ */
+sealed class PlayerUiState {
+    object Loading : PlayerUiState()
+    object Ready : PlayerUiState()
+    data class Error(val message: String, val debugInfo: String) : PlayerUiState()
+}
+
+/**
  * ViewModel untuk mengelola instance ExoPlayer dan lifecycle pemutaran video secara sekuensial.
  * REVISION 8.2.5: Implementasi Vertical Brightness & Volume Gesture.
  * REVISION 8.3.5: Fixed Controls visibility after Horizontal Seek Gesture using SeekSource.
  * REVISION 11.0.1: Implemented Decoder Fallback and Detailed Error Logging for MKV Playback.
  * REVISION 11.2.1: Enhanced Source Error diagnostics and logging for SAF/IO issues.
- * REVISION 11.3.1: Integrated FFmpeg Extension as software fallback and improved diagnostics.
+ * REVISION 11.4.1: Optimized for 1080p MKV with structured PlayerUiState and buffer tuning.
  */
 class VideoPlayerViewModel(
     application: Application,
@@ -64,6 +74,9 @@ class VideoPlayerViewModel(
 
     private val _player = MutableStateFlow<ExoPlayer?>(null)
     val player: StateFlow<ExoPlayer?> = _player.asStateFlow()
+
+    private val _playerUiState = MutableStateFlow<PlayerUiState>(PlayerUiState.Loading)
+    val playerUiState: StateFlow<PlayerUiState> = _playerUiState.asStateFlow()
 
     private val _errorState = MutableStateFlow<String?>(null)
     val errorState: StateFlow<String?> = _errorState.asStateFlow()
@@ -258,17 +271,26 @@ class VideoPlayerViewModel(
 
     @OptIn(UnstableApi::class)
     private fun setupPlayer() {
-        // REVISION 11.3.1: Updated RenderersFactory to use FFmpeg Extension as fallback
-        // mode ON: Prefer hardware, use software/extension only if hardware fails or is missing.
+        // Standard RenderersFactory with Decoder Fallback enabled for better compatibility.
         val renderersFactory = DefaultRenderersFactory(getApplication())
             .setEnableDecoderFallback(true)
-            .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
 
         // REVISION 11.0.2: Explicit TrackSelector audit (default configuration is preferred)
         val trackSelector = DefaultTrackSelector(getApplication())
 
+        // REVISION 11.4.1: Tuned LoadControl for high-bitrate 1080p MKV and SAF overhead
+        val loadControl = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(
+                32000, // minBufferMs
+                64000, // maxBufferMs
+                2500,  // bufferForPlaybackMs
+                5000   // bufferForPlaybackAfterRebufferMs
+            )
+            .build()
+
         val exoPlayer = ExoPlayer.Builder(getApplication(), renderersFactory)
             .setTrackSelector(trackSelector)
+            .setLoadControl(loadControl)
             .build()
             .apply {
                 this.playWhenReady = this@VideoPlayerViewModel.playWhenReady
@@ -315,6 +337,7 @@ class VideoPlayerViewModel(
                         _isBuffering.value = state == Player.STATE_BUFFERING
                         if (state == Player.STATE_READY) {
                             _duration.value = duration
+                            _playerUiState.value = PlayerUiState.Ready
                         }
                         
                         // AUTO NEXT LOGIC (Phase 7.6.4)
@@ -341,9 +364,9 @@ class VideoPlayerViewModel(
 
                     override fun onPlayerError(error: PlaybackException) {
                         // REVISION 11.2.1: Deep diagnostics for Source/IO Errors
+                        // REVISION 11.4.1: Categorized errors for structured UI feedback
                         val format = videoFormat
-                        val errorDetail = StringBuilder().apply {
-                            append("Playback Error: ${error.message}\n\n")
+                        val debugInfo = StringBuilder().apply {
                             append("--- DEBUG INFO ---\n")
                             append("Type: ${error.errorCodeName} (${error.errorCode})\n")
                             
@@ -385,8 +408,19 @@ class VideoPlayerViewModel(
                             append(stackTrace.take(1000) + "...")
                         }.toString()
                         
-                        Log.e("KitsunePlayer", errorDetail)
-                        _errorState.value = errorDetail
+                        val userMessage = when (error.errorCode) {
+                            PlaybackException.ERROR_CODE_DECODER_INIT_FAILED,
+                            PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED -> 
+                                "Video format not supported by your device hardware."
+                            PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND,
+                            PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ->
+                                "Video file could not be accessed."
+                            else -> "An unexpected playback error occurred."
+                        }
+                        
+                        Log.e("KitsunePlayer", "Error: $userMessage\n$debugInfo")
+                        _playerUiState.value = PlayerUiState.Error(userMessage, debugInfo)
+                        _errorState.value = userMessage // Keep old for compatibility if needed
                     }
 
                     override fun onPositionDiscontinuity(

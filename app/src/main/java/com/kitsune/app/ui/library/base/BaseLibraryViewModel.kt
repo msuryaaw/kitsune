@@ -1,5 +1,6 @@
 package com.kitsune.app.ui.library.base
 
+import com.kitsune.app.data.repository.ScannerRepository
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.FlowPreview
@@ -8,11 +9,18 @@ import kotlinx.coroutines.flow.*
 /**
  * Base ViewModel untuk layar Library di Kitsune.
  * Menyediakan fondasi untuk fitur umum seperti Pencarian, Refreshing, dan Seleksi.
+ * REVISION 11.2.10: Connected to real scanning state via ScannerRepository.
  */
-abstract class BaseLibraryViewModel : ViewModel() {
+abstract class BaseLibraryViewModel(
+    protected val scannerRepository: ScannerRepository
+) : ViewModel() {
 
-    protected val _isRefreshing = MutableStateFlow(false)
-    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+    /**
+     * Observable refreshing state tied to engine.
+     */
+    val isRefreshing: StateFlow<Boolean> = scannerRepository.isScanning
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     protected val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()

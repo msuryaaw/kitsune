@@ -4,6 +4,7 @@ import androidx.core.net.toUri
 import androidx.lifecycle.viewModelScope
 import com.kitsune.app.data.repository.CollectionRepository
 import com.kitsune.app.data.repository.PlaylistRepository
+import com.kitsune.app.data.repository.ScannerRepository
 import com.kitsune.app.data.repository.SettingsRepository
 import com.kitsune.app.data.repository.VideoRepository
 import com.kitsune.app.database.entity.PlaylistEntity
@@ -22,8 +23,9 @@ class VideoLibraryViewModel(
     private val videoRepository: VideoRepository,
     private val settingsRepository: SettingsRepository,
     private val collectionRepository: CollectionRepository,
-    private val playlistRepository: PlaylistRepository
-) : BaseLibraryViewModel() {
+    private val playlistRepository: PlaylistRepository,
+    scannerRepository: ScannerRepository
+) : BaseLibraryViewModel(scannerRepository) {
 
     /**
      * Observable list of available playlists.
@@ -77,7 +79,7 @@ class VideoLibraryViewModel(
         videoItemsFlow,
         debouncedSearchQuery,
         settingsRepository.settings.map { it?.gridSize ?: 3 }.distinctUntilChanged(),
-        _isRefreshing
+        isRefreshing
     ) { videoItems, query, gridSize, refreshing ->
 
         // Filtering & Sorting (performed only when necessary due to distinctUntilChanged upstream)
@@ -112,10 +114,7 @@ class VideoLibraryViewModel(
     }
 
     override fun refreshLibrary() {
-        if (_isRefreshing.value) return
-
         viewModelScope.launch {
-            _isRefreshing.value = true
             try {
                 // REVISION 10.5.4: Use cached settings for one-shot retrieval
                 val settings = settingsRepository.getSettingsCached()
@@ -126,8 +125,6 @@ class VideoLibraryViewModel(
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
-            } finally {
-                _isRefreshing.value = false
             }
         }
     }

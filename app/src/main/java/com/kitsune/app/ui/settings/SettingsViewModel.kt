@@ -26,8 +26,12 @@ class SettingsViewModel(
     private val _uiState = MutableStateFlow<SettingsUiState>(SettingsUiState.Loading)
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
 
-    private val _isRescanning = MutableStateFlow(false)
-    val isRescanning: StateFlow<Boolean> = _isRescanning.asStateFlow()
+    /**
+     * REVISION 11.2.8: Connected to Global Scanning State via ScannerRepository.
+     */
+    val isRescanning: StateFlow<Boolean> = scannerRepository.isScanning
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     private val _snackbarMessage = MutableSharedFlow<String>()
     val snackbarMessage = _snackbarMessage.asSharedFlow()
@@ -120,22 +124,17 @@ class SettingsViewModel(
 
     /**
      * Memicu pemindaian manual untuk mendeteksi perubahan di filesystem.
-     * REVISION 6.7.6: Ditambahkan guard agar rescan tidak berjalan paralel.
+     * REVISION 11.2.9: Removed local flag management, relying on repository state.
      */
     fun rescanLibrary() {
-        if (_isRescanning.value) return
-
         viewModelScope.launch {
             val settings = settingsRepository.settings.first()
             val rootUriString = settings?.rootFolderUri
             if (!rootUriString.isNullOrEmpty()) {
-                _isRescanning.value = true
                 try {
                     scannerRepository.performIncrementalScan(rootUriString.toUri())
                 } catch (e: Exception) {
                     // Log error
-                } finally {
-                    _isRescanning.value = false
                 }
             }
         }

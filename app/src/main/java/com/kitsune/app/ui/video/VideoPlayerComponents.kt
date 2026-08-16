@@ -7,7 +7,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
@@ -18,6 +20,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -246,6 +250,7 @@ private fun formatTimestamp(ms: Long): String {
 /**
  * Dialog untuk menampilkan error playback dengan detail teknis opsional.
  * REVISION 11.4.1: Added detailed error feedback for 1080p MKV playback issues.
+ * REVISION 11.6.1: Added scrollable debug details and copy to clipboard feature.
  */
 @Composable
 fun PlayerErrorDialog(
@@ -254,6 +259,7 @@ fun PlayerErrorDialog(
     onBackClick: () -> Unit
 ) {
     var showDetails by remember { mutableStateOf(false) }
+    val clipboardManager = LocalClipboardManager.current
 
     AlertDialog(
         onDismissRequest = onBackClick,
@@ -274,22 +280,43 @@ fun PlayerErrorDialog(
                 
                 Spacer(modifier = Modifier.height(16.dp))
                 
-                TextButton(
-                    onClick = { showDetails = !showDetails },
-                    contentPadding = PaddingValues(0.dp)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(if (showDetails) "Hide Details" else "Show Technical Details")
+                    TextButton(
+                        onClick = { showDetails = !showDetails },
+                        contentPadding = PaddingValues(0.dp)
+                    ) {
+                        Text(if (showDetails) "Hide Details" else "Show Technical Details")
+                    }
+
+                    if (showDetails) {
+                        IconButton(onClick = { 
+                            clipboardManager.setText(AnnotatedString(debugInfo))
+                        }) {
+                            Icon(
+                                imageVector = Icons.Default.ContentCopy,
+                                contentDescription = "Copy Error Details",
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
                 }
                 
                 if (showDetails) {
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(max = 200.dp),
+                            .heightIn(max = 240.dp),
                         color = MaterialTheme.colorScheme.surfaceVariant,
                         shape = RoundedCornerShape(4.dp)
                     ) {
-                        Box(modifier = Modifier.padding(8.dp)) {
+                        Box(modifier = Modifier
+                            .padding(8.dp)
+                            .verticalScroll(rememberScrollState())
+                        ) {
                             Text(
                                 text = debugInfo,
                                 style = MaterialTheme.typography.labelSmall,

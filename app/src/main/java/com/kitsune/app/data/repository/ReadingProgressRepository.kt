@@ -89,9 +89,13 @@ class ReadingProgressRepository(
                         LastReadComic(
                             comic = Comic(
                                 title = comicEntity.title,
+                                displayTitle = comicEntity.displayTitle,
+                                author = comicEntity.author,
+                                language = comicEntity.language,
                                 relativePath = comicEntity.relativePath,
                                 coverUri = comicEntity.coverUri,
-                                lastModified = comicEntity.lastModified
+                                lastModified = comicEntity.lastModified,
+                                searchTags = comicEntity.searchTags
                             ),
                             progress = progress
                         )

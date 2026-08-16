@@ -15,6 +15,9 @@ fun Comic.toMediaUiModel(statuses: Set<ComicStatus> = emptySet()): MediaUiModel 
     return MediaUiModel(
         id = relativePath,
         title = title,
+        displayTitle = displayTitle,
+        author = author,
+        language = language,
         thumbnailUri = coverUri,
         progress = 0f,
         isFinished = false,
@@ -27,6 +30,7 @@ fun Video.toMediaUiModel(statuses: Set<ComicStatus> = emptySet()): MediaUiModel 
     return MediaUiModel(
         id = relativePath,
         title = title,
+        displayTitle = title, // Video uses original title for now
         thumbnailUri = coverUri,
         progress = 0f,
         isFinished = false,
@@ -39,6 +43,7 @@ fun VideoItemState.toMediaUiModel(statuses: Set<ComicStatus> = emptySet()): Medi
     return MediaUiModel(
         id = video.relativePath,
         title = video.title,
+        displayTitle = video.title,
         thumbnailUri = video.coverUri,
         progress = watchedPercentage,
         isFinished = isFinished,

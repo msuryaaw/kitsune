@@ -23,10 +23,13 @@ class ComicScanner(
 ) : BaseScanner(context, storageHelper) {
 
     private val cbzParser = CbzParser(context)
+    private val folderRegex = Regex("""^\[([^\]]+)\]\s*\[([^\]]+)\]\s*(.*)$""")
 
     /**
      * Scans the 'Comics' folder for comic titles.
      * Implements automatic cover generation if not found.
+     * 
+     * REVISION 11.2.5: Implemented Regex parsing for [LANG] [AUTHOR] Title folder patterns.
      * 
      * @param rootUri The root URI of the Kitsune library.
      * @param getExistingCover Callback to retrieve cover URI from DB if folder hasn't changed.
@@ -46,8 +49,8 @@ class ComicScanner(
             }
 
         comicFolders.mapNotNull { folder ->
-            val title = folder.name ?: return@mapNotNull null
-            val relativePath = "Comics/$title"
+            val folderName = folder.name ?: return@mapNotNull null
+            val relativePath = "Comics/$folderName"
             val currentLastModified = folder.lastModified()
             
             val cachedCover = getExistingCover(relativePath, currentLastModified)
@@ -61,12 +64,22 @@ class ComicScanner(
             if (coverUri == null) {
                 coverUri = generateCover(folder)?.toString()
             }
+
+            // Regex Parsing (REVISION 11.2.5)
+            val matchResult = folderRegex.find(folderName)
+            val parsedLang = matchResult?.groupValues?.get(1)
+            val parsedAuthor = matchResult?.groupValues?.get(2)
+            val parsedTitle = matchResult?.groupValues?.get(3)?.trim() ?: folderName
             
             Comic(
-                title = title,
+                title = folderName,
+                displayTitle = parsedTitle,
+                author = parsedAuthor,
+                language = parsedLang,
                 relativePath = relativePath,
                 coverUri = coverUri,
-                lastModified = currentLastModified
+                lastModified = currentLastModified,
+                searchTags = null
             )
         }
     }

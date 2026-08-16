@@ -9,11 +9,15 @@ import com.kitsune.app.ui.library.ComicStatus
  * Digunakan sebagai kontrak data untuk komponen Media UI Foundation.
  * 
  * REVISION 7.8.11: Added statuses for Bookmark and Playlist indicators.
+ * REVISION 11.2.3: Added displayTitle, author, and language.
  */
 @Immutable
 data class MediaUiModel(
     val id: String,
-    val title: String,
+    val title: String, // Original
+    val displayTitle: String, // Clean
+    val author: String? = null,
+    val language: String? = null,
     val thumbnailUri: String?,
     val progress: Float = 0f,
     val isFinished: Boolean = false,

@@ -17,6 +17,8 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.analytics.AnalyticsListener
+import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
+import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import com.kitsune.app.data.repository.SettingsRepository
 import com.kitsune.app.data.repository.VideoRepository
@@ -63,6 +65,7 @@ sealed class PlayerUiState {
  * REVISION 11.0.1: Implemented Decoder Fallback and Detailed Error Logging for MKV Playback.
  * REVISION 11.2.1: Enhanced Source Error diagnostics and logging for SAF/IO issues.
  * REVISION 11.4.1: Optimized for 1080p MKV with structured PlayerUiState and buffer tuning.
+ * REVISION 11.5.1: SAF I/O stability tuning and MTK hardware decoder crash recovery.
  */
 class VideoPlayerViewModel(
     application: Application,
@@ -77,6 +80,9 @@ class VideoPlayerViewModel(
 
     private val _playerUiState = MutableStateFlow<PlayerUiState>(PlayerUiState.Loading)
     val playerUiState: StateFlow<PlayerUiState> = _playerUiState.asStateFlow()
+
+    private val _isSoftwareFallbackActive = MutableStateFlow(false)
+    val isSoftwareFallbackActive: StateFlow<Boolean> = _isSoftwareFallbackActive.asStateFlow()
 
     private val _errorState = MutableStateFlow<String?>(null)
     val errorState: StateFlow<String?> = _errorState.asStateFlow()
@@ -271,18 +277,33 @@ class VideoPlayerViewModel(
 
     @OptIn(UnstableApi::class)
     private fun setupPlayer() {
+        // REVISION 11.5.1: Custom MediaCodecSelector to force software fallback if hardware fails
+        val mediaCodecSelector = if (_isSoftwareFallbackActive.value) {
+            MediaCodecSelector { mimeType, requiresSecureDecoder, requiresTunnelingDecoder ->
+                val decoders = MediaCodecUtil.getDecoderInfos(mimeType, requiresSecureDecoder, requiresTunnelingDecoder)
+                // REVISION 11.6.1: Explicitly blacklist MediaTek hardware and whitelist standard Android SW decoders
+                decoders.filter { 
+                    !it.name.contains("mtk", ignoreCase = true) && 
+                    (it.name.startsWith("c2.android.") || it.name.startsWith("OMX.google.") || it.softwareOnly)
+                }.ifEmpty { decoders }
+            }
+        } else {
+            MediaCodecSelector.DEFAULT
+        }
+
         // Standard RenderersFactory with Decoder Fallback enabled for better compatibility.
         val renderersFactory = DefaultRenderersFactory(getApplication())
             .setEnableDecoderFallback(true)
+            .setMediaCodecSelector(mediaCodecSelector)
 
         // REVISION 11.0.2: Explicit TrackSelector audit (default configuration is preferred)
         val trackSelector = DefaultTrackSelector(getApplication())
 
-        // REVISION 11.4.1: Tuned LoadControl for high-bitrate 1080p MKV and SAF overhead
+        // REVISION 11.5.1: Optimized LoadControl for SAF I/O stability (15s min, 30s max)
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
-                32000, // minBufferMs
-                64000, // maxBufferMs
+                15000, // minBufferMs
+                30000, // maxBufferMs
                 2500,  // bufferForPlaybackMs
                 5000   // bufferForPlaybackAfterRebufferMs
             )
@@ -363,6 +384,20 @@ class VideoPlayerViewModel(
                     }
 
                     override fun onPlayerError(error: PlaybackException) {
+                        // REVISION 11.5.1: Detect MTK Decoder Crash or SAF I/O failure
+                        // REVISION 11.6.1: Included ERROR_CODE_DECODING_FAILED (4003) for hardware failure recovery
+                        val isMtkCrash = (error.errorCode == PlaybackException.ERROR_CODE_IO_UNSPECIFIED || 
+                                         error.errorCode == PlaybackException.ERROR_CODE_DECODER_INIT_FAILED ||
+                                         error.errorCode == PlaybackException.ERROR_CODE_DECODING_FAILED) &&
+                                         (error.cause?.toString()?.contains("CryptoException", true) == true || 
+                                          lastVideoDecoderName?.contains("mtk", true) == true)
+                        
+                        if (isMtkCrash && !_isSoftwareFallbackActive.value) {
+                            Log.w("KitsunePlayer", "Detected Hardware Decoder Crash (MTK). Triggering Software Fallback...")
+                            triggerSoftwareFallback()
+                            return
+                        }
+
                         // REVISION 11.2.1: Deep diagnostics for Source/IO Errors
                         // REVISION 11.4.1: Categorized errors for structured UI feedback
                         val format = videoFormat
@@ -648,6 +683,38 @@ class VideoPlayerViewModel(
             
             // 4. Trigger pemuatan media baru
             loadMediaItem(episode, autoPlay = true)
+        }
+    }
+
+    /**
+     * Resets the player and re-initializes it with a software-only decoder selector.
+     * REVISION 11.5.1: Critical recovery for MediaTek hardware decoder driver failures.
+     */
+    private fun triggerSoftwareFallback() {
+        viewModelScope.launch {
+            val currentPos = _player.value?.currentPosition ?: 0L
+            val currentEpisode = _currentEpisode.value ?: return@launch
+            
+            _isSoftwareFallbackActive.value = true
+            
+            // Step 1: Inform UI we are recovering
+            _playerUiState.value = PlayerUiState.Loading
+            
+            // Step 2: Full release of corrupted player instance
+            _player.value?.let {
+                it.stop()
+                it.release()
+            }
+            _player.value = null
+            
+            // Step 3: Re-setup with filtered MediaCodecSelector (Standard Android SW Decoders)
+            setupPlayer()
+            
+            // Step 4: Reload and seek back to last known position
+            loadMediaItem(currentEpisode, autoPlay = true)
+            _player.value?.seekTo(currentPos)
+            
+            Log.i("KitsunePlayer", "Recovery: Switched to Software Decoder at $currentPos ms")
         }
     }
 

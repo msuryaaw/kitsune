@@ -143,11 +143,19 @@ class ScannerRepository(
             .map { it.relativePath }
 
         val toInsert = scannedComics.map { comic ->
-            // Populate searchTags from metadata.json during scan
+            // Populate searchTags and extra metadata from metadata.json during scan
             val metadata = metadataManager.readMetadata(rootUri, comic.relativePath)
+            
+            // Priority: JSON metadata takes precedence over parsed folder name (REVISION 11.2.7)
+            val finalAuthor = metadata.author ?: comic.author
+            val finalLanguage = metadata.language ?: comic.language
+            
             val searchTags = if (metadata.tags.isEmpty()) null else metadata.tags.joinToString(" ")
             
-            comic.toEntity(searchTags)
+            comic.copy(
+                author = finalAuthor,
+                language = finalLanguage
+            ).toEntity(searchTags)
         }.filter { entity ->
             val cached = cacheMap[entity.relativePath]
             // Compare including searchTags to ensure index is updated if JSON changed
@@ -206,6 +214,9 @@ class ScannerRepository(
 
     private fun ComicEntity.toDomain() = Comic(
         title = title,
+        displayTitle = displayTitle,
+        author = author,
+        language = language,
         relativePath = relativePath,
         coverUri = coverUri,
         lastModified = lastModified,
@@ -214,6 +225,9 @@ class ScannerRepository(
 
     private fun Comic.toEntity(searchTags: String?) = ComicEntity(
         title = title,
+        displayTitle = displayTitle,
+        author = author,
+        language = language,
         relativePath = relativePath,
         coverUri = coverUri,
         lastModified = lastModified,

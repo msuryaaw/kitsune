@@ -126,7 +126,7 @@ fun ComicCard(
         Spacer(modifier = Modifier.height(4.dp))
         
         MediaTitle(
-            title = mediaUiModel.title,
+            title = mediaUiModel.displayTitle,
             color = if (state.isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground,
             fontWeight = if (state.isSelected) FontWeight.Bold else FontWeight.Normal,
             modifier = Modifier.padding(horizontal = 4.dp)

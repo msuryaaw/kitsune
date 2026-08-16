@@ -100,7 +100,7 @@ fun BookmarkDetailScreen(
                                 expanded = showSortMenu,
                                 onDismissRequest = { showSortMenu = false }
                             ) {
-                                CollectionSortOrder.entries.forEach { order ->
+                                ComicSortOrder.entries.forEach { order ->
                                     DropdownMenuItem(
                                         text = { Text(order.label) },
                                         onClick = {

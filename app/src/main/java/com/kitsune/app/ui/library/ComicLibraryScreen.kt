@@ -3,7 +3,10 @@ package com.kitsune.app.ui.library
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BookmarkAdd
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SearchOff
+import androidx.compose.material.icons.filled.SortByAlpha
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -22,12 +25,14 @@ fun ComicLibraryScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
+    val sortOrder by viewModel.sortOrder.collectAsState()
     val selectionMode by viewModel.selectionMode.collectAsState()
     val selectedPaths by viewModel.selectedPaths.collectAsState()
     
     val allBookmarks by viewModel.allBookmarks.collectAsState()
 
     var isSearchActive by remember { mutableStateOf(false) }
+    var showSortMenu by remember { mutableStateOf(false) }
     
     // Picker Visibility
     var showBookmarkPicker by remember { mutableStateOf(false) }
@@ -71,6 +76,35 @@ fun ComicLibraryScreen(
         onSearchActiveChange = { isSearchActive = it },
         onBackClick = null, // Visual Identical: Comic Library originally had no back button
         snackbarHostState = snackbarHostState,
+        topBarActions = {
+            IconButton(onClick = { isSearchActive = true }) {
+                Icon(Icons.Default.Search, contentDescription = "Search")
+            }
+            Box {
+                IconButton(onClick = { showSortMenu = true }) {
+                    Icon(Icons.Default.SortByAlpha, contentDescription = "Sort")
+                }
+                DropdownMenu(
+                    expanded = showSortMenu,
+                    onDismissRequest = { showSortMenu = false }
+                ) {
+                    ComicSortOrder.entries.forEach { order ->
+                        DropdownMenuItem(
+                            text = { Text(order.label) },
+                            onClick = {
+                                viewModel.setSortOrder(order)
+                                showSortMenu = false
+                            },
+                            trailingIcon = {
+                                if (sortOrder == order) {
+                                    Icon(Icons.Default.Check, contentDescription = null)
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+        },
         selectionTopBar = if (selectionMode) {
             {
                 SelectionTopAppBar(

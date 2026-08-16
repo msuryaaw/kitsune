@@ -26,6 +26,9 @@ class LibraryViewModel(
 
     private val _errorMessage = MutableStateFlow<String?>(null)
 
+    private val _sortOrder = MutableStateFlow(ComicSortOrder.TITLE_ASC)
+    val sortOrder: StateFlow<ComicSortOrder> = _sortOrder.asStateFlow()
+
     /**
      * Observable set of bookmarked paths.
      */
@@ -43,21 +46,33 @@ class LibraryViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     /**
-     * Stage 1: Filtering.
-     * REVISION 11.1.6: Search now checks both title and searchTags index.
+     * Stage 1: Filtering & Sorting.
+     * REVISION 11.3.2: Search now checks clean title, author, and language.
+     * REVISION 11.3.3: Applied ComicSortOrder.
      */
     private val filteredComics = combine(
         scannerRepository.allComics,
-        debouncedSearchQuery
-    ) { comics, query ->
-        if (query.isBlank()) {
+        debouncedSearchQuery,
+        _sortOrder
+    ) { comics, query, order ->
+        val filtered = if (query.isBlank()) {
             comics
         } else {
             val trimmedQuery = query.trim()
             comics.filter { comic ->
-                comic.title.contains(trimmedQuery, ignoreCase = true) ||
+                comic.displayTitle.contains(trimmedQuery, ignoreCase = true) ||
+                comic.author?.contains(trimmedQuery, ignoreCase = true) == true ||
+                comic.language?.contains(trimmedQuery, ignoreCase = true) == true ||
                 comic.searchTags?.contains(trimmedQuery, ignoreCase = true) == true
             }
+        }
+
+        when (order) {
+            ComicSortOrder.TITLE_ASC -> filtered.sortedBy { it.displayTitle.lowercase() }
+            ComicSortOrder.TITLE_DESC -> filtered.sortedByDescending { it.displayTitle.lowercase() }
+            ComicSortOrder.AUTHOR_ASC -> filtered.sortedBy { (it.author ?: "").lowercase() }
+            ComicSortOrder.AUTHOR_DESC -> filtered.sortedByDescending { (it.author ?: "").lowercase() }
+            ComicSortOrder.DATE_ADDED_DESC -> filtered.sortedByDescending { it.lastModified }
         }
     }.distinctUntilChanged()
 
@@ -133,6 +148,10 @@ class LibraryViewModel(
 
     suspend fun createBookmark(name: String): Long {
         return bookmarkRepository.createBookmark(name)
+    }
+
+    fun setSortOrder(order: ComicSortOrder) {
+        _sortOrder.value = order
     }
 
     override fun refreshLibrary() {

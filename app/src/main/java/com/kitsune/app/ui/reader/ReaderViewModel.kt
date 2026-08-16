@@ -305,4 +305,14 @@ class ReaderViewModel(
             saveProgress(validatedPage, current.pages.size)
         }
     }
+
+    /**
+     * Memperbarui mode membaca secara reaktif.
+     * REVISION 11.4.1: Pemilih mode baca langsung di dalam reader.
+     */
+    fun updateReadingMode(mode: String) {
+        viewModelScope.launch {
+            settingsRepository.updateReadingMode(mode)
+        }
+    }
 }

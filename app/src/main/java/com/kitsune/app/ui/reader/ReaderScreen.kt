@@ -398,12 +398,23 @@ fun ReaderBottomBar(
         contentColor = MaterialTheme.colorScheme.onSurface
     ) {
         val currentPage by viewModel.currentPage.collectAsState()
+        val uiState by viewModel.uiState.collectAsState()
+        val currentMode = (uiState as? ReaderUiState.Success)?.readingMode ?: "Vertical"
+
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp)
                 .navigationBarsPadding()
         ) {
+            // REVISION 11.4.2: Reading Mode Selector
+            ReadingModeSelector(
+                currentMode = currentMode,
+                onModeChange = { viewModel.updateReadingMode(it) }
+            )
+            
+            Spacer(modifier = Modifier.height(8.dp))
+
             // Isolated Page Position UI
             PagePositionControls(currentPage, totalPages, onPageJump)
             
@@ -423,6 +434,45 @@ fun ReaderBottomBar(
                 IconButton(onClick = onNextChapter, enabled = hasNext) {
                     Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Next Chapter")
                 }
+            }
+        }
+    }
+}
+
+/**
+ * Komponen terisolasi untuk pemilihan Mode Membaca.
+ * REVISION 11.4.3: Added Radio Chips for Reading Mode selection.
+ */
+@Composable
+private fun ReadingModeSelector(
+    currentMode: String,
+    onModeChange: (String) -> Unit
+) {
+    val modes = listOf("Vertical", "LTR", "RTL")
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = "Mode",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            modes.forEach { mode ->
+                val isSelected = mode == currentMode
+                FilterChip(
+                    selected = isSelected,
+                    onClick = { onModeChange(mode) },
+                    label = { Text(text = mode, style = MaterialTheme.typography.labelSmall) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    ),
+                    border = null,
+                    modifier = Modifier.height(32.dp)
+                )
             }
         }
     }

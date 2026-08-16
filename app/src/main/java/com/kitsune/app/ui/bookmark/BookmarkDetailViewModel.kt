@@ -6,7 +6,7 @@ import com.kitsune.app.data.repository.BookmarkRepository
 import com.kitsune.app.data.repository.ScannerRepository
 import com.kitsune.app.data.repository.SettingsRepository
 import com.kitsune.app.domain.model.Comic
-import com.kitsune.app.ui.library.CollectionSortOrder
+import com.kitsune.app.ui.library.ComicSortOrder
 import com.kitsune.app.ui.library.ComicStatus
 import com.kitsune.app.ui.library.ComicStatusSets
 import kotlinx.coroutines.FlowPreview
@@ -32,8 +32,8 @@ class BookmarkDetailViewModel(
         .debounce(300)
         .distinctUntilChanged()
 
-    private val _sortOrder = MutableStateFlow(CollectionSortOrder.NAME_ASC)
-    val sortOrder: StateFlow<CollectionSortOrder> = _sortOrder.asStateFlow()
+    private val _sortOrder = MutableStateFlow(ComicSortOrder.TITLE_ASC)
+    val sortOrder: StateFlow<ComicSortOrder> = _sortOrder.asStateFlow()
 
     private val _uiState = MutableStateFlow<BookmarkDetailUiState>(BookmarkDetailUiState.Loading)
     val uiState: StateFlow<BookmarkDetailUiState> = _uiState.asStateFlow()
@@ -86,24 +86,33 @@ class BookmarkDetailViewModel(
                 settingsRepository.settings.map { it?.gridSize ?: 3 }.distinctUntilChanged()
             ) { items, query, order, gridSize ->
                 
-                var result = if (query.isBlank()) {
+                val result = if (query.isBlank()) {
                     items
                 } else {
-                    items.filter { (comic, _) -> comic.title.contains(query, ignoreCase = true) }
+                    val trimmedQuery = query.trim()
+                    items.filter { (comic, _) -> 
+                        comic.displayTitle.contains(trimmedQuery, ignoreCase = true) ||
+                        comic.author?.contains(trimmedQuery, ignoreCase = true) == true ||
+                        comic.language?.contains(trimmedQuery, ignoreCase = true) == true ||
+                        comic.searchTags?.contains(trimmedQuery, ignoreCase = true) == true
+                    }
                 }
 
-                result = when (order) {
-                    CollectionSortOrder.NAME_ASC -> result.sortedBy { it.first.title.lowercase() }
-                    CollectionSortOrder.NAME_DESC -> result.sortedByDescending { it.first.title.lowercase() }
+                val sortedResult = when (order) {
+                    ComicSortOrder.TITLE_ASC -> result.sortedBy { it.first.displayTitle.lowercase() }
+                    ComicSortOrder.TITLE_DESC -> result.sortedByDescending { it.first.displayTitle.lowercase() }
+                    ComicSortOrder.AUTHOR_ASC -> result.sortedBy { (it.first.author ?: "").lowercase() }
+                    ComicSortOrder.AUTHOR_DESC -> result.sortedByDescending { (it.first.author ?: "").lowercase() }
+                    ComicSortOrder.DATE_ADDED_DESC -> result.sortedByDescending { it.first.lastModified }
                 }
 
-                if (result.isEmpty() && query.isBlank()) {
+                if (sortedResult.isEmpty() && query.isBlank()) {
                     BookmarkDetailUiState.Empty(bookmark.name)
                 } else {
                     BookmarkDetailUiState.Success(
                         bookmarkName = bookmark.name,
-                        comics = result.map { it.first },
-                        comicStatuses = result.associate { it.first.relativePath to it.second },
+                        comics = sortedResult.map { it.first },
+                        comicStatuses = sortedResult.associate { it.first.relativePath to it.second },
                         gridSize = gridSize
                     )
                 }
@@ -119,7 +128,7 @@ class BookmarkDetailViewModel(
         _searchQuery.value = newQuery
     }
 
-    fun setSortOrder(order: CollectionSortOrder) {
+    fun setSortOrder(order: ComicSortOrder) {
         _sortOrder.value = order
     }
 

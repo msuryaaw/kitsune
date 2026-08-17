@@ -149,12 +149,14 @@ class ScannerRepository(
             // Priority: JSON metadata takes precedence over parsed folder name (REVISION 11.2.7)
             val finalAuthor = metadata.author ?: comic.author
             val finalLanguage = metadata.language ?: comic.language
+            val finalType = metadata.type ?: comic.type
             
             val searchTags = if (metadata.tags.isEmpty()) null else metadata.tags.joinToString(" ")
             
             comic.copy(
                 author = finalAuthor,
-                language = finalLanguage
+                language = finalLanguage,
+                type = finalType
             ).toEntity(searchTags)
         }.filter { entity ->
             val cached = cacheMap[entity.relativePath]
@@ -217,6 +219,7 @@ class ScannerRepository(
         displayTitle = displayTitle,
         author = author,
         language = language,
+        type = type,
         relativePath = relativePath,
         coverUri = coverUri,
         lastModified = lastModified,
@@ -228,6 +231,7 @@ class ScannerRepository(
         displayTitle = displayTitle,
         author = author,
         language = language,
+        type = type,
         relativePath = relativePath,
         coverUri = coverUri,
         lastModified = lastModified,

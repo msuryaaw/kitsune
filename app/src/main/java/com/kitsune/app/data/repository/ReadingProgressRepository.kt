@@ -92,6 +92,7 @@ class ReadingProgressRepository(
                                 displayTitle = comicEntity.displayTitle,
                                 author = comicEntity.author,
                                 language = comicEntity.language,
+                                type = comicEntity.type,
                                 relativePath = comicEntity.relativePath,
                                 coverUri = comicEntity.coverUri,
                                 lastModified = comicEntity.lastModified,

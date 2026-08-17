@@ -9,6 +9,7 @@ import androidx.room.PrimaryKey
  * 
  * REVISION 11.1.1: Added searchTags for lightweight metadata search cache.
  * REVISION 11.2.1: Added displayTitle, author, and language for advanced parsing.
+ * REVISION 11.3.1: Added type for flexible folder parsing.
  */
 @Entity(tableName = "comics")
 data class ComicEntity(
@@ -17,6 +18,7 @@ data class ComicEntity(
     val displayTitle: String, // Parsed title
     val author: String? = null,
     val language: String? = null,
+    val type: String? = null,
     val coverUri: String?,
     val lastModified: Long,
     val searchTags: String? = null

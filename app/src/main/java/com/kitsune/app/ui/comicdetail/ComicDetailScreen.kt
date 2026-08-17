@@ -238,11 +238,25 @@ fun ComicHeader(comic: Comic) {
                 overflow = TextOverflow.Ellipsis
             )
 
-            if (comic.author != null || comic.language != null) {
+            if (comic.author != null || comic.language != null || comic.type != null) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.padding(vertical = 2.dp)
                 ) {
+                    if (comic.type != null) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            shape = RoundedCornerShape(4.dp),
+                            modifier = Modifier.padding(end = 8.dp)
+                        ) {
+                            Text(
+                                text = comic.type.uppercase(),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
                     if (comic.language != null) {
                         Surface(
                             color = MaterialTheme.colorScheme.secondaryContainer,

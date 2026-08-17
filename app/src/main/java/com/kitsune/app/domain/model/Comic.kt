@@ -5,12 +5,14 @@ package com.kitsune.app.domain.model
  * 
  * REVISION 11.1.3: Added searchTags for filter support in UI.
  * REVISION 11.2.2: Added displayTitle, author, and language.
+ * REVISION 11.3.2: Added type.
  */
 data class Comic(
     val title: String,
     val displayTitle: String,
     val author: String? = null,
     val language: String? = null,
+    val type: String? = null,
     val relativePath: String,
     val coverUri: String?,
     val lastModified: Long,

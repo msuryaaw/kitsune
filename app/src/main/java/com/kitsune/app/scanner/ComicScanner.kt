@@ -23,13 +23,15 @@ class ComicScanner(
 ) : BaseScanner(context, storageHelper) {
 
     private val cbzParser = CbzParser(context)
-    private val folderRegex = Regex("""^\[([^\]]+)\]\s*\[([^\]]+)\]\s*(.*)$""")
+    private val regex3 = Regex("""^\[([^\]]+)\]\s*\[([^\]]+)\]\s*\[([^\]]+)\]\s*(.*)$""")
+    private val regex2 = Regex("""^\[([^\]]+)\]\s*\[([^\]]+)\]\s*(.*)$""")
 
     /**
      * Scans the 'Comics' folder for comic titles.
      * Implements automatic cover generation if not found.
      * 
      * REVISION 11.2.5: Implemented Regex parsing for [LANG] [AUTHOR] Title folder patterns.
+     * REVISION 11.3.1: Upgraded to flexible multi-pattern parser supporting [TYPE].
      * 
      * @param rootUri The root URI of the Kitsune library.
      * @param getExistingCover Callback to retrieve cover URI from DB if folder hasn't changed.
@@ -65,17 +67,33 @@ class ComicScanner(
                 coverUri = generateCover(folder)?.toString()
             }
 
-            // Regex Parsing (REVISION 11.2.5)
-            val matchResult = folderRegex.find(folderName)
-            val parsedLang = matchResult?.groupValues?.get(1)
-            val parsedAuthor = matchResult?.groupValues?.get(2)
-            val parsedTitle = matchResult?.groupValues?.get(3)?.trim() ?: folderName
+            // Flexible Multi-pattern Regex Parsing (REVISION 11.3.1)
+            var parsedType: String? = null
+            var parsedLang: String? = null
+            var parsedAuthor: String? = null
+            var parsedTitle: String = folderName
+
+            val match3 = regex3.find(folderName)
+            if (match3 != null) {
+                parsedType = match3.groupValues[1]
+                parsedLang = match3.groupValues[2]
+                parsedAuthor = match3.groupValues[3]
+                parsedTitle = match3.groupValues[4].trim()
+            } else {
+                val match2 = regex2.find(folderName)
+                if (match2 != null) {
+                    parsedLang = match2.groupValues[1]
+                    parsedAuthor = match2.groupValues[2]
+                    parsedTitle = match2.groupValues[3].trim()
+                }
+            }
             
             Comic(
                 title = folderName,
-                displayTitle = parsedTitle,
+                displayTitle = if (parsedTitle.isEmpty()) folderName else parsedTitle,
                 author = parsedAuthor,
                 language = parsedLang,
+                type = parsedType,
                 relativePath = relativePath,
                 coverUri = coverUri,
                 lastModified = currentLastModified,

@@ -63,6 +63,7 @@ class LibraryViewModel(
                 comic.displayTitle.contains(trimmedQuery, ignoreCase = true) ||
                 comic.author?.contains(trimmedQuery, ignoreCase = true) == true ||
                 comic.language?.contains(trimmedQuery, ignoreCase = true) == true ||
+                comic.type?.contains(trimmedQuery, ignoreCase = true) == true ||
                 comic.searchTags?.contains(trimmedQuery, ignoreCase = true) == true
             }
         }

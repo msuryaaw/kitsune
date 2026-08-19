@@ -15,7 +15,10 @@ import androidx.room.PrimaryKey
             onDelete = ForeignKey.CASCADE
         )
     ],
-    indices = [Index(value = ["bookmarkId"])]
+    indices = [
+        Index(value = ["bookmarkId"]),
+        Index(value = ["bookmarkId", "comicRelativePath"], unique = true)
+    ]
 )
 data class BookmarkComicEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,

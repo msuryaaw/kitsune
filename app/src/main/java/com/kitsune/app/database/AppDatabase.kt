@@ -26,7 +26,7 @@ import com.kitsune.app.database.entity.*
         VideoEntity::class,
         VideoProgressEntity::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -123,6 +123,23 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // 1. Remove duplicates before adding unique index (REVISION 11.4.1)
+                db.execSQL("""
+                    DELETE FROM bookmark_comics 
+                    WHERE id NOT IN (
+                        SELECT MIN(id) 
+                        FROM bookmark_comics 
+                        GROUP BY bookmarkId, comicRelativePath
+                    )
+                """.trimIndent())
+
+                // 2. Create unique index
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_bookmark_comics_bookmarkId_comicRelativePath ON bookmark_comics (bookmarkId, comicRelativePath)")
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -130,7 +147,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "kitsune.db"
                 )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                 .build()
                 INSTANCE = instance
                 instance

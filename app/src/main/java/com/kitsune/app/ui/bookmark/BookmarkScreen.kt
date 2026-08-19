@@ -55,7 +55,7 @@ fun BookmarkScreen(
             Box(modifier = Modifier.fillMaxSize().padding(padding)) {
                 EmptyLibraryState(
                     message = "No categories yet. Click + to create one.",
-                    icon = Icons.Default.Star
+                    icon = Icons.Default.Bookmark
                 )
             }
         } else {

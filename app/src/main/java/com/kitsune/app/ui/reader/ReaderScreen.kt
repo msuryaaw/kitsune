@@ -29,6 +29,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import coil.compose.AsyncImage
+import coil.imageLoader
 import coil.request.ImageRequest
 import com.kitsune.app.reader.CbzPageModel
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -228,6 +229,24 @@ fun VerticalReader(
     val currentOnPageChange by rememberUpdatedState(onPageChange)
     val currentOnNextChapter by rememberUpdatedState(onNextChapter)
 
+    // Prefetching logic for Vertical Reader (N+1, N+2)
+    val context = LocalContext.current
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.firstVisibleItemIndex }
+            .distinctUntilChanged()
+            .collect { firstVisible ->
+                listOf(firstVisible + 1, firstVisible + 2).forEach { targetIndex ->
+                    if (targetIndex in state.pages.indices) {
+                        val request = ImageRequest.Builder(context)
+                            .data(CbzPageModel(chapterUri, state.pages[targetIndex].entryPath))
+                            .precision(coil.size.Precision.INEXACT)
+                            .build()
+                        context.imageLoader.enqueue(request)
+                    }
+                }
+            }
+    }
+
     // OPTIMIZATION: Handle Jumps via Flow instead of root-level state recomposition
     LaunchedEffect(viewModel, chapterUri) {
         viewModel.currentPage
@@ -311,6 +330,25 @@ fun HorizontalReader(
     val currentOnNextChapter by rememberUpdatedState(onNextChapter)
     val currentOnPrevChapter by rememberUpdatedState(onPrevChapter)
 
+    // Prefetching logic for Horizontal Reader (N+1, N+2, N-1)
+    val context = LocalContext.current
+    LaunchedEffect(pagerState) {
+        snapshotFlow { pagerState.currentPage }
+            .distinctUntilChanged()
+            .collect { currentPage ->
+                listOf(currentPage + 1, currentPage + 2, currentPage - 1).forEach { targetIndex ->
+                    val pageIdx = if (hasPrev) targetIndex - 1 else targetIndex
+                    if (pageIdx in state.pages.indices) {
+                        val request = ImageRequest.Builder(context)
+                            .data(CbzPageModel(chapterUri, state.pages[pageIdx].entryPath))
+                            .precision(coil.size.Precision.INEXACT)
+                            .build()
+                        context.imageLoader.enqueue(request)
+                    }
+                }
+            }
+    }
+
     // OPTIMIZATION: Handle Jumps via Flow
     LaunchedEffect(viewModel, chapterUri) {
         viewModel.currentPage
@@ -341,7 +379,8 @@ fun HorizontalReader(
     ) {
         HorizontalPager(
             state = pagerState,
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize(),
+            beyondViewportPageCount = 2
         ) { index ->
             when {
                 hasPrev && index == 0 -> Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background))
@@ -372,6 +411,7 @@ fun ReaderPage(
         ImageRequest.Builder(context)
             .data(CbzPageModel(chapterUri, entryPath))
             .crossfade(true)
+            .precision(coil.size.Precision.INEXACT)
             .build()
     }
 

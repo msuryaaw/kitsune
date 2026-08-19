@@ -171,7 +171,7 @@ fun BookmarkDetailScreen(
                 is BookmarkDetailUiState.Empty -> {
                      EmptyLibraryState(
                         message = if (searchQuery.isNotEmpty()) "No results for \"$searchQuery\"" else "No comics in this bookmark",
-                        icon = if (searchQuery.isNotEmpty()) Icons.Default.SearchOff else Icons.Default.Star
+                        icon = if (searchQuery.isNotEmpty()) Icons.Default.SearchOff else Icons.Default.Bookmark
                     )
                 }
                 is BookmarkDetailUiState.Error -> {
@@ -183,6 +183,7 @@ fun BookmarkDetailScreen(
                         gridSize = state.gridSize,
                         comicStatuses = state.comicStatuses,
                         selectedPaths = selectedPaths,
+                        showDimmedEffect = false, // Poin 2.3: Tetap cerah di halaman Bookmark
                         onComicClick = { comic ->
                             if (selectionMode) {
                                 viewModel.toggleSelection(comic.relativePath)

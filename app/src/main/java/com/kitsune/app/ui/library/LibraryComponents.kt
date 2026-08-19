@@ -76,9 +76,11 @@ fun ComicCard(
     comic: Comic,
     state: ComicCardState,
     onClick: () -> Unit,
-    onLongClick: () -> Unit = {}
+    onLongClick: () -> Unit = {},
+    showDimmedEffect: Boolean = true
 ) {
     val mediaUiModel = remember(comic) { comic.toMediaUiModel() }
+    val isBookmarked = remember(state.statuses) { state.statuses.contains(ComicStatus.BOOKMARKED) }
 
     MediaCardContainer(
         onClick = onClick,
@@ -96,12 +98,30 @@ fun ComicCard(
                 ) else Modifier
             )
 
+            // Mihon-style Dimmed Overlay (Poin 2)
+            if (isBookmarked && showDimmedEffect && !state.isSelected) {
+                Surface(
+                    modifier = Modifier.matchParentSize(),
+                    color = Color.Black.copy(alpha = 0.4f),
+                    shape = MaterialTheme.shapes.medium
+                ) {}
+            }
+
             // Collection Badges (Top Start) - Unified 7.9.2
+            // REVISION: Hapus badge bookmark jika dimmed effect aktif (Poin 2.1)
             if (!state.isSelected) {
-                MediaCollectionBadges(
-                    statuses = state.statuses,
-                    modifier = Modifier.align(Alignment.TopStart)
-                )
+                val filteredStatuses = if (showDimmedEffect) {
+                    state.statuses.filter { it != ComicStatus.BOOKMARKED }.toSet()
+                } else {
+                    state.statuses
+                }
+                
+                if (filteredStatuses.isNotEmpty()) {
+                    MediaCollectionBadges(
+                        statuses = filteredStatuses,
+                        modifier = Modifier.align(Alignment.TopStart)
+                    )
+                }
             }
 
             // Selection Indicator (Top End)
@@ -145,6 +165,7 @@ fun ComicGrid(
     comicStatuses: Map<String, Set<ComicStatus>> = emptyMap(),
     selectedPaths: Set<String> = emptySet(),
     state: LazyGridState = rememberLazyGridState(),
+    showDimmedEffect: Boolean = true,
     onComicClick: (Comic) -> Unit,
     onComicLongClick: (Comic) -> Unit = {}
 ) {
@@ -177,7 +198,8 @@ fun ComicGrid(
             comic = comic,
             state = cardState,
             onClick = onClick,
-            onLongClick = onLongClick
+            onLongClick = onLongClick,
+            showDimmedEffect = showDimmedEffect
         )
     }
 }

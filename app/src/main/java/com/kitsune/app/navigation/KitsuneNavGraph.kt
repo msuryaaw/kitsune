@@ -4,9 +4,9 @@ import android.app.Application
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -121,7 +121,7 @@ fun MainContainer(
 ) {
     val innerNavController = androidx.navigation.compose.rememberNavController()
     val items = listOf(
-        BottomNavItem("Bookmark", Screen.Bookmark.route, Icons.Default.Star),
+        BottomNavItem("Bookmark", Screen.Bookmark.route, Icons.Default.Bookmark),
         BottomNavItem("Playlist", Screen.Playlist.route, Icons.AutoMirrored.Filled.List),
         BottomNavItem("Local", Screen.Local.route, Icons.Default.Home),
         BottomNavItem("Settings", Screen.Other.route, Icons.Default.Settings),

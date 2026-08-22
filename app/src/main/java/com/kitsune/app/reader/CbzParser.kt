@@ -25,6 +25,7 @@ class CbzParser(private val context: Context) {
     private var currentZip: ZipFile? = null
     private var currentPfd: ParcelFileDescriptor? = null
     private var currentUri: Uri? = null
+    private var currentTempFile: java.io.File? = null
     private var entryMap = mutableMapOf<String, ZipEntry>()
 
     /**
@@ -35,15 +36,51 @@ class CbzParser(private val context: Context) {
 
         close() // Close previous session if any
 
+        var zipFile: ZipFile? = null
+        var pfd: ParcelFileDescriptor? = null
+
         try {
-            val pfd = context.contentResolver.openFileDescriptor(uri, "r")
-                ?: throw Exception("Failed to open FileDescriptor for $uri")
-            
-            // OPTIMIZATION: Use /proc/self/fd/ to open ZipFile from ParcelFileDescriptor
-            // This enables true O(1) Random Access on SAF-based files.
-            val fd = pfd.fd
-            val zipFile = ZipFile("/proc/self/fd/$fd")
-            
+            // STRATEGY 1: FAST O(1) via /proc/self/fd/ (Primary)
+            try {
+                pfd = context.contentResolver.openFileDescriptor(uri, "r")
+                    ?: throw Exception("Failed to open FileDescriptor for $uri")
+                
+                val fd = pfd.fd
+                zipFile = ZipFile("/proc/self/fd/$fd")
+                
+                if (zipFile.size() == 0) {
+                    zipFile.close()
+                    throw java.io.IOException("Zip file is empty via FD")
+                }
+                
+                currentPfd = pfd
+                Log.d("CbzParser", "Opened ZIP via proc-fd for $uri")
+            } catch (e: Exception) {
+                // STRATEGY 2: FALLBACK via Temp Cache File (Secondary)
+                Log.w("CbzParser", "proc-fd failed, falling back to temp cache for $uri: ${e.message}")
+                
+                // Cleanup Strategy 1 artifacts
+                zipFile?.close()
+                pfd?.close()
+                
+                val cacheDir = java.io.File(context.cacheDir, "chapter_cache").apply { mkdirs() }
+                val tempFile = java.io.File(cacheDir, "temp_chapter_${System.currentTimeMillis()}.cbz")
+                
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    tempFile.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                } ?: throw Exception("Failed to open input stream for $uri")
+                
+                zipFile = ZipFile(tempFile)
+                currentTempFile = tempFile
+                Log.d("CbzParser", "Opened ZIP via temp cache for $uri")
+            }
+
+            if (zipFile.size() == 0) {
+                throw Exception("Zip file is empty or invalid after all attempts")
+            }
+
             val newEntryMap = mutableMapOf<String, ZipEntry>()
             val entries = zipFile.entries()
             while (entries.hasMoreElements()) {
@@ -57,11 +94,10 @@ class CbzParser(private val context: Context) {
             }
 
             currentZip = zipFile
-            currentPfd = pfd
             currentUri = uri
             entryMap = newEntryMap
             
-            Log.d("CbzParser", "Opened ZIP session for $uri with ${newEntryMap.size} entries")
+            Log.d("CbzParser", "ZIP session ready for $uri with ${newEntryMap.size} valid entries")
         } catch (e: Exception) {
             close()
             throw e
@@ -72,24 +108,19 @@ class CbzParser(private val context: Context) {
      * Mengambil daftar halaman dari file CBZ menggunakan random access.
      */
     suspend fun getPages(chapterUri: Uri): List<Page> = withContext(Dispatchers.IO) {
-        try {
-            ensureZipOpen(chapterUri)
-            if (currentZip == null) return@withContext emptyList()
+        ensureZipOpen(chapterUri)
+        if (currentZip == null) return@withContext emptyList()
 
-            val sortedEntries = entryMap.keys.sortedWith { s1, s2 ->
-                naturalOrderComparator.compare(s1, s2)
-            }
+        val sortedEntries = entryMap.keys.sortedWith { s1, s2 ->
+            naturalOrderComparator.compare(s1, s2)
+        }
 
-            sortedEntries.mapIndexed { index, path ->
-                Page(
-                    pageNumber = index + 1,
-                    imageName = path.substringAfterLast('/'),
-                    entryPath = path
-                )
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            emptyList()
+        sortedEntries.mapIndexed { index, path ->
+            Page(
+                pageNumber = index + 1,
+                imageName = path.substringAfterLast('/'),
+                entryPath = path
+            )
         }
     }
 
@@ -100,7 +131,10 @@ class CbzParser(private val context: Context) {
         return try {
             ensureZipOpen(chapterUri)
             val zip = currentZip ?: return null
-            val entry = entryMap[entryPath] ?: return null
+            
+            // Path Normalization: Ensure lookup works regardless of leading slashes
+            val normalizedPath = entryPath.removePrefix("/")
+            val entry = entryMap[normalizedPath] ?: entryMap[entryPath] ?: return null
             
             zip.getInputStream(entry)
         } catch (e: Exception) {
@@ -111,17 +145,22 @@ class CbzParser(private val context: Context) {
 
     /**
      * Menutup seluruh resource yang terbuka untuk mencegah file leak.
+     * REVISION 12.1.2: Added cleanup for temporary cache file.
      */
     fun close() {
         try {
             currentZip?.close()
             currentPfd?.close()
+            currentTempFile?.let { 
+                if (it.exists()) it.delete() 
+            }
         } catch (e: Exception) {
             // Ignored
         } finally {
             currentZip = null
             currentPfd = null
             currentUri = null
+            currentTempFile = null
             entryMap.clear()
         }
     }

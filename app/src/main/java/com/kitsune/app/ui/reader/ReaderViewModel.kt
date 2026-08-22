@@ -141,7 +141,8 @@ class ReaderViewModel(
             readerRepository.getPages(uri, cacheKey)
         } catch (e: Exception) {
             Log.e("KitsuneReader", "Failed to parse ZIP entries for $chapterPath", e)
-            throw Exception("File komik rusak atau format tidak didukung.")
+            val errorMessage = e.localizedMessage ?: e.javaClass.simpleName
+            throw Exception("Gagal membaca komik: $errorMessage")
         }
         
         if (pages.isEmpty()) {

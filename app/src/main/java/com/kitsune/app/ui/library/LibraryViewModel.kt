@@ -172,11 +172,17 @@ class LibraryViewModel(
                     return@launch
                 }
 
-                val lastScan = settings?.lastScanTime ?: 0
+                val lastScan = settings?.lastScanTime ?: 0L
                 val now = System.currentTimeMillis()
                 val cooldownMs = 30 * 60 * 1000L
                 val currentComics = scannerRepository.allComics.first()
                 val isLibraryEmpty = currentComics.isEmpty()
+
+                // Migration Auto-Scan Guard (REVISION 12.5.1)
+                if (lastScan == 0L && !isLibraryEmpty && !force) {
+                    settingsRepository.updateLastScanTime(now)
+                    return@launch
+                }
 
                 if (force || isLibraryEmpty || (now - lastScan > cooldownMs)) {
                     scannerRepository.performIncrementalScan(rootUriString.toUri())

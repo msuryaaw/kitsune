@@ -412,6 +412,7 @@ fun ReaderPage(
             .data(CbzPageModel(chapterUri, entryPath))
             .crossfade(true)
             .precision(coil.size.Precision.INEXACT)
+            .allowHardware(false) // FIX: Disable Hardware Bitmap for mutation safety (Poin 1.2)
             .build()
     }
 

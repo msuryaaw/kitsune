@@ -20,6 +20,8 @@ class ReaderRepository(
     /**
      * Mendapatkan daftar halaman dari file CBZ berdasarkan URI.
      * Mendukung caching berbasis key (path + lastModified).
+     * 
+     * REVISION 12.1.2: Exceptions are now propagated instead of being caught silently.
      */
     suspend fun getPages(chapterUri: Uri, cacheKey: String? = null): List<Page> {
         // 1. Cek cache jika key tersedia
@@ -27,7 +29,7 @@ class ReaderRepository(
             pageCache.get(cacheKey)?.let { return it }
         }
 
-        // 2. Parse ZIP jika cache miss
+        // 2. Parse ZIP jika cache miss (Throws exception on failure)
         val pages = cbzParser.getPages(chapterUri)
 
         // 3. Simpan ke cache jika parsing berhasil

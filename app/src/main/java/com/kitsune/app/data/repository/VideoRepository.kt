@@ -39,8 +39,8 @@ class VideoRepository(
         }
 
         // REVISION 7.7.5: Jalankan pembersihan riwayat otomatis setelah scanning selesai
-        scannerRepository.onScanFinished = { rootUri ->
-            cleanupInvalidHistory(rootUri)
+        scannerRepository.onScanFinished = { uri: Uri ->
+            cleanupInvalidHistory(uri)
         }
     }
 

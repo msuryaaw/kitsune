@@ -83,7 +83,8 @@ class MainActivity : ComponentActivity() {
             videoDao = database.videoDao(),
             database = database,
             coordinator = scannerCoordinator,
-            metadataManager = metadataManager
+            metadataManager = metadataManager,
+            settingsRepository = settingsRepository
         )
         
         bookmarkRepository = BookmarkRepository(database.bookmarkDao())

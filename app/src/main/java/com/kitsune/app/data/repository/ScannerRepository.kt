@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.withLock
 import kotlin.coroutines.coroutineContext
 
 /**
@@ -35,8 +36,14 @@ class ScannerRepository(
     private val videoDao: VideoDao,
     private val database: AppDatabase,
     private val coordinator: ScannerCoordinator,
-    private val metadataManager: MetadataManager
+    private val metadataManager: MetadataManager,
+    private val settingsRepository: SettingsRepository
 ) {
+    /**
+     * Active request lock to prevent overlapping calls from ViewModel.
+     */
+    private val scanMutex = kotlinx.coroutines.sync.Mutex()
+
     /**
      * Listener to notify other components that scanning is about to start.
      */
@@ -46,6 +53,7 @@ class ScannerRepository(
      * Listener to notify other components that scanning has finished.
      */
     var onScanFinished: (suspend (Uri) -> Unit)? = null
+
 
     /**
      * Data stream for comics.
@@ -106,17 +114,26 @@ class ScannerRepository(
 
     /**
      * Performs a full incremental scan for both Comics and Videos in parallel.
+     * REVISION 12.2.1: Added request locking and timestamp update.
      */
     suspend fun performIncrementalScan(rootUri: Uri) {
-        onScanStarted?.invoke()
+        if (scanMutex.isLocked) return
+        
+        scanMutex.withLock {
+            onScanStarted?.invoke()
+            try {
+                coordinator.fullScan(
+                    rootUri = rootUri,
+                    comicAction = { uri -> scanComicsIncremental(uri) },
+                    videoAction = { uri -> scanVideosIncremental(uri) }
+                )
 
-        coordinator.fullScan(
-            rootUri = rootUri,
-            comicAction = { uri -> scanComicsIncremental(uri) },
-            videoAction = { uri -> scanVideosIncremental(uri) }
-        )
-
-        onScanFinished?.invoke(rootUri)
+                // Update success timestamp
+                settingsRepository.updateLastScanTime(System.currentTimeMillis())
+            } finally {
+                onScanFinished?.invoke(rootUri)
+            }
+        }
     }
 
     /**
@@ -223,7 +240,8 @@ class ScannerRepository(
         relativePath = relativePath,
         coverUri = coverUri,
         lastModified = lastModified,
-        searchTags = searchTags
+        searchTags = searchTags,
+        chapterCount = chapterCount
     )
 
     private fun Comic.toEntity(searchTags: String?) = ComicEntity(
@@ -235,6 +253,7 @@ class ScannerRepository(
         relativePath = relativePath,
         coverUri = coverUri,
         lastModified = lastModified,
-        searchTags = searchTags
+        searchTags = searchTags,
+        chapterCount = chapterCount
     )
 }

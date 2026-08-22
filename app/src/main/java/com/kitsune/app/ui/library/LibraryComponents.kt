@@ -11,6 +11,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -77,7 +78,8 @@ fun ComicCard(
     state: ComicCardState,
     onClick: () -> Unit,
     onLongClick: () -> Unit = {},
-    showDimmedEffect: Boolean = true
+    showDimmedEffect: Boolean = true,
+    showChapterBadge: Boolean = false
 ) {
     val mediaUiModel = remember(comic) { comic.toMediaUiModel() }
     val isBookmarked = remember(state.statuses) { state.statuses.contains(ComicStatus.BOOKMARKED) }
@@ -107,9 +109,25 @@ fun ComicCard(
                 ) {}
             }
 
+            // Chapter Count Badge (REVISION 11.4.1)
+            if (showChapterBadge && mediaUiModel.badgeText != null && !state.isSelected) {
+                Surface(
+                    color = Color.Black.copy(alpha = 0.7f),
+                    shape = RoundedCornerShape(bottomEnd = 8.dp, topStart = 8.dp),
+                    modifier = Modifier.align(Alignment.TopStart)
+                ) {
+                    Text(
+                        text = mediaUiModel.badgeText,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
+            }
+
             // Collection Badges (Top Start) - Unified 7.9.2
-            // REVISION: Hapus badge bookmark jika dimmed effect aktif (Poin 2.1)
-            if (!state.isSelected) {
+            // REVISION: Hapus badge bookmark jika dimmed effect aktif atau chapter badge aktif
+            if (!state.isSelected && !showChapterBadge) {
                 val filteredStatuses = if (showDimmedEffect) {
                     state.statuses.filter { it != ComicStatus.BOOKMARKED }.toSet()
                 } else {
@@ -166,6 +184,7 @@ fun ComicGrid(
     selectedPaths: Set<String> = emptySet(),
     state: LazyGridState = rememberLazyGridState(),
     showDimmedEffect: Boolean = true,
+    showChapterBadge: Boolean = false,
     onComicClick: (Comic) -> Unit,
     onComicLongClick: (Comic) -> Unit = {}
 ) {
@@ -199,7 +218,8 @@ fun ComicGrid(
             state = cardState,
             onClick = onClick,
             onLongClick = onLongClick,
-            showDimmedEffect = showDimmedEffect
+            showDimmedEffect = showDimmedEffect,
+            showChapterBadge = showChapterBadge
         )
     }
 }

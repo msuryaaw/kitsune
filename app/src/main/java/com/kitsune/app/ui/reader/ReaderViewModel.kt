@@ -1,6 +1,7 @@
 package com.kitsune.app.ui.reader
 
 import android.net.Uri
+import android.util.Log
 import androidx.core.net.toUri
 import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.ViewModel
@@ -83,11 +84,15 @@ class ReaderViewModel(
                 val readingMode = settings?.readingMode ?: "Vertical"
 
                 if (rootUriString.isNullOrEmpty()) {
-                    _uiState.value = ReaderUiState.Error("Library not configured")
-                    return@launch
+                    throw Exception("Library not configured")
                 }
 
                 val rootUri = rootUriString.toUri()
+
+                // SAF Pre-flight Check (REVISION 12.3.1)
+                if (!storageHelper.isUriPermissionValid(rootUriString)) {
+                    throw Exception("Izin akses folder telah hilang. Silakan pilih ulang folder library.")
+                }
                 
                 if (chapters.isEmpty()) {
                     chapters = scannerRepository.getChapters(rootUri, comicRelativePath)
@@ -115,8 +120,10 @@ class ReaderViewModel(
                     processChapterPages(chapterDoc.uri, chapterPath, targetChapterName, readingMode, chapterDoc.lastModified())
                 }
             } catch (e: Exception) {
+                Log.e("KitsuneReader", "Error loading chapter: $chapterPath", e)
                 if (isInitialLoad) {
-                    _uiState.value = ReaderUiState.Error("Failed to load chapter: ${e.message}")
+                    val errorMessage = e.message ?: e.javaClass.simpleName
+                    _uiState.value = ReaderUiState.Error("Failed to load chapter: $errorMessage")
                 }
             }
         }
@@ -130,10 +137,15 @@ class ReaderViewModel(
         lastModified: Long
     ) {
         val cacheKey = "${chapterPath}:${lastModified}"
-        val pages = readerRepository.getPages(uri, cacheKey)
+        val pages = try {
+            readerRepository.getPages(uri, cacheKey)
+        } catch (e: Exception) {
+            Log.e("KitsuneReader", "Failed to parse ZIP entries for $chapterPath", e)
+            throw Exception("File komik rusak atau format tidak didukung.")
+        }
         
         if (pages.isEmpty()) {
-            _uiState.value = ReaderUiState.Empty
+            _uiState.value = ReaderUiState.Error("File komik kosong atau tidak berisi gambar valid.")
         } else {
             currentChapterPath = chapterPath
             val savedProgress = progressRepository.getProgressByChapterSync(chapterPath)
@@ -278,6 +290,8 @@ class ReaderViewModel(
 
     override fun onCleared() {
         super.onCleared()
+        // REVISION 12.1.3: Ensure ZipFile is closed when ViewModel is cleared
+        readerRepository.closeCurrentChapter()
     }
 
     fun navigateToNextChapter() {

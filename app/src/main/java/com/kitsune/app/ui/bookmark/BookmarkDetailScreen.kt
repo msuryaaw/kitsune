@@ -184,6 +184,7 @@ fun BookmarkDetailScreen(
                         comicStatuses = state.comicStatuses,
                         selectedPaths = selectedPaths,
                         showDimmedEffect = false, // Poin 2.3: Tetap cerah di halaman Bookmark
+                        showChapterBadge = true, // REVISION 11.4.1: Tampilkan jumlah chapter
                         onComicClick = { comic ->
                             if (selectionMode) {
                                 viewModel.toggleSelection(comic.relativePath)

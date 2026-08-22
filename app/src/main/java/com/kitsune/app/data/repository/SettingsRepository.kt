@@ -57,4 +57,9 @@ class SettingsRepository(private val settingsDao: SettingsDao) {
         val currentSettings = getSettingsCached() ?: SettingsEntity()
         settingsDao.insertSettings(currentSettings.copy(oledBlack = enabled))
     }
+
+    suspend fun updateLastScanTime(time: Long) {
+        val currentSettings = getSettingsCached() ?: SettingsEntity()
+        settingsDao.insertSettings(currentSettings.copy(lastScanTime = time))
+    }
 }

@@ -87,6 +87,10 @@ class ComicScanner(
                     parsedTitle = match2.groupValues[3].trim()
                 }
             }
+
+            // Calculate chapter count (REVISION 11.4.1)
+            val chapterCount = folder.listFiles()
+                .count { it.isFile && it.name?.lowercase()?.endsWith(".cbz") == true }
             
             Comic(
                 title = folderName,
@@ -97,7 +101,8 @@ class ComicScanner(
                 relativePath = relativePath,
                 coverUri = coverUri,
                 lastModified = currentLastModified,
-                searchTags = null
+                searchTags = null,
+                chapterCount = chapterCount
             )
         }
     }

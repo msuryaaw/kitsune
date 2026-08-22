@@ -13,5 +13,6 @@ data class SettingsEntity(
     val oledBlack: Boolean = false,
     val keepScreenOn: Boolean = true,
     val showPageNumber: Boolean = true,
-    val preloadPages: Boolean = true
+    val preloadPages: Boolean = true,
+    val lastScanTime: Long = 0
 )

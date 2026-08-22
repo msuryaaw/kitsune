@@ -126,7 +126,7 @@ class LibraryViewModel(
     )
 
     init {
-        refreshLibrary()
+        refreshLibraryInternal(force = false) // Auto-scan on init with cooldown guard
     }
 
     fun selectAll() {
@@ -156,17 +156,30 @@ class LibraryViewModel(
     }
 
     override fun refreshLibrary() {
+        refreshLibraryInternal(force = true) // Manual refresh bypasses cooldown
+    }
+
+    private fun refreshLibraryInternal(force: Boolean) {
         viewModelScope.launch {
             _errorMessage.value = null
             try {
-                // REVISION 10.5.7: Use cached settings
+                // REVISION 12.2.2: Added cooldown and empty check guards
                 val settings = settingsRepository.getSettingsCached()
                 val rootUriString = settings?.rootFolderUri
                 
-                if (!rootUriString.isNullOrEmpty()) {
-                    scannerRepository.performIncrementalScan(rootUriString.toUri())
-                } else {
+                if (rootUriString.isNullOrEmpty()) {
                     _errorMessage.value = "Root folder not configured"
+                    return@launch
+                }
+
+                val lastScan = settings?.lastScanTime ?: 0
+                val now = System.currentTimeMillis()
+                val cooldownMs = 30 * 60 * 1000L
+                val currentComics = scannerRepository.allComics.first()
+                val isLibraryEmpty = currentComics.isEmpty()
+
+                if (force || isLibraryEmpty || (now - lastScan > cooldownMs)) {
+                    scannerRepository.performIncrementalScan(rootUriString.toUri())
                 }
             } catch (e: Exception) {
                 _errorMessage.value = "Failed to scan library: ${e.message}"

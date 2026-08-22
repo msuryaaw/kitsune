@@ -44,4 +44,12 @@ class ReaderRepository(
     fun getPageStream(chapterUri: Uri, entryPath: String): InputStream? {
         return cbzParser.getEntryInputStream(chapterUri, entryPath)
     }
+
+    /**
+     * Menutup resource file CBZ yang sedang terbuka.
+     * REVISION 12.1.2: Added explicit cleanup for session-based ZipFile.
+     */
+    fun closeCurrentChapter() {
+        cbzParser.close()
+    }
 }

@@ -7,15 +7,13 @@ import android.util.LruCache
 import androidx.documentfile.provider.DocumentFile
 
 /**
- * Helper for Storage Access Framework (SAF) operations.
- * Optimized with URI caching to minimize expensive recursive traversals.
- * 
- * REVISION 10.4.1: Implemented URI Cache for relative path resolution.
+ * Helper untuk menangani operasi Storage Access Framework (SAF).
+ * Menggunakan sistem caching URI untuk meminimalkan traversal rekursif yang lambat pada SAF.
  */
 class StorageHelper(private val context: Context) {
 
-    // OPTIMIZATION: Cache for relative path -> resolved URI.
-    // Significantly reduces Binder calls by avoiding repeated findFile() traversals.
+    // Cache untuk pemetaan jalur relatif ke URI yang sudah diresolusi.
+    // Hal ini mengurangi panggilan Binder secara drastis dengan menghindari traversal findFile() berulang.
     private val uriCache = LruCache<String, Uri>(512)
 
     fun persistUriPermission(uri: Uri) {

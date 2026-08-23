@@ -11,11 +11,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * Engine for scanning comic folders offline.
- * Inherits from BaseScanner for shared SAF and sorting logic.
+ * Engine untuk memindai folder komik secara offline.
+ * Mewarisi BaseScanner untuk logika akses SAF dan pengurutan natural.
  * 
- * REVISION 10.2.2: Refactored to be stateless for thread safety.
- * Focused strictly on Comic/CBZ logic.
+ * Didesain agar bersifat stateless untuk menjamin keamanan threading.
  */
 class ComicScanner(
     context: Context,
@@ -27,14 +26,14 @@ class ComicScanner(
     private val regex2 = Regex("""^\[([^\]]+)\]\s*\[([^\]]+)\]\s*(.*)$""")
 
     /**
-     * Scans the 'Comics' folder for comic titles.
-     * Implements automatic cover generation if not found.
+     * Memindai folder 'Comics' untuk menemukan judul-judul komik.
+     * Mendukung pembuatan cover otomatis jika tidak ditemukan file gambar cover.
      * 
-     * REVISION 11.2.5: Implemented Regex parsing for [LANG] [AUTHOR] Title folder patterns.
-     * REVISION 11.3.1: Upgraded to flexible multi-pattern parser supporting [TYPE].
+     * Menggunakan regex untuk mengekstrak metadata tipe, bahasa, dan author dari nama folder.
+     * Contoh format folder: Manhwa EN Author Judul
      * 
-     * @param rootUri The root URI of the Kitsune library.
-     * @param getExistingCover Callback to retrieve cover URI from DB if folder hasn't changed.
+     * @param rootUri URI root dari library Kitsune.
+     * @param getExistingCover Callback untuk mengambil URI cover dari DB jika folder tidak berubah.
      */
     suspend fun scanComics(
         rootUri: Uri,
@@ -67,7 +66,7 @@ class ComicScanner(
                 coverUri = generateCover(folder)?.toString()
             }
 
-            // Flexible Multi-pattern Regex Parsing (REVISION 11.3.1)
+            // Parsing regex untuk pola [BAHASA] [AUTHOR] Judul atau [TIPE] [BAHASA] [AUTHOR] Judul
             var parsedType: String? = null
             var parsedLang: String? = null
             var parsedAuthor: String? = null
@@ -88,7 +87,7 @@ class ComicScanner(
                 }
             }
 
-            // Calculate chapter count (REVISION 11.4.1)
+            // Hitung jumlah chapter yang tersedia
             val chapterCount = folder.listFiles()
                 .count { it.isFile && it.name?.lowercase()?.endsWith(".cbz") == true }
             
@@ -149,7 +148,7 @@ class ComicScanner(
                 val firstPage = pages.first()
                 val inputStream = cbzParser.getEntryInputStream(cbzUri, firstPage.entryPath) ?: continue
 
-                // REVISION 6.7.6: Double-check before creation to prevent race conditions.
+                // Cek ulang sebelum membuat file untuk menghindari kondisi balapan (race condition)
                 val existingCover = folder.findFile("cover.jpg")
                 if (existingCover != null && existingCover.exists()) {
                     return@withContext existingCover.uri

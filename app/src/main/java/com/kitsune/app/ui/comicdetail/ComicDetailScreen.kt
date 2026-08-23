@@ -30,8 +30,7 @@ import com.kitsune.app.ui.components.media.*
 import kotlinx.coroutines.flow.collectLatest
 
 /**
- * Screen untuk menampilkan detail komik dan daftar chapter.
- * REVISION 10.4.4: Added LazyColumn keys and optimized performance.
+ * Layar untuk menampilkan informasi detail komik dan daftar chapter yang tersedia.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -196,7 +195,7 @@ fun ComicDetailContent(
                 )
             }
         } else {
-            // OPTIMIZATION: Use key for stable lists
+            // Gunakan key untuk performa list yang stabil saat terjadi rekomposisi
             items(
                 items = chapters,
                 key = { it.relativePath }

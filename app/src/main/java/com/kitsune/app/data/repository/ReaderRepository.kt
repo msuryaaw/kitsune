@@ -8,20 +8,19 @@ import java.io.InputStream
 
 /**
  * Repository untuk mengelola logika pembacaan konten komik (CBZ).
- * Menggunakan LRU Cache untuk manajemen memori yang efisien (Phase 6.6.4.4).
+ * Menggunakan LRU Cache untuk manajemen memori yang efisien agar tidak terjadi kebocoran memori.
  */
 class ReaderRepository(
     private val cbzParser: CbzParser
 ) {
-    // OPTIMIZATION: Bounded LRU Cache (Phase 6.6.4.4)
-    // Menyimpan metadata halaman untuk 8 chapter terakhir guna mencegah unbounded memory growth.
+    // Bounded LRU Cache untuk menyimpan metadata halaman dari 8 chapter terakhir.
     private val pageCache = LruCache<String, List<Page>>(8)
 
     /**
      * Mendapatkan daftar halaman dari file CBZ berdasarkan URI.
-     * Mendukung caching berbasis key (path + lastModified).
+     * Mendukung caching berbasis key (jalur file + waktu modifikasi terakhir).
      * 
-     * REVISION 12.1.2: Exceptions are now propagated instead of being caught silently.
+     * Galat (Exceptions) akan diteruskan ke pemanggil untuk penanganan yang lebih baik.
      */
     suspend fun getPages(chapterUri: Uri, cacheKey: String? = null): List<Page> {
         // 1. Cek cache jika key tersedia
@@ -48,8 +47,7 @@ class ReaderRepository(
     }
 
     /**
-     * Menutup resource file CBZ yang sedang terbuka.
-     * REVISION 12.1.2: Added explicit cleanup for session-based ZipFile.
+     * Menutup resource file CBZ yang sedang terbuka secara eksplisit.
      */
     fun closeCurrentChapter() {
         cbzParser.close()

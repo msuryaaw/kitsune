@@ -14,7 +14,7 @@ import java.util.zip.ZipFile
 
 /**
  * Parser untuk membaca isi file CBZ (Zip) dengan dukungan Random Access $O(1)$.
- * REVISION 12.1.1: Migrated from ZipInputStream to ZipFile for performance.
+ * Menggunakan ZipFile untuk performa yang lebih baik dibandingkan ZipInputStream.
  */
 class CbzParser(private val context: Context) {
 
@@ -40,26 +40,28 @@ class CbzParser(private val context: Context) {
         var pfd: ParcelFileDescriptor? = null
 
         try {
-            // STRATEGY 1: FAST O(1) via /proc/self/fd/ (Primary)
+            // Kita coba metode FD terlebih dahulu karena ini yang paling cepat (O(1)).
+            // Metode ini bekerja dengan memetakan deskriptor file SAF langsung ke sistem file Linux.
             try {
                 pfd = context.contentResolver.openFileDescriptor(uri, "r")
-                    ?: throw Exception("Failed to open FileDescriptor for $uri")
+                    ?: throw Exception("Gagal membuka FileDescriptor untuk $uri")
                 
                 val fd = pfd.fd
                 zipFile = ZipFile("/proc/self/fd/$fd")
                 
                 if (zipFile.size() == 0) {
                     zipFile.close()
-                    throw java.io.IOException("Zip file is empty via FD")
+                    throw java.io.IOException("File ZIP kosong melalui FD")
                 }
                 
                 currentPfd = pfd
-                Log.d("CbzParser", "Opened ZIP via proc-fd for $uri")
+                Log.d("CbzParser", "Berhasil membuka ZIP via proc-fd: $uri")
             } catch (e: Exception) {
-                // STRATEGY 2: FALLBACK via Temp Cache File (Secondary)
-                Log.w("CbzParser", "proc-fd failed, falling back to temp cache for $uri: ${e.message}")
+                // Jika metode FD gagal (biasanya karena restriksi SELinux di Android baru),
+                // kita gunakan fallback dengan menyalin file ke cache internal sementara.
+                Log.w("CbzParser", "Metode proc-fd gagal, mencoba fallback cache untuk $uri: ${e.message}")
                 
-                // Cleanup Strategy 1 artifacts
+                // Bersihkan artifact dari percobaan pertama
                 zipFile?.close()
                 pfd?.close()
                 
@@ -70,11 +72,11 @@ class CbzParser(private val context: Context) {
                     tempFile.outputStream().use { output ->
                         input.copyTo(output)
                     }
-                } ?: throw Exception("Failed to open input stream for $uri")
+                } ?: throw Exception("Gagal membuka input stream untuk $uri")
                 
                 zipFile = ZipFile(tempFile)
                 currentTempFile = tempFile
-                Log.d("CbzParser", "Opened ZIP via temp cache for $uri")
+                Log.d("CbzParser", "Berhasil membuka ZIP via temp cache: $uri")
             }
 
             if (zipFile.size() == 0) {
@@ -144,8 +146,8 @@ class CbzParser(private val context: Context) {
     }
 
     /**
-     * Menutup seluruh resource yang terbuka untuk mencegah file leak.
-     * REVISION 12.1.2: Added cleanup for temporary cache file.
+     * Menutup seluruh resource yang terbuka untuk mencegah kebocoran memori atau file descriptor.
+     * Juga membersihkan file cache sementara jika digunakan.
      */
     fun close() {
         try {

@@ -14,9 +14,6 @@ import kotlinx.coroutines.launch
 /**
  * ViewModel untuk mengelola data pada layar Library Komik.
  * Menangani sinkronisasi antara Database dan Filesystem serta logika pencarian dan seleksi massal.
- * 
- * REVISION 10.5.6: Optimized settings retrieval and Flow pipeline stability.
- * REVISION 11.1.6: Implemented metadata tag search support.
  */
 class LibraryViewModel(
     scannerRepository: ScannerRepository,
@@ -46,9 +43,8 @@ class LibraryViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     /**
-     * Stage 1: Filtering & Sorting.
-     * REVISION 11.3.2: Search now checks clean title, author, and language.
-     * REVISION 11.3.3: Applied ComicSortOrder.
+     * Tahap 1: Pemfilteran & Pengurutan.
+     * Melakukan pencarian berdasarkan judul bersih, penulis, bahasa, dan tag.
      */
     private val filteredComics = combine(
         scannerRepository.allComics,
@@ -78,7 +74,7 @@ class LibraryViewModel(
     }.distinctUntilChanged()
 
     /**
-     * Stage 2: Visual Status Mapping.
+     * Tahap 2: Pemetaan Status Visual (misal: apakah komik di-bookmark).
      */
     private val comicStatuses = combine(
         filteredComics,
@@ -97,7 +93,7 @@ class LibraryViewModel(
     }.distinctUntilChanged()
 
     /**
-     * Stage 3: Final UI State assembly.
+     * Tahap 3: Penggabungan akhir untuk UI State.
      */
     val uiState: StateFlow<LibraryUiState> = combine(
         filteredComics,
@@ -163,22 +159,22 @@ class LibraryViewModel(
         viewModelScope.launch {
             _errorMessage.value = null
             try {
-                // REVISION 12.2.2: Added cooldown and empty check guards
+                // Tambahkan guard cooldown dan pengecekan library kosong
                 val settings = settingsRepository.getSettingsCached()
                 val rootUriString = settings?.rootFolderUri
                 
                 if (rootUriString.isNullOrEmpty()) {
-                    _errorMessage.value = "Root folder not configured"
+                    _errorMessage.value = "Root folder belum dikonfigurasi"
                     return@launch
                 }
 
                 val lastScan = settings?.lastScanTime ?: 0L
                 val now = System.currentTimeMillis()
-                val cooldownMs = 30 * 60 * 1000L
+                val cooldownMs = 30 * 60 * 1000L // 30 menit cooldown
                 val currentComics = scannerRepository.allComics.first()
                 val isLibraryEmpty = currentComics.isEmpty()
 
-                // Migration Auto-Scan Guard (REVISION 12.5.1)
+                // Guard untuk auto-scan saat migrasi
                 if (lastScan == 0L && !isLibraryEmpty && !force) {
                     settingsRepository.updateLastScanTime(now)
                     return@launch

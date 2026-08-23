@@ -10,7 +10,8 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 /**
- * Responsible for writing MediaMetadata to metadata.json using an atomic-like strategy via SAF.
+ * Bertanggung jawab untuk menulis MediaMetadata ke file metadata.json.
+ * Menggunakan strategi penulisan atomik untuk mencegah korupsi data.
  */
 class MetadataWriter(
     private val context: Context,
@@ -22,13 +23,13 @@ class MetadataWriter(
     }
 
     /**
-     * Writes metadata to the title folder.
-     * Uses a temporary file strategy to mimic atomic write and prevent corruption.
+     * Menulis metadata ke dalam folder judul media.
+     * Menggunakan strategi file sementara untuk meniru penulisan atomik dan mencegah korupsi file.
      * 
-     * @param rootUri The root URI of the library.
-     * @param titleRelativePath Path to the title folder.
-     * @param metadata The metadata object to save.
-     * @return Result indicating success or failure.
+     * @param rootUri URI root dari library.
+     * @param titleRelativePath Jalur relatif ke folder judul.
+     * @param metadata Objek metadata yang akan disimpan.
+     * @return Result yang mengindikasikan keberhasilan atau kegagalan.
      */
     suspend fun writeMetadata(
         rootUri: Uri,

@@ -16,9 +16,8 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 
 /**
- * ViewModel untuk mengelola logika layar Reader.
- * Mendukung pembacaan progres per chapter, pemantauan pengaturan mode baca, dan navigasi antar chapter.
- * REVISION 6.8.0: Ditambahkan Parent Folder Cache dan Metadata Preloading untuk transisi instan.
+ * ViewModel untuk mengelola logika pada layar Reader.
+ * Menangani pemuatan chapter, manajemen progres membaca, dan navigasi antar halaman/chapter.
  */
 class ReaderViewModel(
     private val comicRelativePath: String,
@@ -39,13 +38,12 @@ class ReaderViewModel(
     private var chapters: List<Chapter> = emptyList()
     private var currentChapterIndex: Int = -1
 
-    // REVISION 6.8.0: Parent Folder Cache
+    // Cache folder induk untuk mempercepat resolusi URI saat navigasi antar chapter
     private var parentFolderDoc: DocumentFile? = null
 
-    // REVISION 6.8.0: Flag untuk mencegah preload berulang
     private var isNextChapterPreloaded = false
 
-    // OPTIMIZATION: Reading Progress Debounce (Phase 6.6.4.1)
+    // Job untuk menyimpan progres secara berkala (debounced) agar tidak membebani database
     private var debounceSaveJob: Job? = null
     private var pendingProgressUpdate: ProgressUpdate? = null
 
@@ -68,8 +66,8 @@ class ReaderViewModel(
             // Reset preload flag saat pindah chapter
             isNextChapterPreloaded = false
 
-            // OPTIMIZATION (Phase 6.7.4): Jangan reset ke Loading jika kita berpindah antar chapter.
-            // Biarkan UI menampilkan chapter lama sampai data chapter baru siap (seamless transition).
+            // Gunakan state saat ini untuk menentukan apakah ini pemuatan pertama kali.
+            // Jika kita hanya berpindah chapter, kita tidak ingin menampilkan layar loading (seamless transition).
             val isInitialLoad = _uiState.value !is ReaderUiState.Success
             
             val targetChapterName = chapterPath.substringAfterLast('/').removeSuffix(".cbz")
@@ -89,7 +87,7 @@ class ReaderViewModel(
 
                 val rootUri = rootUriString.toUri()
 
-                // SAF Pre-flight Check (REVISION 12.3.1)
+                // Pastikan izin akses folder masih valid sebelum mencoba membaca file
                 if (!storageHelper.isUriPermissionValid(rootUriString)) {
                     throw Exception("Izin akses folder telah hilang. Silakan pilih ulang folder library.")
                 }
@@ -99,7 +97,7 @@ class ReaderViewModel(
                 }
                 currentChapterIndex = chapters.indexOfFirst { it.relativePath == chapterPath }
 
-                // REVISION 6.8.0: Gunakan Parent Folder Cache untuk resolusi URI yang lebih cepat
+                // Gunakan cache parent folder jika tersedia untuk menghindari traversal SAF yang lambat
                 if (parentFolderDoc == null || !parentFolderDoc!!.exists()) {
                     parentFolderDoc = storageHelper.findFileByRelativePath(rootUri, comicRelativePath)
                 }
@@ -179,13 +177,13 @@ class ReaderViewModel(
     }
 
     /**
-     * Menyimpan progres membaca dengan mekanisme debounce.
-     * REVISION 6.8.0: Ditambahkan pemicu preloading metadata saat mendekati akhir chapter.
+     * Menyimpan progres membaca ke database. Menggunakan mekanisme debounce 1 detik
+     * untuk mencegah penulisan berlebihan saat user menggulir halaman dengan cepat.
      */
     fun saveProgress(pageNumber: Int, totalPages: Int) {
         _currentPage.value = pageNumber
         
-        // REVISION 6.8.0: Pemicu Preload Metadata (80% - 90%)
+        // Picu preloading metadata chapter berikutnya saat user hampir selesai (80% - 90%)
         val progressPercent = if (totalPages > 0) pageNumber.toFloat() / totalPages.toFloat() else 0f
         if (progressPercent >= 0.8f && !isNextChapterPreloaded) {
             preloadNextChapterMetadata()
@@ -217,7 +215,7 @@ class ReaderViewModel(
     }
 
     /**
-     * REVISION 6.8.0: Preload metadata chapter berikutnya ke dalam LRU Cache.
+     * Memuat metadata chapter berikutnya ke dalam cache secara spekulatif (preloading).
      */
     private fun preloadNextChapterMetadata() {
         if (currentChapterIndex < chapters.size - 1) {
@@ -291,7 +289,7 @@ class ReaderViewModel(
 
     override fun onCleared() {
         super.onCleared()
-        // REVISION 12.1.3: Ensure ZipFile is closed when ViewModel is cleared
+        // Pastikan resource ZipFile ditutup saat ViewModel dihancurkan
         readerRepository.closeCurrentChapter()
     }
 
@@ -322,8 +320,7 @@ class ReaderViewModel(
     }
 
     /**
-     * Memperbarui mode membaca secara reaktif.
-     * REVISION 11.4.1: Pemilih mode baca langsung di dalam reader.
+     * Memperbarui mode membaca (Vertical, LTR, RTL) dan menyimpannya ke pengaturan.
      */
     fun updateReadingMode(mode: String) {
         viewModelScope.launch {

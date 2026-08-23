@@ -11,7 +11,7 @@ Built with Jetpack Compose • Filesystem First • Hybrid SAF • Automatic Met
   <img src="https://img.shields.io/badge/Android-Min%20SDK%2026-3DDC84?style=for-the-badge&logo=android" alt="Android Min SDK">
   <img src="https://img.shields.io/badge/UI-Jetpack%20Compose-4285F4?style=for-the-badge&logo=jetpackcompose" alt="Jetpack Compose">
   <img src="https://img.shields.io/badge/Database-Room%20v7-8A2BE2?style=for-the-badge&logo=sqlite" alt="Room DB">
-  <img src="https://img.shields.io/badge/Status-Phase%2011.4-success?style=for-the-badge" alt="Status">
+  <img src="https://img.shields.io/badge/Status-Phase%2011.5-success?style=for-the-badge" alt="Status">
   <img src="https://img.shields.io/badge/License-MIT-orange?style=for-the-badge" alt="License">
 </p>
 
@@ -49,7 +49,7 @@ Kitsune changes the game by using a **Filesystem First** approach where metadata
 | Feature | Description |
 | :--- | :--- |
 | **Flexible Parsing** | Detects `[TYPE] [LANG] [AUTHOR] Title` folder patterns automatically. |
-| **Fast Reader** | CBZ reader with **Beyond Viewport Loading** and **Coil Speculative Prefetching**. |
+| **Fast Reader** | CBZ reader with **Dual-Strategy Parser (Proc-FD Fallback)** and **Coil Prefetching**. |
 | **In-Reader Selector** | Switch between Vertical, LTR, and RTL modes instantly while reading. |
 | **Clean Detail UI** | Distraction-free screens without raw folder paths. |
 | **Search & Sort** | Multi-field search and advanced sorting by Title, Author, or Date Added. |
@@ -101,6 +101,7 @@ Kitsune is tuned for real-world performance on physical devices:
     - Multi-field Search & Advanced Sorting.
     - In-Reader Mode Selector.
     - **Reader Optimization:** Beyond Viewport & Prefetching.
+    - **Reader Recovery:** Dual-Strategy Parser (Proc-FD + Temp Cache).
     - **Visual Polish:** Mihon-style dimmed covers & Ribbon icons.
     - **Integritas:** Database v7 with anti-duplicate migration.
 - [ ] **Phase 12: Backup & Restore:** Export collection data to the `/Backup` folder.

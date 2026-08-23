@@ -27,8 +27,7 @@ import com.kitsune.app.ui.components.media.*
 import kotlinx.coroutines.flow.collectLatest
 
 /**
- * Screen untuk menampilkan detail video dan daftar episode dengan indikator progres.
- * REVISION 10.4.5: Added LazyColumn keys for better performance.
+ * Layar untuk menampilkan informasi detail video dan daftar episode.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -218,7 +217,7 @@ fun VideoDetailContent(
                 )
             }
         } else {
-            // OPTIMIZATION: Use key for stable lists
+            // Gunakan key untuk performa list yang stabil saat terjadi rekomposisi
             items(
                 items = episodes,
                 key = { it.episode.relativePath }

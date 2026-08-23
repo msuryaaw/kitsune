@@ -10,10 +10,8 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 /**
- * Coordinator for all scanning operations in Kitsune.
- * Handles concurrency, mutexes, and status reporting.
- * 
- * REVISION 10.2.4: Unified Coordination logic without business/parsing logic.
+ * Koordinator untuk seluruh operasi pemindaian media di Kitsune.
+ * Mengelola konkurensi melalui mutex dan melaporkan status progres ke UI.
  */
 class ScannerCoordinator {
     private val comicMutex = Mutex()

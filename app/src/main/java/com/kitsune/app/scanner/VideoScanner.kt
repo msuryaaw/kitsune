@@ -9,11 +9,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * Engine for scanning video folders offline.
- * Inherits from BaseScanner for shared SAF and sorting logic.
+ * Engine untuk memindai folder video secara offline.
+ * Mewarisi BaseScanner untuk logika akses SAF dan pengurutan natural.
  * 
- * REVISION 10.2.3: Refactored to be stateless for thread safety.
- * Focused strictly on Video/Episode logic.
+ * Didesain agar bersifat stateless untuk keamanan threading.
  */
 class VideoScanner(
     context: Context,
@@ -23,8 +22,8 @@ class VideoScanner(
     private val allowedVideoExtensions = listOf("mp4", "mkv", "mov", "avi", "webm", "m4v", "ts", "3gp")
 
     /**
-     * Scans the 'Videos' folder to produce a list of VideoEntity.
-     * Only reads light metadata according to Phase 7.1.2 specs.
+     * Memindai folder 'Videos' untuk menghasilkan daftar entitas video.
+     * Hanya membaca metadata ringan untuk performa awal yang cepat.
      */
     suspend fun scanVideos(
         rootUri: Uri,

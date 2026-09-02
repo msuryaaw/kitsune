@@ -165,7 +165,6 @@ class LibraryViewModel(
         viewModelScope.launch {
             _errorMessage.value = null
             try {
-                // Tambahkan guard cooldown dan pengecekan library kosong
                 val settings = settingsRepository.getSettingsCached()
                 val rootUriString = settings?.rootFolderUri
                 
@@ -174,21 +173,8 @@ class LibraryViewModel(
                     return@launch
                 }
 
-                val lastScan = settings?.lastScanTime ?: 0L
-                val now = System.currentTimeMillis()
-                val cooldownMs = 30 * 60 * 1000L // 30 menit cooldown
-                val currentComics = scannerRepository.allComics.first()
-                val isLibraryEmpty = currentComics.isEmpty()
-
-                // Guard untuk auto-scan saat migrasi
-                if (lastScan == 0L && !isLibraryEmpty && !force) {
-                    settingsRepository.updateLastScanTime(now)
-                    return@launch
-                }
-
-                if (force || isLibraryEmpty || (now - lastScan > cooldownMs)) {
-                    scannerRepository.performIncrementalScan(rootUriString.toUri())
-                }
+                // REVISION Masalah 4: Logic simplified as cooldown is now centralized in Repository
+                scannerRepository.performIncrementalScan(rootUriString.toUri(), force = force)
             } catch (e: Exception) {
                 _errorMessage.value = "Failed to scan library: ${e.message}"
             }

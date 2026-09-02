@@ -100,10 +100,11 @@ class VideoRepository(
     /**
      * Memicu pemindaian library dan membersihkan cache (Phase 7.6.1).
      * Invalidation krusial untuk mencegah data stale setelah perubahan filesystem.
+     * REVISION Masalah 4: Added force parameter.
      */
-    suspend fun refreshLibrary(rootUri: Uri) {
+    suspend fun refreshLibrary(rootUri: Uri, force: Boolean = false) {
         clearCache()
-        scannerRepository.performIncrementalScan(rootUri)
+        scannerRepository.performIncrementalScan(rootUri, force = force)
         // Note: cleanupInvalidHistory akan dipicu secara otomatis oleh onScanFinished listener
     }
 

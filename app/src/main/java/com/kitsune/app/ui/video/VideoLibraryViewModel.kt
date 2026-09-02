@@ -116,18 +116,23 @@ class VideoLibraryViewModel(
     )
 
     init {
-        refreshLibrary()
+        refreshLibraryInternal(force = false)
     }
 
     override fun refreshLibrary() {
+        refreshLibraryInternal(force = true)
+    }
+
+    private fun refreshLibraryInternal(force: Boolean) {
         viewModelScope.launch {
             try {
                 // REVISION 10.5.4: Use cached settings for one-shot retrieval
+                // REVISION Masalah 4: Logic simplified as cooldown is now centralized in Repository
                 val settings = settingsRepository.getSettingsCached()
                 val rootUriString = settings?.rootFolderUri
                 
                 if (!rootUriString.isNullOrEmpty()) {
-                    videoRepository.refreshLibrary(rootUriString.toUri())
+                    videoRepository.refreshLibrary(rootUriString.toUri(), force = force)
                 }
             } catch (e: Exception) {
                 e.printStackTrace()

@@ -40,6 +40,14 @@ class ScannerRepository(
     private val metadataManager: MetadataManager,
     private val settingsRepository: SettingsRepository
 ) {
+    companion object {
+        /**
+         * Cooldown period between automatic scans to prevent redundant I/O.
+         * Default: 30 minutes.
+         */
+        private const val SCAN_COOLDOWN_MS = 30 * 60 * 1000L
+    }
+
     /**
      * Active request lock to prevent overlapping calls from ViewModel.
      */
@@ -116,11 +124,33 @@ class ScannerRepository(
     /**
      * Performs a full incremental scan for both Comics and Videos in parallel.
      * REVISION 12.2.1: Added request locking and timestamp update.
+     * REVISION Masalah 4: Centralized cooldown logic (30 mins).
      */
-    suspend fun performIncrementalScan(rootUri: Uri) {
+    suspend fun performIncrementalScan(rootUri: Uri, force: Boolean = false) {
         if (scanMutex.isLocked) return
         
         scanMutex.withLock {
+            val settings = settingsRepository.getSettingsCached()
+            val lastScan = settings?.lastScanTime ?: 0L
+            val now = System.currentTimeMillis()
+            
+            // Optimization: check if library is empty to allow initial scan regardless of cooldown
+            val currentComics = comicDao.getAllComicsSync()
+            val currentVideos = videoDao.getAllVideosSync()
+            val isLibraryEmpty = currentComics.isEmpty() && currentVideos.isEmpty()
+
+            // Guard: If migration occurred (lastScan=0 but library not empty), 
+            // set timestamp and skip first auto-scan to avoid startup lag.
+            if (lastScan == 0L && !isLibraryEmpty && !force) {
+                settingsRepository.updateLastScanTime(now)
+                return
+            }
+
+            // Cooldown check
+            if (!force && !isLibraryEmpty && (now - lastScan < SCAN_COOLDOWN_MS)) {
+                return
+            }
+
             onScanStarted?.invoke()
             try {
                 coordinator.fullScan(

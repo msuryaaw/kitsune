@@ -2,6 +2,7 @@ package com.kitsune.app.ui.video
 
 import androidx.core.net.toUri
 import androidx.lifecycle.viewModelScope
+import com.kitsune.app.core.SearchUtils
 import com.kitsune.app.data.repository.CollectionRepository
 import com.kitsune.app.data.repository.PlaylistRepository
 import com.kitsune.app.data.repository.ScannerRepository
@@ -18,6 +19,7 @@ import kotlinx.coroutines.launch
  * ViewModel for managing data on the Video Library screen.
  * REVISION 10.5.3: Optimized Flow pipeline to reduce redundant mappings and emissions.
  * REVISION 11.1.8: Implemented metadata tag search support.
+ * REVISION Masalah 3: Using Multi-token AND search logic.
  */
 class VideoLibraryViewModel(
     private val videoRepository: VideoRepository,
@@ -86,10 +88,14 @@ class VideoLibraryViewModel(
         val filteredItems = if (query.isBlank()) {
             videoItems
         } else {
-            val trimmedQuery = query.trim()
             videoItems.filter { item -> 
-                item.video.title.contains(trimmedQuery, ignoreCase = true) ||
-                item.video.searchTags?.contains(trimmedQuery, ignoreCase = true) == true
+                SearchUtils.matches(
+                    query = query,
+                    searchableFields = listOf(
+                        item.video.title,
+                        item.video.searchTags
+                    )
+                )
             }
         }
         val sortedItems = filteredItems.sortedBy { it.video.title.lowercase() }

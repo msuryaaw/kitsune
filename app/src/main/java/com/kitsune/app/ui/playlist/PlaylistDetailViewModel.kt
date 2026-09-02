@@ -2,6 +2,7 @@ package com.kitsune.app.ui.playlist
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.kitsune.app.core.SearchUtils
 import com.kitsune.app.data.repository.BookmarkRepository
 import com.kitsune.app.data.repository.PlaylistRepository
 import com.kitsune.app.data.repository.ScannerRepository
@@ -20,6 +21,7 @@ import kotlinx.coroutines.launch
  * ViewModel untuk menampilkan detail Playlist (Video Only).
  * 
  * REVISION 10.1.2: Restrict to Video only. Removed Comic indexing and support.
+ * REVISION Masalah 3: Using Multi-token AND search logic.
  */
 class PlaylistDetailViewModel(
     private val playlistId: Long,
@@ -119,7 +121,12 @@ class PlaylistDetailViewModel(
                 var result = if (query.isBlank()) {
                     items
                 } else {
-                    items.filter { it.title.contains(query, ignoreCase = true) }
+                    items.filter { 
+                        SearchUtils.matches(
+                            query = query,
+                            searchableFields = listOf(it.title)
+                        )
+                    }
                 }
 
                 // 3. Sorting

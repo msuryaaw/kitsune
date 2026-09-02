@@ -2,6 +2,7 @@ package com.kitsune.app.ui.library
 
 import androidx.core.net.toUri
 import androidx.lifecycle.viewModelScope
+import com.kitsune.app.core.SearchUtils
 import com.kitsune.app.data.repository.BookmarkRepository
 import com.kitsune.app.data.repository.ScannerRepository
 import com.kitsune.app.data.repository.SettingsRepository
@@ -45,6 +46,7 @@ class LibraryViewModel(
     /**
      * Tahap 1: Pemfilteran & Pengurutan.
      * Melakukan pencarian berdasarkan judul bersih, penulis, bahasa, dan tag.
+     * REVISION Masalah 3: Menggunakan Multi-token AND Search.
      */
     private val filteredComics = combine(
         scannerRepository.allComics,
@@ -54,13 +56,17 @@ class LibraryViewModel(
         val filtered = if (query.isBlank()) {
             comics
         } else {
-            val trimmedQuery = query.trim()
             comics.filter { comic ->
-                comic.displayTitle.contains(trimmedQuery, ignoreCase = true) ||
-                comic.author?.contains(trimmedQuery, ignoreCase = true) == true ||
-                comic.language?.contains(trimmedQuery, ignoreCase = true) == true ||
-                comic.type?.contains(trimmedQuery, ignoreCase = true) == true ||
-                comic.searchTags?.contains(trimmedQuery, ignoreCase = true) == true
+                SearchUtils.matches(
+                    query = query,
+                    searchableFields = listOf(
+                        comic.displayTitle,
+                        comic.author,
+                        comic.language,
+                        comic.type,
+                        comic.searchTags
+                    )
+                )
             }
         }
 

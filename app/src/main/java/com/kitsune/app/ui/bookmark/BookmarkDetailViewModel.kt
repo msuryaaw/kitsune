@@ -2,6 +2,7 @@ package com.kitsune.app.ui.bookmark
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.kitsune.app.core.SearchUtils
 import com.kitsune.app.data.repository.BookmarkRepository
 import com.kitsune.app.data.repository.ScannerRepository
 import com.kitsune.app.data.repository.SettingsRepository
@@ -16,6 +17,7 @@ import kotlinx.coroutines.launch
 /**
  * ViewModel for Bookmark Category Detail.
  * REVISION 10.5.11: Optimized Flow pipeline to separate mapping from filtering.
+ * REVISION Masalah 3: Using Multi-token AND search logic.
  */
 class BookmarkDetailViewModel(
     private val bookmarkId: Long,
@@ -89,13 +91,17 @@ class BookmarkDetailViewModel(
                 val result = if (query.isBlank()) {
                     items
                 } else {
-                    val trimmedQuery = query.trim()
                     items.filter { (comic, _) -> 
-                        comic.displayTitle.contains(trimmedQuery, ignoreCase = true) ||
-                        comic.author?.contains(trimmedQuery, ignoreCase = true) == true ||
-                        comic.language?.contains(trimmedQuery, ignoreCase = true) == true ||
-                        comic.type?.contains(trimmedQuery, ignoreCase = true) == true ||
-                        comic.searchTags?.contains(trimmedQuery, ignoreCase = true) == true
+                        SearchUtils.matches(
+                            query = query,
+                            searchableFields = listOf(
+                                comic.displayTitle,
+                                comic.author,
+                                comic.language,
+                                comic.type,
+                                comic.searchTags
+                            )
+                        )
                     }
                 }
 

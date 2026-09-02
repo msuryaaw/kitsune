@@ -21,15 +21,15 @@ class MetadataManager(
      * Reads metadata for a specific media title.
      * 
      * REVISION 9.3.2: Implemented Error Recovery. 
-     * If file is missing or corrupted, returns default MediaMetadata in-memory
-     * without overwriting the corrupted file.
+     * REVISION Masalah 4: Automatic alphabetical tag sorting (case-insensitive).
      * 
      * @param rootUri The root URI of the Kitsune library.
      * @param titleRelativePath The relative path of the title folder.
      * @return The metadata object (default one if file doesn't exist or is invalid).
      */
     suspend fun readMetadata(rootUri: Uri, titleRelativePath: String): MediaMetadata {
-        return reader.readMetadata(rootUri, titleRelativePath).getOrDefault(MediaMetadata())
+        val meta = reader.readMetadata(rootUri, titleRelativePath).getOrDefault(MediaMetadata())
+        return meta.copy(tags = meta.tags.sortedBy { it.lowercase() })
     }
 
     /**
@@ -45,7 +45,8 @@ class MetadataManager(
         titleRelativePath: String,
         metadata: MediaMetadata
     ): Result<Unit> {
-        return writer.writeMetadata(rootUri, titleRelativePath, metadata)
+        val sortedMetadata = metadata.copy(tags = metadata.tags.sortedBy { it.lowercase() })
+        return writer.writeMetadata(rootUri, titleRelativePath, sortedMetadata)
     }
 
     /**

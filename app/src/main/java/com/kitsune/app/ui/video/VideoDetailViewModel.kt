@@ -106,7 +106,8 @@ class VideoDetailViewModel(
                 _episodes.value = videoRepository.getEpisodes(rootUri, videoRelativePath)
 
                 launch {
-                    _metadata.value = metadataManager.readMetadata(rootUri, videoRelativePath)
+                    val meta = metadataManager.readMetadata(rootUri, videoRelativePath)
+                    _metadata.value = meta.copy(tags = meta.tags.sortedBy { it.lowercase() })
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -120,7 +121,7 @@ class VideoDetailViewModel(
             val rootUri = settings?.rootFolderUri?.toUri() ?: return@launch
 
             val updatedMetadata = _metadata.value.copy(
-                tags = _metadata.value.tags + tagName
+                tags = (_metadata.value.tags + tagName).sortedBy { it.lowercase() }
             )
 
             val result = metadataManager.writeMetadata(rootUri, videoRelativePath, updatedMetadata)
@@ -140,7 +141,7 @@ class VideoDetailViewModel(
             val rootUri = settings?.rootFolderUri?.toUri() ?: return@launch
 
             val updatedMetadata = _metadata.value.copy(
-                tags = _metadata.value.tags.filter { it != tagName }
+                tags = _metadata.value.tags.filter { it != tagName }.sortedBy { it.lowercase() }
             )
 
             val result = metadataManager.writeMetadata(rootUri, videoRelativePath, updatedMetadata)

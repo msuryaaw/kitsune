@@ -88,7 +88,8 @@ class ComicDetailViewModel(
                 _chapters.value = scannerRepository.getChapters(rootUri, comicRelativePath)
                 
                 launch {
-                    _metadata.value = metadataManager.readMetadata(rootUri, comicRelativePath)
+                    val meta = metadataManager.readMetadata(rootUri, comicRelativePath)
+                    _metadata.value = meta.copy(tags = meta.tags.sortedBy { it.lowercase() })
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -102,7 +103,7 @@ class ComicDetailViewModel(
             val rootUri = settings?.rootFolderUri?.toUri() ?: return@launch
 
             val updatedMetadata = _metadata.value.copy(
-                tags = _metadata.value.tags + tagName
+                tags = (_metadata.value.tags + tagName).sortedBy { it.lowercase() }
             )
 
             val result = metadataManager.writeMetadata(rootUri, comicRelativePath, updatedMetadata)
@@ -122,7 +123,7 @@ class ComicDetailViewModel(
             val rootUri = settings?.rootFolderUri?.toUri() ?: return@launch
 
             val updatedMetadata = _metadata.value.copy(
-                tags = _metadata.value.tags.filter { it != tagName }
+                tags = _metadata.value.tags.filter { it != tagName }.sortedBy { it.lowercase() }
             )
 
             val result = metadataManager.writeMetadata(rootUri, comicRelativePath, updatedMetadata)

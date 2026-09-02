@@ -16,8 +16,8 @@ import androidx.compose.ui.unit.dp
 import com.kitsune.app.domain.model.LastReadComic
 import com.kitsune.app.domain.model.LastWatchedVideo
 import com.kitsune.app.ui.library.EmptyLibraryState
-import com.kitsune.app.ui.local.ContinueWatchingCard
-import com.kitsune.app.ui.local.LastReadCard
+import com.kitsune.app.ui.components.media.ContinueWatchingCard
+import com.kitsune.app.ui.components.media.LastReadCard
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

@@ -266,32 +266,9 @@ fun MainContainer(
             
             // --- Home & Settings ---
             composable(Screen.Local.route) { 
-                val localViewModel = viewModel<LocalViewModel>(
-                    factory = object : ViewModelProvider.Factory {
-                        @Suppress("UNCHECKED_CAST")
-                        override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                            return LocalViewModel(progressRepository, videoRepository) as T
-                        }
-                    }
-                )
+                val localViewModel = viewModel<LocalViewModel>()
                 LocalScreen(
                     viewModel = localViewModel,
-                    onContinueReading = { lastRead ->
-                        innerNavController.navigateSafe(
-                            Screen.Reader.createRoute(
-                                lastRead.progress.comicRelativePath,
-                                lastRead.progress.chapterRelativePath
-                            )
-                        )
-                    },
-                    onContinueWatching = { lastWatched ->
-                        innerNavController.navigateSafe(
-                            Screen.VideoPlayer.createRoute(
-                                lastWatched.video.relativePath,
-                                lastWatched.episodeRelativePath
-                            )
-                        )
-                    },
                     onComicsClick = { innerNavController.navigateSafe(Screen.ComicLibrary.route) },
                     onVideosClick = { innerNavController.navigateSafe(Screen.VideoLibrary.route) },
                     onReadHistoryClick = { innerNavController.navigateSafe(Screen.ReadHistory.route) },

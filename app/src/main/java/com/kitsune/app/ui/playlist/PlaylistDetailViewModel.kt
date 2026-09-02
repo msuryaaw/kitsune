@@ -124,7 +124,7 @@ class PlaylistDetailViewModel(
                     items.filter { 
                         SearchUtils.matches(
                             query = query,
-                            searchableFields = listOf(it.title)
+                            searchableFields = listOf(it.displayTitle, it.title)
                         )
                     }
                 }

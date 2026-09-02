@@ -6,25 +6,27 @@ package com.kitsune.app.core
 object SearchUtils {
 
     /**
-     * Checks if all tokens in the query match at least one of the provided searchable fields.
-     * Implements MULTI-TOKEN AND SEARCH semantics.
+     * Checks if all criteria in the query match at least one of the provided searchable fields.
+     * Implements COMMA-SEPARATED MULTI-CRITERIA AND SEARCH.
      * 
      * @param query The raw search query from user.
      * @param searchableFields List of strings (title, author, tags, etc) to search within.
-     * @return True if query is empty or every token is found in at least one field.
+     * @return True if query is empty or every comma-separated criterion is found in at least one field.
      */
     fun matches(query: String, searchableFields: List<String?>): Boolean {
-        if (query.isBlank()) return true
+        // 1. Split by comma and clean up criteria
+        val criteria = query.split(",")
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
         
-        // 1. Tokenize whitespace (treat multiple spaces as one)
-        val tokens = query.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
-        if (tokens.isEmpty()) return true
+        // 2. Empty query or just commas/whitespace returns all results
+        if (criteria.isEmpty()) return true
 
-        // 2. AND Logic: Every token must be satisfied
-        return tokens.all { token ->
-            // 3. Any field match: Token must be in at least one field
+        // 3. AND Logic: Every criterion must be satisfied
+        return criteria.all { criterion ->
+            // 4. Any field match: Criterion must be in at least one field
             searchableFields.any { field ->
-                field?.contains(token, ignoreCase = true) == true
+                field?.contains(criterion, ignoreCase = true) == true
             }
         }
     }

@@ -74,6 +74,17 @@ interface VideoDao {
     @Query("SELECT * FROM video_progress")
     suspend fun getAllProgressSync(): List<VideoProgressEntity>
 
+    /**
+     * Mendapatkan seluruh riwayat menonton yang dikelompokkan per video/judul.
+     * Mengambil entri terakhir (episode terbaru) untuk setiap judul.
+     */
+    @Query("""
+        SELECT * FROM video_progress p1 
+        WHERE lastWatchedAt = (SELECT MAX(lastWatchedAt) FROM video_progress p2 WHERE p2.videoRelativePath = p1.videoRelativePath) 
+        ORDER BY lastWatchedAt DESC
+    """)
+    fun getAllWatchHistory(): Flow<List<VideoProgressEntity>>
+
     // --- Statistics Queries (Phase 8.3.5) ---
 
     @Query("SELECT COUNT(*) FROM videos")

@@ -44,4 +44,15 @@ interface ReadingProgressDao {
      */
     @Query("SELECT * FROM reading_progress ORDER BY lastReadAt DESC LIMIT 1")
     fun getLatestProgress(): Flow<ReadingProgressEntity?>
+
+    /**
+     * Mendapatkan seluruh riwayat membaca yang dikelompokkan per komik.
+     * Mengambil entri terakhir untuk setiap komik.
+     */
+    @Query("""
+        SELECT * FROM reading_progress p1 
+        WHERE lastReadAt = (SELECT MAX(lastReadAt) FROM reading_progress p2 WHERE p2.comicRelativePath = p1.comicRelativePath) 
+        ORDER BY lastReadAt DESC
+    """)
+    fun getAllReadHistory(): Flow<List<ReadingProgressEntity>>
 }

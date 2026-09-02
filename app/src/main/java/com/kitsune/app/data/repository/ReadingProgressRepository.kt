@@ -75,6 +75,42 @@ class ReadingProgressRepository(
     }
 
     /**
+     * Mendapatkan seluruh riwayat membaca yang digabungkan dengan data komik.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun getFullReadHistory(): Flow<List<LastReadComic>> {
+        return readingProgressDao.getAllReadHistory().flatMapLatest { progressList ->
+            if (progressList.isEmpty()) {
+                flowOf(emptyList())
+            } else {
+                // Map entities to domain model
+                // Note: This could be optimized to use a single query with JOIN in DAO
+                // but we stick to repository pattern mapping for consistency with existing code.
+                val historyFlows = progressList.map { progress ->
+                    val comicEntity = comicDao.getComicByPath(progress.comicRelativePath)
+                    if (comicEntity != null) {
+                        LastReadComic(
+                            comic = Comic(
+                                title = comicEntity.title,
+                                displayTitle = comicEntity.displayTitle,
+                                author = comicEntity.author,
+                                language = comicEntity.language,
+                                type = comicEntity.type,
+                                relativePath = comicEntity.relativePath,
+                                coverUri = comicEntity.coverUri,
+                                lastModified = comicEntity.lastModified,
+                                searchTags = comicEntity.searchTags
+                            ),
+                            progress = progress
+                        )
+                    } else null
+                }.filterNotNull()
+                flowOf(historyFlows)
+            }
+        }
+    }
+
+    /**
      * Mendapatkan progres membaca terbaru secara global yang digabungkan dengan data komik.
      */
     @OptIn(ExperimentalCoroutinesApi::class)

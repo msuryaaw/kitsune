@@ -31,6 +31,10 @@ import com.kitsune.app.ui.bookmark.BookmarkScreen
 import com.kitsune.app.ui.bookmark.BookmarkViewModel
 import com.kitsune.app.ui.comicdetail.ComicDetailScreen
 import com.kitsune.app.ui.comicdetail.ComicDetailViewModel
+import com.kitsune.app.ui.history.ReadHistoryScreen
+import com.kitsune.app.ui.history.ReadHistoryViewModel
+import com.kitsune.app.ui.history.WatchHistoryScreen
+import com.kitsune.app.ui.history.WatchHistoryViewModel
 import com.kitsune.app.ui.library.ComicLibraryScreen
 import com.kitsune.app.ui.library.LibraryViewModel
 import com.kitsune.app.ui.local.LocalScreen
@@ -289,8 +293,56 @@ fun MainContainer(
                         )
                     },
                     onComicsClick = { innerNavController.navigateSafe(Screen.ComicLibrary.route) },
-                    onVideosClick = { innerNavController.navigateSafe(Screen.VideoLibrary.route) }
+                    onVideosClick = { innerNavController.navigateSafe(Screen.VideoLibrary.route) },
+                    onReadHistoryClick = { innerNavController.navigateSafe(Screen.ReadHistory.route) },
+                    onWatchHistoryClick = { innerNavController.navigateSafe(Screen.WatchHistory.route) }
                 ) 
+            }
+
+            composable(Screen.ReadHistory.route) {
+                val viewModel = viewModel<ReadHistoryViewModel>(
+                    factory = object : ViewModelProvider.Factory {
+                        @Suppress("UNCHECKED_CAST")
+                        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                            return ReadHistoryViewModel(progressRepository) as T
+                        }
+                    }
+                )
+                ReadHistoryScreen(
+                    viewModel = viewModel,
+                    onContinueReading = { lastRead ->
+                        innerNavController.navigateSafe(
+                            Screen.Reader.createRoute(
+                                lastRead.progress.comicRelativePath,
+                                lastRead.progress.chapterRelativePath
+                            )
+                        )
+                    },
+                    onBackClick = { innerNavController.popBackStack() }
+                )
+            }
+
+            composable(Screen.WatchHistory.route) {
+                val viewModel = viewModel<WatchHistoryViewModel>(
+                    factory = object : ViewModelProvider.Factory {
+                        @Suppress("UNCHECKED_CAST")
+                        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                            return WatchHistoryViewModel(videoRepository) as T
+                        }
+                    }
+                )
+                WatchHistoryScreen(
+                    viewModel = viewModel,
+                    onContinueWatching = { lastWatched ->
+                        innerNavController.navigateSafe(
+                            Screen.VideoPlayer.createRoute(
+                                lastWatched.video.relativePath,
+                                lastWatched.episodeRelativePath
+                            )
+                        )
+                    },
+                    onBackClick = { innerNavController.popBackStack() }
+                )
             }
 
             composable(Screen.Other.route) { 

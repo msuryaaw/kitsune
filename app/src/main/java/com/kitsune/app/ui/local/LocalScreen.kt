@@ -29,7 +29,9 @@ fun LocalScreen(
     onContinueReading: (LastReadComic) -> Unit,
     onContinueWatching: (LastWatchedVideo) -> Unit,
     onComicsClick: () -> Unit,
-    onVideosClick: () -> Unit
+    onVideosClick: () -> Unit,
+    onReadHistoryClick: () -> Unit,
+    onWatchHistoryClick: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
@@ -59,12 +61,22 @@ fun LocalScreen(
                 }
                 is LocalUiState.Success -> {
                     // Last Read (Comics)
-                    Text(
-                        text = "Last Read",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(bottom = 12.dp)
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Last Read",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(bottom = 12.dp)
+                        )
+                        TextButton(onClick = onReadHistoryClick) {
+                            Text("See All")
+                        }
+                    }
+
                     if (state.lastRead != null) {
                         LastReadCard(
                             lastRead = state.lastRead,
@@ -77,12 +89,22 @@ fun LocalScreen(
                     Spacer(modifier = Modifier.height(24.dp))
 
                     // Continue Watching (Videos) - Phase 7.7.3.2
-                    Text(
-                        text = "Continue Watching",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(bottom = 12.dp)
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Continue Watching",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(bottom = 12.dp)
+                        )
+                        TextButton(onClick = onWatchHistoryClick) {
+                            Text("See All")
+                        }
+                    }
+
                     if (state.lastWatched != null) {
                         ContinueWatchingCard(
                             lastWatched = state.lastWatched,

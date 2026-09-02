@@ -150,6 +150,37 @@ class VideoRepository(
     }
 
     /**
+     * Mendapatkan seluruh riwayat menonton yang digabungkan dengan data video.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun getFullWatchHistory(): Flow<List<LastWatchedVideo>> {
+        return videoDao.getAllWatchHistory().flatMapLatest { progressList ->
+            if (progressList.isEmpty()) {
+                flowOf(emptyList())
+            } else {
+                val historyList = progressList.map { progress ->
+                    val videoEntity = videoDao.getVideoByPath(progress.videoRelativePath)
+                    if (videoEntity != null) {
+                        val percentage = if (progress.durationMs > 0) {
+                            progress.lastPositionMs.toFloat() / progress.durationMs.toFloat()
+                        } else 0f
+
+                        LastWatchedVideo(
+                            video = videoEntity.toDomain(),
+                            episodeRelativePath = progress.episodeRelativePath,
+                            progressPositionMs = progress.lastPositionMs,
+                            durationMs = progress.durationMs,
+                            watchedPercentage = percentage,
+                            lastWatchedAt = progress.lastWatchedAt
+                        )
+                    } else null
+                }.filterNotNull()
+                flowOf(historyList)
+            }
+        }
+    }
+
+    /**
      * Menghapus seluruh riwayat menonton untuk video tertentu.
      */
     suspend fun deleteVideoProgress(videoPath: String) {

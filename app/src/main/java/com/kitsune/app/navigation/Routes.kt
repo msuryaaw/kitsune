@@ -12,6 +12,10 @@ sealed class Screen(val route: String) {
     object Local : Screen("local")
     object Other : Screen("other")
 
+    // History Screens
+    object ReadHistory : Screen("read_history")
+    object WatchHistory : Screen("watch_history")
+
     // Library Screens
     object ComicLibrary : Screen("comic_library")
     object VideoLibrary : Screen("video_library")

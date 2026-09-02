@@ -17,6 +17,7 @@ import kotlinx.serialization.Serializable
 data class MediaMetadata(
     val version: Int = CURRENT_VERSION,
     val tags: List<String> = emptyList(),
+    val title: String? = null,
     val author: String? = null,
     val language: String? = null,
     val type: String? = null

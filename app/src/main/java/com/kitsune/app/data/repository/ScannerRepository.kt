@@ -2,6 +2,7 @@ package com.kitsune.app.data.repository
 
 import android.net.Uri
 import androidx.room.withTransaction
+import com.kitsune.app.data.metadata.MediaMetadata
 import com.kitsune.app.data.metadata.MetadataManager
 import com.kitsune.app.database.AppDatabase
 import com.kitsune.app.database.dao.ComicDao
@@ -160,10 +161,22 @@ class ScannerRepository(
             .map { it.relativePath }
 
         val toInsert = scannedComics.map { comic ->
+            // REVISION Masalah 2: Auto-generate metadata.json if missing
+            if (!metadataManager.exists(rootUri, comic.relativePath)) {
+                val autoMetadata = MediaMetadata(
+                    title = comic.displayTitle,
+                    author = comic.author,
+                    language = comic.language,
+                    type = comic.type
+                )
+                metadataManager.writeMetadata(rootUri, comic.relativePath, autoMetadata)
+            }
+
             // Populate searchTags and extra metadata from metadata.json during scan
             val metadata = metadataManager.readMetadata(rootUri, comic.relativePath)
             
             // Priority: JSON metadata takes precedence over parsed folder name (REVISION 11.2.7)
+            val finalTitle = metadata.title ?: comic.displayTitle
             val finalAuthor = metadata.author ?: comic.author
             val finalLanguage = metadata.language ?: comic.language
             val finalType = metadata.type ?: comic.type
@@ -171,6 +184,7 @@ class ScannerRepository(
             val searchTags = if (metadata.tags.isEmpty()) null else metadata.tags.joinToString(" ")
             
             comic.copy(
+                displayTitle = finalTitle,
                 author = finalAuthor,
                 language = finalLanguage,
                 type = finalType

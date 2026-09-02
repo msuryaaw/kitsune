@@ -81,9 +81,10 @@ class ComicScanner(
             } else {
                 val match2 = regex2.find(folderName)
                 if (match2 != null) {
-                    parsedLang = match2.groupValues[1]
-                    parsedAuthor = match2.groupValues[2]
+                    parsedType = match2.groupValues[1]
+                    parsedLang = match2.groupValues[2]
                     parsedTitle = match2.groupValues[3].trim()
+                    parsedAuthor = null // Author cannot be derived from 2-bracket format
                 }
             }
 

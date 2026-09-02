@@ -12,7 +12,7 @@ import com.kitsune.app.core.StorageHelper
  */
 class MetadataManager(
     context: Context,
-    storageHelper: StorageHelper
+    private val storageHelper: StorageHelper
 ) {
     private val reader = MetadataReader(context, storageHelper)
     private val writer = MetadataWriter(context, storageHelper)
@@ -54,5 +54,14 @@ class MetadataManager(
      */
     fun createDefaultMetadata(): MediaMetadata {
         return MediaMetadata()
+    }
+
+    /**
+     * Checks if the metadata.json file exists for a specific title.
+     * REVISION Masalah 2: Helper for automatic metadata generation.
+     */
+    fun exists(rootUri: Uri, titleRelativePath: String): Boolean {
+        val folder = storageHelper.findFileByRelativePath(rootUri, titleRelativePath) ?: return false
+        return folder.findFile("metadata.json")?.exists() == true
     }
 }

@@ -31,7 +31,7 @@ class StorageHelper(private val context: Context) {
             if (!rootDoc.exists() || !rootDoc.isDirectory) return false
 
             // Check and create subfolders
-            val subFolders = listOf("Comics", "Videos", "Backup", "Cache")
+            val subFolders = listOf("Comics", "Videos", "Backup")
             subFolders.forEach { folderName ->
                 val folder = rootDoc.findFile(folderName)
                 if (folder == null || !folder.isDirectory) {

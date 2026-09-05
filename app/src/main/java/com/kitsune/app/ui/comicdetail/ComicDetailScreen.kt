@@ -9,6 +9,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
+import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EditOff
 import androidx.compose.material.icons.filled.PlayArrow
@@ -18,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
@@ -48,6 +50,7 @@ fun ComicDetailScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     var showBookmarkDialog by remember { mutableStateOf(false) }
     var showTagDialog by remember { mutableStateOf(false) }
+    var showDeleteConfirmation by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         viewModel.snackbarMessage.collectLatest { message ->
@@ -78,6 +81,13 @@ fun ComicDetailScreen(
                             imageVector = if (isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
                             contentDescription = "Bookmark",
                             tint = if (isBookmarked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                    IconButton(onClick = { showDeleteConfirmation = true }) {
+                        Icon(
+                            imageVector = Icons.Default.DeleteForever,
+                            contentDescription = "Delete Comic",
+                            tint = MaterialTheme.colorScheme.error
                         )
                     }
                 }
@@ -121,6 +131,38 @@ fun ComicDetailScreen(
                                 showTagDialog = false
                             },
                             onDismiss = { showTagDialog = false }
+                        )
+                    }
+
+                    if (showDeleteConfirmation) {
+                        AlertDialog(
+                            onDismissRequest = { showDeleteConfirmation = false },
+                            icon = { Icon(Icons.Default.DeleteForever, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                            title = { Text("Hapus Komik?") },
+                            text = {
+                                Text(
+                                    text = "Hapus \"${state.comic.displayTitle}\" permanen dari perangkat? Folder komik dan seluruh isinya akan dihapus dari penyimpanan dan tidak dapat dipulihkan.",
+                                    textAlign = TextAlign.Center
+                                )
+                            },
+                            confirmButton = {
+                                Button(
+                                    onClick = {
+                                        viewModel.deleteComic {
+                                            showDeleteConfirmation = false
+                                            onBackClick()
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                                ) {
+                                    Text("Hapus")
+                                }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { showDeleteConfirmation = false }) {
+                                    Text("Batal")
+                                }
+                            }
                         )
                     }
                 }

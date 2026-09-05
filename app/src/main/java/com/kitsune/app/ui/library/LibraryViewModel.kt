@@ -128,7 +128,8 @@ class LibraryViewModel(
     )
 
     init {
-        refreshLibraryInternal(force = false) // Auto-scan on init with cooldown guard
+        // REVISION Masalah 1: Removed automatic scan on init. 
+        // Data is now loaded purely from database on startup.
     }
 
     fun selectAll() {
@@ -158,10 +159,10 @@ class LibraryViewModel(
     }
 
     override fun refreshLibrary() {
-        refreshLibraryInternal(force = true) // Manual refresh bypasses cooldown
+        refreshLibraryInternal() // Manual refresh
     }
 
-    private fun refreshLibraryInternal(force: Boolean) {
+    private fun refreshLibraryInternal() {
         viewModelScope.launch {
             _errorMessage.value = null
             try {
@@ -174,7 +175,7 @@ class LibraryViewModel(
                 }
 
                 // REVISION Masalah 4: Logic simplified as cooldown is now centralized in Repository
-                scannerRepository.performIncrementalScan(rootUriString.toUri(), force = force)
+                scannerRepository.performIncrementalScan(rootUriString.toUri())
             } catch (e: Exception) {
                 _errorMessage.value = "Failed to scan library: ${e.message}"
             }

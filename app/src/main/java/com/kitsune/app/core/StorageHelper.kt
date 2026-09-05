@@ -111,4 +111,34 @@ class StorageHelper(private val context: Context) {
     fun clearCache() {
         uriCache.evictAll()
     }
+
+    /**
+     * Deletes a file or folder identified by its relative path.
+     * REVISION Delete Feature: Destructive physical deletion with strict path validation.
+     */
+    fun deleteFileByRelativePath(rootUri: Uri, relativePath: String): Result<Unit> {
+        // Strict Validation: Only allow deletion inside "Comics/" or "Videos/"
+        if (!relativePath.startsWith("Comics/") && !relativePath.startsWith("Videos/")) {
+            return Result.failure(SecurityException("Unauthorized deletion target: $relativePath"))
+        }
+        
+        if (relativePath.contains("..")) {
+            return Result.failure(SecurityException("Path traversal attempt detected"))
+        }
+
+        return try {
+            val file = findFileByRelativePath(rootUri, relativePath)
+            if (file != null && file.exists()) {
+                if (file.delete()) {
+                    Result.success(Unit)
+                } else {
+                    Result.failure(Exception("Failed to delete physical file: $relativePath"))
+                }
+            } else {
+                Result.failure(Exception("File not found for deletion: $relativePath"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }

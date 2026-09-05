@@ -55,4 +55,11 @@ interface BookmarkDao {
 
     @Query("SELECT bookmarkId FROM bookmark_comics WHERE comicRelativePath = :comicPath")
     fun getBookmarkIdsForComic(comicPath: String): Flow<List<Long>>
+
+    /**
+     * Cleans up all bookmark relations for a specific comic.
+     * REVISION Delete Feature: Destructive cleanup for all relational data.
+     */
+    @Query("DELETE FROM bookmark_comics WHERE comicRelativePath = :comicPath")
+    suspend fun removeComicFromAllBookmarks(comicPath: String)
 }

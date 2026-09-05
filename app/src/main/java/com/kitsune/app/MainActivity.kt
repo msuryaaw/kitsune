@@ -84,7 +84,8 @@ class MainActivity : ComponentActivity() {
             database = database,
             coordinator = scannerCoordinator,
             metadataManager = metadataManager,
-            settingsRepository = settingsRepository
+            settingsRepository = settingsRepository,
+            storageHelper = storageHelper
         )
         
         bookmarkRepository = BookmarkRepository(database.bookmarkDao())

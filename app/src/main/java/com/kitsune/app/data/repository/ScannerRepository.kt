@@ -2,6 +2,7 @@ package com.kitsune.app.data.repository
 
 import android.net.Uri
 import androidx.room.withTransaction
+import com.kitsune.app.core.StorageHelper
 import com.kitsune.app.data.metadata.MediaMetadata
 import com.kitsune.app.data.metadata.MetadataManager
 import com.kitsune.app.database.AppDatabase
@@ -38,16 +39,9 @@ class ScannerRepository(
     private val database: AppDatabase,
     private val coordinator: ScannerCoordinator,
     private val metadataManager: MetadataManager,
-    private val settingsRepository: SettingsRepository
+    private val settingsRepository: SettingsRepository,
+    private val storageHelper: StorageHelper
 ) {
-    companion object {
-        /**
-         * Cooldown period between automatic scans to prevent redundant I/O.
-         * Default: 30 minutes.
-         */
-        private const val SCAN_COOLDOWN_MS = 30 * 60 * 1000L
-    }
-
     /**
      * Active request lock to prevent overlapping calls from ViewModel.
      */
@@ -63,6 +57,33 @@ class ScannerRepository(
      */
     var onScanFinished: (suspend (Uri) -> Unit)? = null
 
+    /**
+     * Physically deletes a comic and cleans up all related database data.
+     * REVISION Delete Feature: Secure destructive deletion through SAF and Room.
+     */
+    suspend fun deleteComic(rootUri: Uri, comic: Comic): Result<Unit> {
+        if (scanMutex.isLocked) return Result.failure(Exception("Scanner is busy"))
+        
+        return scanMutex.withLock {
+            // 1. Delete physical folder via SAF
+            val fsResult = storageHelper.deleteFileByRelativePath(rootUri, comic.relativePath)
+            if (fsResult.isFailure) return@withLock fsResult
+            
+            // 2. Cleanup Database (Transactional)
+            try {
+                database.withTransaction {
+                    comicDao.deleteComicAndRelatedData(
+                        relativePath = comic.relativePath,
+                        deleteProgress = { path -> database.readingProgressDao().deleteProgress(path) },
+                        deleteBookmarks = { path -> database.bookmarkDao().removeComicFromAllBookmarks(path) }
+                    )
+                }
+                Result.success(Unit)
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+    }
 
     /**
      * Data stream for comics.
@@ -122,35 +143,13 @@ class ScannerRepository(
     }
 
     /**
-     * Performs a full incremental scan for both Comics and Videos in parallel.
-     * REVISION 12.2.1: Added request locking and timestamp update.
-     * REVISION Masalah 4: Centralized cooldown logic (30 mins).
+     * Performs a full incremental scan for both Comics and Videos.
+     * REVISION Masalah 1: Removed cooldown. Manual scan is always allowed when requested.
      */
-    suspend fun performIncrementalScan(rootUri: Uri, force: Boolean = false) {
+    suspend fun performIncrementalScan(rootUri: Uri) {
         if (scanMutex.isLocked) return
         
         scanMutex.withLock {
-            val settings = settingsRepository.getSettingsCached()
-            val lastScan = settings?.lastScanTime ?: 0L
-            val now = System.currentTimeMillis()
-            
-            // Optimization: check if library is empty to allow initial scan regardless of cooldown
-            val currentComics = comicDao.getAllComicsSync()
-            val currentVideos = videoDao.getAllVideosSync()
-            val isLibraryEmpty = currentComics.isEmpty() && currentVideos.isEmpty()
-
-            // Guard: If migration occurred (lastScan=0 but library not empty), 
-            // set timestamp and skip first auto-scan to avoid startup lag.
-            if (lastScan == 0L && !isLibraryEmpty && !force) {
-                settingsRepository.updateLastScanTime(now)
-                return
-            }
-
-            // Cooldown check
-            if (!force && !isLibraryEmpty && (now - lastScan < SCAN_COOLDOWN_MS)) {
-                return
-            }
-
             onScanStarted?.invoke()
             try {
                 coordinator.fullScan(
@@ -169,6 +168,8 @@ class ScannerRepository(
 
     /**
      * Specific incremental scan for Comics.
+     * REVISION Masalah 1: Optimized metadata sync. 
+     * Only reads metadata.json if the folder has been modified since last scan.
      */
     suspend fun scanComicsIncremental(rootUri: Uri) {
         if (!comicScanner.isCategoryFolderValid(rootUri, "Comics")) return
@@ -191,37 +192,43 @@ class ScannerRepository(
             .map { it.relativePath }
 
         val toInsert = scannedComics.map { comic ->
-            // REVISION Masalah 2: Auto-generate metadata.json if missing
-            if (!metadataManager.exists(rootUri, comic.relativePath)) {
-                val autoMetadata = MediaMetadata(
-                    title = comic.displayTitle,
-                    author = comic.author,
-                    language = comic.language,
-                    type = comic.type
-                )
-                metadataManager.writeMetadata(rootUri, comic.relativePath, autoMetadata)
-            }
+            val cached = cacheMap[comic.relativePath]
+            
+            // Optimization: Only read metadata.json if folder is new or changed
+            if (cached == null || cached.lastModified != comic.lastModified) {
+                // Auto-generate metadata.json if missing
+                if (!metadataManager.exists(rootUri, comic.relativePath)) {
+                    val autoMetadata = MediaMetadata(
+                        title = comic.displayTitle,
+                        author = comic.author,
+                        language = comic.language,
+                        type = comic.type
+                    )
+                    metadataManager.writeMetadata(rootUri, comic.relativePath, autoMetadata)
+                }
 
-            // Populate searchTags and extra metadata from metadata.json during scan
-            val metadata = metadataManager.readMetadata(rootUri, comic.relativePath)
-            
-            // Priority: JSON metadata takes precedence over parsed folder name (REVISION 11.2.7)
-            val finalTitle = metadata.title ?: comic.displayTitle
-            val finalAuthor = metadata.author ?: comic.author
-            val finalLanguage = metadata.language ?: comic.language
-            val finalType = metadata.type ?: comic.type
-            
-            val searchTags = if (metadata.tags.isEmpty()) null else metadata.tags.joinToString(" ")
-            
-            comic.copy(
-                displayTitle = finalTitle,
-                author = finalAuthor,
-                language = finalLanguage,
-                type = finalType
-            ).toEntity(searchTags)
+                // Populate searchTags and extra metadata from metadata.json during scan
+                val metadata = metadataManager.readMetadata(rootUri, comic.relativePath)
+                
+                val finalTitle = metadata.title ?: comic.displayTitle
+                val finalAuthor = metadata.author ?: comic.author
+                val finalLanguage = metadata.language ?: comic.language
+                val finalType = metadata.type ?: comic.type
+                
+                val searchTags = if (metadata.tags.isEmpty()) null else metadata.tags.joinToString(" ")
+                
+                comic.copy(
+                    displayTitle = finalTitle,
+                    author = finalAuthor,
+                    language = finalLanguage,
+                    type = finalType
+                ).toEntity(searchTags)
+            } else {
+                // Use cached entity if nothing changed
+                cached
+            }
         }.filter { entity ->
             val cached = cacheMap[entity.relativePath]
-            // Compare including searchTags to ensure index is updated if JSON changed
             cached == null || cached != entity
         }
 
@@ -235,6 +242,7 @@ class ScannerRepository(
 
     /**
      * Specific incremental scan for Videos.
+     * REVISION Masalah 1: Optimized to skip metadata.json if folder timestamp is unchanged.
      */
     suspend fun scanVideosIncremental(rootUri: Uri) {
         if (!videoScanner.isCategoryFolderValid(rootUri, "Videos")) return
@@ -257,11 +265,16 @@ class ScannerRepository(
             .map { it.relativePath }
 
         val toInsert = scannedEntities.map { entity ->
-            // Populate searchTags from metadata.json during scan
-            val metadata = metadataManager.readMetadata(rootUri, entity.relativePath)
-            val searchTags = if (metadata.tags.isEmpty()) null else metadata.tags.joinToString(" ")
+            val cached = cacheMap[entity.relativePath]
             
-            entity.copy(searchTags = searchTags)
+            if (cached == null || cached.lastModified != entity.lastModified) {
+                // Populate searchTags from metadata.json during scan
+                val metadata = metadataManager.readMetadata(rootUri, entity.relativePath)
+                val searchTags = if (metadata.tags.isEmpty()) null else metadata.tags.joinToString(" ")
+                entity.copy(searchTags = searchTags)
+            } else {
+                cached
+            }
         }.filter { entity ->
             val cached = cacheMap[entity.relativePath]
             cached == null || cached != entity

@@ -166,6 +166,25 @@ class ComicDetailViewModel(
             }
         }
     }
+
+    /**
+     * Deletes the comic from the device and database.
+     * REVISION Delete Feature: Trigger destructive deletion with UI feedback.
+     */
+    fun deleteComic(onSuccess: () -> Unit) {
+        viewModelScope.launch {
+            val comic = _comic.value ?: return@launch
+            val settings = settingsRepository.getSettingsCached()
+            val rootUri = settings?.rootFolderUri?.toUri() ?: return@launch
+            
+            val result = scannerRepository.deleteComic(rootUri, comic)
+            if (result.isSuccess) {
+                onSuccess()
+            } else {
+                _snackbarMessage.emit("Delete failed: ${result.exceptionOrNull()?.message}")
+            }
+        }
+    }
 }
 
 data class BookmarkWithMembership(

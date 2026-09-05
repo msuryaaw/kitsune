@@ -1,8 +1,6 @@
 package com.kitsune.app.scanner
 
 import android.net.Uri
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -55,16 +53,16 @@ class ScannerCoordinator {
     }
 
     /**
-     * Triggers a full library scan (Comics & Videos) in parallel.
+     * Triggers a full library scan (Comics & Videos) sequentially.
+     * REVISION Masalah 1: Changed to sequential execution to reduce SAF Binder contention
+     * and improve app responsiveness during manual scan.
      */
     suspend fun fullScan(
         rootUri: Uri,
         comicAction: suspend (Uri) -> Unit,
         videoAction: suspend (Uri) -> Unit
-    ) = coroutineScope {
-        val comicJob = async { performComicScan(rootUri, comicAction) }
-        val videoJob = async { performVideoScan(rootUri, videoAction) }
-        comicJob.await()
-        videoJob.await()
+    ) {
+        performComicScan(rootUri, comicAction)
+        performVideoScan(rootUri, videoAction)
     }
 }

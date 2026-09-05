@@ -44,4 +44,19 @@ interface ComicDao {
             insertComics(toInsert)
         }
     }
+
+    /**
+     * Cleans up all data related to a comic.
+     * REVISION Delete Feature: Destructive cleanup for all relational data.
+     */
+    @Transaction
+    suspend fun deleteComicAndRelatedData(
+        relativePath: String,
+        deleteProgress: suspend (String) -> Unit,
+        deleteBookmarks: suspend (String) -> Unit
+    ) {
+        deleteByPath(relativePath)
+        deleteProgress(relativePath)
+        deleteBookmarks(relativePath)
+    }
 }

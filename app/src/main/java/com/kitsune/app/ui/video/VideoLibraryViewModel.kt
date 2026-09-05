@@ -116,14 +116,14 @@ class VideoLibraryViewModel(
     )
 
     init {
-        refreshLibraryInternal(force = false)
+        // REVISION Masalah 1: Removed automatic scan on init.
     }
 
     override fun refreshLibrary() {
-        refreshLibraryInternal(force = true)
+        refreshLibraryInternal()
     }
 
-    private fun refreshLibraryInternal(force: Boolean) {
+    private fun refreshLibraryInternal() {
         viewModelScope.launch {
             try {
                 // REVISION 10.5.4: Use cached settings for one-shot retrieval
@@ -132,7 +132,7 @@ class VideoLibraryViewModel(
                 val rootUriString = settings?.rootFolderUri
                 
                 if (!rootUriString.isNullOrEmpty()) {
-                    videoRepository.refreshLibrary(rootUriString.toUri(), force = force)
+                    videoRepository.refreshLibrary(rootUriString.toUri())
                 }
             } catch (e: Exception) {
                 e.printStackTrace()

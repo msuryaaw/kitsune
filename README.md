@@ -54,6 +54,7 @@ Kitsune changes the game by using a **Filesystem First** approach where metadata
 | **Clean Detail UI** | Distraction-free screens without raw folder paths. |
 | **Search & Sort** | Multi-field search and advanced sorting by Title, Author, or Date Added. |
 | **Video Stability** | Media3 ExoPlayer with MTK Hardware Recovery and Automatic Software Fallback. |
+| **Secure Delete** | Permanently delete media from device storage with strict path validation and DB cleanup. |
 | **Data Integrity** | Unique constraints and anti-duplicate migrations for a clean database. |
 
 ---
@@ -91,7 +92,8 @@ Kitsune is tuned for real-world performance on physical devices:
 *   **🚀 Coil Prefetching:** Speculatively loads next pages (N+1, N+2) in the background.
 *   **🖼️ Anti-OOM Protection:** Aggressive bitmap downsampling and memory management.
 *   **🛡️ Navigation Guards:** Prevents backstack bloat via `navigateSafe`.
-*   **🧵 Parallel Scanning:** Scans Comics and Videos simultaneously without UI lag.
+*   **🧵 Sequential Scanning:** Optimized manual scans for Comics and Videos to ensure stability.
+*   **🚀 Quiet on Startup:** Zero filesystem I/O at launch; data is loaded instantly from Room.
 
 ---
 

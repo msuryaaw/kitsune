@@ -13,6 +13,7 @@
 /build
 /captures
 /docs
+/.artifacts
 .externalNativeBuild
 .cxx
 local.properties

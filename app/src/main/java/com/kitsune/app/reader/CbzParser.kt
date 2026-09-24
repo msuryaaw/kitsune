@@ -97,7 +97,7 @@ class CbzParser(private val context: Context) {
             // Method 2: Temp Cache (Fallback)
             val cacheDir = java.io.File(context.cacheDir, "chapter_cache").apply { mkdirs() }
             val uniqueId = UUID.randomUUID().toString().take(8)
-            tempFile = java.io.File(cacheDir, "temp_reader_${uniqueId}_${uri.lastPathSegment}.cbz")
+            tempFile = java.io.File(cacheDir, "temp_reader_${uniqueId}.cbz")
             
             context.contentResolver.openInputStream(uri)?.use { input ->
                 tempFile.outputStream().use { output ->

@@ -64,10 +64,10 @@ class MainActivity : ComponentActivity() {
         // --- Dependency Initialization ---
         val kitsuneApp = (application as KitsuneApplication)
         readerRepository = kitsuneApp.readerRepository
+        storageHelper = kitsuneApp.storageHelper // Shared Application Instance (CRIT-03 Fix)
         
         val database = AppDatabase.getDatabase(this)
         settingsRepository = SettingsRepository(database.settingsDao())
-        storageHelper = StorageHelper(this)
         metadataManager = MetadataManager(this, storageHelper)
         
         // REVISION 10.2.6: Initializing new Scanner Architecture components

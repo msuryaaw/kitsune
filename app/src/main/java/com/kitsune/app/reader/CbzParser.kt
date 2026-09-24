@@ -175,7 +175,8 @@ class CbzParser(private val context: Context) {
 
     /**
      * Membuka InputStream untuk entri spesifik secara langsung $O(1)$.
-     * REVISION 12.5.3: Thread-safe stream extraction.
+     * REVISION 12.5.3: Thread-safe stream extraction with isolated byte buffer decoupling.
+     * Decouples the returned stream from mutable currentZip lifecycle to prevent ZipFile closed race conditions during async Coil decodes.
      */
     fun getEntryInputStream(chapterUri: Uri, entryPath: String): InputStream? {
         return synchronized(lock) {
@@ -187,7 +188,10 @@ class CbzParser(private val context: Context) {
                 val normalizedPath = entryPath.removePrefix("/")
                 val entry = entryMap[normalizedPath] ?: entryMap[entryPath] ?: return@synchronized null
                 
-                zip.getInputStream(entry)
+                // Read entry bytes into an isolated ByteArrayInputStream to decouple from ZipFile lifecycle
+                zip.getInputStream(entry).use { stream ->
+                    java.io.ByteArrayInputStream(stream.readBytes())
+                }
             } catch (e: Exception) {
                 Log.e("CbzParser", "Error getting stream for $entryPath", e)
                 null

@@ -4,9 +4,11 @@ import android.content.Context
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.Log
+import androidx.core.graphics.drawable.toDrawable
 import coil.ImageLoader
 import coil.decode.DataSource
 import coil.decode.ImageSource
+import coil.fetch.DrawableResult
 import coil.fetch.FetchResult
 import coil.fetch.Fetcher
 import coil.fetch.SourceResult
@@ -42,18 +44,34 @@ class CbzImageFetcher(
         val rawStream = readerRepository.getPageStream(model.chapterUri, model.entryPath)
             ?: return null
 
-        // FIX: Wrap with BufferedInputStream to support mark/reset (Poin 1.1)
+        // Wrap with BufferedInputStream to support mark/reset
         val inputStream = BufferedInputStream(rawStream)
 
         return try {
-            // OPTIMIZATION: Pre-flight check for image resolution (Poin 2)
+            // OPTIMIZATION: Pre-flight check for image resolution
             val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             inputStream.mark(1024 * 1024) // Mark up to 1MB
             BitmapFactory.decodeStream(inputStream, null, options)
             inputStream.reset()
 
             if (options.outWidth > MAX_GPU_TEXTURE_SIZE || options.outHeight > MAX_GPU_TEXTURE_SIZE) {
-                Log.w("CbzImageFetcher", "High-res image detected (${options.outWidth}x${options.outHeight}). Applying downsampling.")
+                val sampleSize = calculateInSampleSize(options, MAX_GPU_TEXTURE_SIZE, MAX_GPU_TEXTURE_SIZE)
+                if (sampleSize > 1) {
+                    Log.w("CbzImageFetcher", "High-res image detected (${options.outWidth}x${options.outHeight}). Applying downsampling with sampleSize=$sampleSize.")
+                    val decodeOptions = BitmapFactory.Options().apply {
+                        inSampleSize = sampleSize
+                    }
+                    val bitmap = BitmapFactory.decodeStream(inputStream, null, decodeOptions)
+                    if (bitmap != null) {
+                        return DrawableResult(
+                            drawable = bitmap.toDrawable(context.resources),
+                            isSampled = true,
+                            dataSource = DataSource.DISK
+                        )
+                    }
+                    // Fallback to reset stream if decode failed
+                    inputStream.reset()
+                }
             }
 
             SourceResult(
@@ -68,6 +86,22 @@ class CbzImageFetcher(
             try { inputStream.close() } catch (ignored: Exception) {}
             throw e
         }
+    }
+
+    private fun calculateInSampleSize(options: BitmapFactory.Options, reqWidth: Int, reqHeight: Int): Int {
+        val height = options.outHeight
+        val width = options.outWidth
+        var inSampleSize = 1
+
+        if (height > reqHeight || width > reqWidth) {
+            val halfHeight = height / 2
+            val halfWidth = width / 2
+
+            while ((halfHeight / inSampleSize) >= reqHeight || (halfWidth / inSampleSize) >= reqWidth) {
+                inSampleSize *= 2
+            }
+        }
+        return inSampleSize
     }
 
     class Factory(

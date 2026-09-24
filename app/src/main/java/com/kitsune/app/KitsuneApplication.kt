@@ -34,6 +34,24 @@ class KitsuneApplication : Application(), ImageLoaderFactory {
         // Initialize Reader components
         val cbzParser = CbzParser(this)
         readerRepository = ReaderRepository(cbzParser)
+
+        // REVISION MED-02: Clean up orphaned temporary reader files from previous crashed sessions
+        cleanupOrphanChapterCache()
+    }
+
+    private fun cleanupOrphanChapterCache() {
+        try {
+            val chapterCacheDir = java.io.File(cacheDir, "chapter_cache")
+            if (chapterCacheDir.exists() && chapterCacheDir.isDirectory) {
+                chapterCacheDir.listFiles()?.forEach { file ->
+                    if (file.isFile && file.name.startsWith("temp_reader_") && file.name.endsWith(".cbz")) {
+                        file.delete()
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("KitsuneApp", "Failed to cleanup orphan chapter cache: ${e.message}")
+        }
     }
 
     override fun newImageLoader(): ImageLoader {

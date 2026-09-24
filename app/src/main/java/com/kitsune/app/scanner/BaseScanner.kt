@@ -46,15 +46,23 @@ abstract class BaseScanner(
     }
 
     /**
-     * Common logic to find a cover file (cover.* or poster.*) in a directory.
+     * Common logic to find a cover file (cover.* or poster.*) in an array of directory files.
+     * REVISION 10.2.2: Accept pre-fetched array to prevent redundant SAF listFiles() calls.
      */
-    protected fun findCover(folder: DocumentFile): Uri? {
-        return folder.listFiles().find { file ->
+    protected fun findCover(files: Array<DocumentFile>): Uri? {
+        return files.find { file ->
             val fileName = file.name?.lowercase() ?: ""
             allowedImageExtensions.any { ext -> 
                 fileName == "cover.$ext" || fileName == "poster.$ext" 
             }
         }?.uri
+    }
+
+    /**
+     * Overload for DocumentFile directory.
+     */
+    protected fun findCover(folder: DocumentFile): Uri? {
+        return findCover(folder.listFiles())
     }
     
     /**

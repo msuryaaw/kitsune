@@ -54,16 +54,19 @@ class ComicScanner(
             val relativePath = "Comics/$folderName"
             val currentLastModified = folder.lastModified()
             
+            // REVISION HIGH-01 Fix: Fetch listFiles() ONCE per comic folder to eliminate 3x redundant SAF Binder calls
+            val folderFiles = folder.listFiles()
+
             val cachedCover = getExistingCover(relativePath, currentLastModified)
             
             // Cover search order:
             // 1. Database Cache
             // 2. Filesystem search (cover.*)
             // 3. Auto-generation from first chapter
-            var coverUri = cachedCover ?: findCover(folder)?.toString()
+            var coverUri = cachedCover ?: findCover(folderFiles)?.toString()
             
             if (coverUri == null) {
-                coverUri = generateCover(folder)?.toString()
+                coverUri = generateCover(folder, folderFiles)?.toString()
             }
 
             // Parsing regex untuk pola [BAHASA] [AUTHOR] Judul atau [TIPE] [BAHASA] [AUTHOR] Judul
@@ -88,8 +91,8 @@ class ComicScanner(
                 }
             }
 
-            // Hitung jumlah chapter yang tersedia
-            val chapterCount = folder.listFiles()
+            // Hitung jumlah chapter yang tersedia dari folderFiles yang sudah di-fetch
+            val chapterCount = folderFiles
                 .count { it.isFile && it.name?.lowercase()?.endsWith(".cbz") == true }
             
             Comic(
@@ -132,9 +135,10 @@ class ComicScanner(
 
     /**
      * Automatically generates a cover.jpg from the first chapter's first page.
+     * REVISION HIGH-01 Fix: Reuses pre-fetched folderFiles array.
      */
-    private suspend fun generateCover(folder: DocumentFile): Uri? = withContext(Dispatchers.IO) {
-        val cbzFiles = folder.listFiles()
+    private suspend fun generateCover(folder: DocumentFile, folderFiles: Array<DocumentFile>): Uri? = withContext(Dispatchers.IO) {
+        val cbzFiles = folderFiles
             .filter { it.isFile && it.name?.lowercase()?.endsWith(".cbz") == true }
             .sortedWith { f1, f2 ->
                 naturalOrderComparator.compare(f1.name ?: "", f2.name ?: "")
@@ -149,8 +153,9 @@ class ComicScanner(
                 val firstPage = pages.first()
                 val inputStream = cbzParser.getEntryInputStream(cbzUri, firstPage.entryPath) ?: continue
 
-                // Cek ulang sebelum membuat file untuk menghindari kondisi balapan (race condition)
-                val existingCover = folder.findFile("cover.jpg")
+                // Cek ulang menggunakan folderFiles sebelum membuat file
+                val existingCover = folderFiles.find { it.name?.lowercase() == "cover.jpg" }
+                    ?: folder.findFile("cover.jpg")
                 if (existingCover != null && existingCover.exists()) {
                     return@withContext existingCover.uri
                 }

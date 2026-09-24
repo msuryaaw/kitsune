@@ -44,8 +44,11 @@ class VideoScanner(
             val relativePath = "Videos/$title"
             val currentLastModified = folder.lastModified()
 
+            // REVISION HIGH-01b Fix: Fetch listFiles() ONCE per video folder to eliminate redundant SAF Binder calls
+            val folderFiles = folder.listFiles()
+
             // Check if folder contains at least one valid video file
-            val videoFiles = folder.listFiles().filter { file ->
+            val videoFiles = folderFiles.filter { file ->
                 val ext = file.name?.lowercase()?.substringAfterLast('.', "") ?: ""
                 file.isFile && ext in allowedVideoExtensions
             }
@@ -53,7 +56,7 @@ class VideoScanner(
             if (videoFiles.isEmpty()) return@mapNotNull null
 
             val cachedCover = getExistingCover(relativePath, currentLastModified)
-            val coverUri = cachedCover ?: findCover(folder)?.toString()
+            val coverUri = cachedCover ?: findCover(folderFiles)?.toString()
 
             VideoEntity(
                 title = title,

@@ -26,7 +26,7 @@ import com.kitsune.app.database.entity.*
         VideoEntity::class,
         VideoProgressEntity::class
     ],
-    version = 9,
+    version = 10,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -152,6 +152,16 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_bookmark_comics_comicRelativePath ON bookmark_comics (comicRelativePath)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_playlist_comics_playlistId_comicRelativePath ON playlist_comics (playlistId, comicRelativePath)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_playlist_comics_comicRelativePath ON playlist_comics (comicRelativePath)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_reading_progress_chapterRelativePath ON reading_progress (chapterRelativePath)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_video_progress_episodeRelativePath ON video_progress (episodeRelativePath)")
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -159,7 +169,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "kitsune.db"
                 )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
                 .build()
                 INSTANCE = instance
                 instance

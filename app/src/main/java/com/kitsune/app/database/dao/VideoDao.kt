@@ -85,6 +85,31 @@ interface VideoDao {
     """)
     fun getAllWatchHistory(): Flow<List<VideoProgressEntity>>
 
+    /**
+     * Mendapatkan seluruh riwayat menonton beserta metadata videonya dalam 1 query atomik (JOIN).
+     * REVISION HIGH-02 Fix: Mengeliminasi N+1 query problem pada Watch History.
+     */
+    @Query("""
+        SELECT 
+            p1.id AS id,
+            p1.videoRelativePath AS videoRelativePath,
+            p1.episodeRelativePath AS episodeRelativePath,
+            p1.lastPositionMs AS lastPositionMs,
+            p1.durationMs AS durationMs,
+            p1.lastWatchedAt AS lastWatchedAt,
+            videos.title AS video_title,
+            videos.relativePath AS video_relativePath,
+            videos.coverUri AS video_coverUri,
+            videos.episodeCount AS video_episodeCount,
+            videos.lastModified AS video_lastModified,
+            videos.searchTags AS video_searchTags
+        FROM video_progress p1
+        INNER JOIN videos ON p1.videoRelativePath = videos.relativePath
+        WHERE p1.lastWatchedAt = (SELECT MAX(p2.lastWatchedAt) FROM video_progress p2 WHERE p2.videoRelativePath = p1.videoRelativePath)
+        ORDER BY p1.lastWatchedAt DESC
+    """)
+    fun getFullWatchHistoryWithVideo(): Flow<List<WatchHistoryWithVideo>>
+
     // --- Statistics Queries (Phase 8.3.5) ---
 
     @Query("SELECT COUNT(*) FROM videos")
@@ -105,3 +130,8 @@ interface VideoDao {
     @Query("DELETE FROM video_progress WHERE videoRelativePath NOT IN (SELECT relativePath FROM videos)")
     suspend fun deleteOrphanProgress()
 }
+
+data class WatchHistoryWithVideo(
+    @Embedded val progress: VideoProgressEntity,
+    @Embedded(prefix = "video_") val video: VideoEntity
+)

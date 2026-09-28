@@ -11,7 +11,8 @@ import androidx.room.PrimaryKey
 @Entity(
     tableName = "video_progress",
     indices = [
-        Index(value = ["videoRelativePath", "episodeRelativePath"], unique = true)
+        Index(value = ["videoRelativePath", "episodeRelativePath"], unique = true),
+        Index(value = ["episodeRelativePath"])
     ]
 )
 data class VideoProgressEntity(

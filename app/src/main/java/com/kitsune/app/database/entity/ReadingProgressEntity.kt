@@ -12,7 +12,8 @@ import androidx.room.PrimaryKey
 @Entity(
     tableName = "reading_progress",
     indices = [
-        Index(value = ["comicRelativePath", "chapterRelativePath"], unique = true)
+        Index(value = ["comicRelativePath", "chapterRelativePath"], unique = true),
+        Index(value = ["chapterRelativePath"])
     ]
 )
 data class ReadingProgressEntity(

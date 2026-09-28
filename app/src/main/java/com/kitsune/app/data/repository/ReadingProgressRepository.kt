@@ -9,6 +9,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 
 /**
  * Repository untuk mengelola data progres membaca.
@@ -75,37 +76,27 @@ class ReadingProgressRepository(
     }
 
     /**
-     * Mendapatkan seluruh riwayat membaca yang digabungkan dengan data komik.
+     * Mendapatkan seluruh riwayat membaca yang digabungkan dengan data komik via 1 SQL query JOIN.
+     * REVISION HIGH-02 Fix: Eliminates N+1 query problem on Read History.
      */
-    @OptIn(ExperimentalCoroutinesApi::class)
     fun getFullReadHistory(): Flow<List<LastReadComic>> {
-        return readingProgressDao.getAllReadHistory().flatMapLatest { progressList ->
-            if (progressList.isEmpty()) {
-                flowOf(emptyList())
-            } else {
-                // Map entities to domain model
-                // Note: This could be optimized to use a single query with JOIN in DAO
-                // but we stick to repository pattern mapping for consistency with existing code.
-                val historyFlows = progressList.map { progress ->
-                    val comicEntity = comicDao.getComicByPath(progress.comicRelativePath)
-                    if (comicEntity != null) {
-                        LastReadComic(
-                            comic = Comic(
-                                title = comicEntity.title,
-                                displayTitle = comicEntity.displayTitle,
-                                author = comicEntity.author,
-                                language = comicEntity.language,
-                                type = comicEntity.type,
-                                relativePath = comicEntity.relativePath,
-                                coverUri = comicEntity.coverUri,
-                                lastModified = comicEntity.lastModified,
-                                searchTags = comicEntity.searchTags
-                            ),
-                            progress = progress
-                        )
-                    } else null
-                }.filterNotNull()
-                flowOf(historyFlows)
+        return readingProgressDao.getFullReadHistoryWithComic().map { list ->
+            list.map { item ->
+                LastReadComic(
+                    comic = Comic(
+                        title = item.comic.title,
+                        displayTitle = item.comic.displayTitle,
+                        author = item.comic.author,
+                        language = item.comic.language,
+                        type = item.comic.type,
+                        relativePath = item.comic.relativePath,
+                        coverUri = item.comic.coverUri,
+                        lastModified = item.comic.lastModified,
+                        searchTags = item.comic.searchTags,
+                        chapterCount = item.comic.chapterCount
+                    ),
+                    progress = item.progress
+                )
             }
         }
     }

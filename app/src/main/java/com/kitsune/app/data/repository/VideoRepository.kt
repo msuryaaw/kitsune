@@ -150,32 +150,31 @@ class VideoRepository(
     }
 
     /**
-     * Mendapatkan seluruh riwayat menonton yang digabungkan dengan data video.
+     * Mendapatkan seluruh riwayat menonton yang digabungkan dengan data video via 1 SQL query JOIN.
+     * REVISION HIGH-02 Fix: Eliminates N+1 query problem on Watch History.
      */
-    @OptIn(ExperimentalCoroutinesApi::class)
     fun getFullWatchHistory(): Flow<List<LastWatchedVideo>> {
-        return videoDao.getAllWatchHistory().flatMapLatest { progressList ->
-            if (progressList.isEmpty()) {
-                flowOf(emptyList())
-            } else {
-                val historyList = progressList.map { progress ->
-                    val videoEntity = videoDao.getVideoByPath(progress.videoRelativePath)
-                    if (videoEntity != null) {
-                        val percentage = if (progress.durationMs > 0) {
-                            progress.lastPositionMs.toFloat() / progress.durationMs.toFloat()
-                        } else 0f
+        return videoDao.getFullWatchHistoryWithVideo().map { list ->
+            list.map { item ->
+                val percentage = if (item.progress.durationMs > 0) {
+                    item.progress.lastPositionMs.toFloat() / item.progress.durationMs.toFloat()
+                } else 0f
 
-                        LastWatchedVideo(
-                            video = videoEntity.toDomain(),
-                            episodeRelativePath = progress.episodeRelativePath,
-                            progressPositionMs = progress.lastPositionMs,
-                            durationMs = progress.durationMs,
-                            watchedPercentage = percentage,
-                            lastWatchedAt = progress.lastWatchedAt
-                        )
-                    } else null
-                }.filterNotNull()
-                flowOf(historyList)
+                LastWatchedVideo(
+                    video = Video(
+                        title = item.video.title,
+                        relativePath = item.video.relativePath,
+                        coverUri = item.video.coverUri,
+                        episodeCount = item.video.episodeCount,
+                        lastModified = item.video.lastModified,
+                        searchTags = item.video.searchTags
+                    ),
+                    episodeRelativePath = item.progress.episodeRelativePath,
+                    progressPositionMs = item.progress.lastPositionMs,
+                    durationMs = item.progress.durationMs,
+                    watchedPercentage = percentage,
+                    lastWatchedAt = item.progress.lastWatchedAt
+                )
             }
         }
     }

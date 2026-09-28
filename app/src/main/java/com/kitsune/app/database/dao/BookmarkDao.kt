@@ -10,6 +10,19 @@ interface BookmarkDao {
     @Query("SELECT * FROM bookmarks ORDER BY createdAt DESC")
     fun getAllBookmarks(): Flow<List<BookmarkEntity>>
 
+    /**
+     * Mendapatkan seluruh bookmark beserta jumlah media di dalamnya dalam 1 query atomik (JOIN).
+     * REVISION HIGH-03 Fix: Mengeliminasi N+1 Flow fan-out problem pada Bookmark Count.
+     */
+    @Query("""
+        SELECT bookmarks.*, COUNT(bookmark_comics.id) AS count
+        FROM bookmarks
+        LEFT JOIN bookmark_comics ON bookmarks.id = bookmark_comics.bookmarkId
+        GROUP BY bookmarks.id
+        ORDER BY bookmarks.createdAt DESC
+    """)
+    fun getAllBookmarksWithCount(): Flow<List<BookmarkWithCountEntity>>
+
     @Query("SELECT * FROM bookmarks WHERE id = :id")
     suspend fun getBookmarkById(id: Long): BookmarkEntity?
 
@@ -63,3 +76,8 @@ interface BookmarkDao {
     @Query("DELETE FROM bookmark_comics WHERE comicRelativePath = :comicPath")
     suspend fun removeComicFromAllBookmarks(comicPath: String)
 }
+
+data class BookmarkWithCountEntity(
+    @Embedded val bookmark: BookmarkEntity,
+    val count: Int
+)

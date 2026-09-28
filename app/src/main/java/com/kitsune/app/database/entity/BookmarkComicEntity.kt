@@ -17,7 +17,8 @@ import androidx.room.PrimaryKey
     ],
     indices = [
         Index(value = ["bookmarkId"]),
-        Index(value = ["bookmarkId", "comicRelativePath"], unique = true)
+        Index(value = ["bookmarkId", "comicRelativePath"], unique = true),
+        Index(value = ["comicRelativePath"])
     ]
 )
 data class BookmarkComicEntity(

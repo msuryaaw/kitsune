@@ -18,7 +18,11 @@ import androidx.room.PrimaryKey
             onDelete = ForeignKey.CASCADE
         )
     ],
-    indices = [Index(value = ["playlistId"])]
+    indices = [
+        Index(value = ["playlistId"]),
+        Index(value = ["playlistId", "comicRelativePath"]),
+        Index(value = ["comicRelativePath"])
+    ]
 )
 data class PlaylistComicEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,

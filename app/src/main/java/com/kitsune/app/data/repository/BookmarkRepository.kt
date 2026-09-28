@@ -18,20 +18,16 @@ import kotlinx.coroutines.flow.*
 class BookmarkRepository(private val bookmarkDao: BookmarkDao) {
 
     /**
-     * Mendapatkan semua bookmark beserta jumlah komiknya.
+     * Mendapatkan semua bookmark beserta jumlah media di dalamnya via 1 SQL query JOIN.
+     * REVISION HIGH-03 Fix: Eliminates N+1 Flow fan-out problem on Bookmark Count.
      */
-    @OptIn(ExperimentalCoroutinesApi::class)
     fun getAllBookmarksWithCount(): Flow<List<BookmarkWithCount>> {
-        return bookmarkDao.getAllBookmarks().flatMapLatest { bookmarks ->
-            if (bookmarks.isEmpty()) {
-                flowOf(emptyList())
-            } else {
-                val flows = bookmarks.map { bookmark ->
-                    bookmarkDao.getComicCountInBookmark(bookmark.id).map { count ->
-                        BookmarkWithCount(bookmark, count)
-                    }
-                }
-                combine(flows) { it.toList() }
+        return bookmarkDao.getAllBookmarksWithCount().map { list ->
+            list.map { item ->
+                BookmarkWithCount(
+                    bookmark = item.bookmark,
+                    count = item.count
+                )
             }
         }
     }

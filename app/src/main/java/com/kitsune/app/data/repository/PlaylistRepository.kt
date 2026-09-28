@@ -18,22 +18,16 @@ import kotlinx.coroutines.flow.*
 class PlaylistRepository(private val playlistDao: PlaylistDao) {
 
     /**
-     * Mendapatkan semua playlist beserta jumlah video di dalamnya.
+     * Mendapatkan semua playlist beserta jumlah video di dalamnya via 1 SQL query JOIN.
+     * REVISION HIGH-03 Fix: Eliminates N+1 Flow fan-out problem on Playlist Count.
      */
-    @OptIn(ExperimentalCoroutinesApi::class)
     fun getAllPlaylistsWithCount(): Flow<List<PlaylistWithCount>> {
-        return playlistDao.getAllPlaylists().flatMapLatest { playlists ->
-            if (playlists.isEmpty()) {
-                flowOf(emptyList())
-            } else {
-                val flows = playlists.map { playlist ->
-                    // REVISION 10.1.2: Filter for videos to ensure consistency.
-                    playlistDao.getComicsInPlaylist(playlist.id).map { paths ->
-                        val videoCount = paths.count { it.startsWith("Videos/") }
-                        PlaylistWithCount(playlist, videoCount)
-                    }
-                }
-                combine(flows) { it.toList() }
+        return playlistDao.getAllPlaylistsWithCount().map { list ->
+            list.map { item ->
+                PlaylistWithCount(
+                    playlist = item.playlist,
+                    count = item.count
+                )
             }
         }
     }

@@ -10,6 +10,20 @@ interface PlaylistDao {
     @Query("SELECT * FROM playlists ORDER BY createdAt DESC")
     fun getAllPlaylists(): Flow<List<PlaylistEntity>>
 
+    /**
+     * Mendapatkan seluruh playlist beserta jumlah video di dalamnya dalam 1 query atomik (JOIN).
+     * Filter murni untuk video (path berawalan 'Videos/').
+     * REVISION HIGH-03 Fix: Mengeliminasi N+1 Flow fan-out problem pada Playlist Count.
+     */
+    @Query("""
+        SELECT playlists.*, COUNT(playlist_comics.id) AS count
+        FROM playlists
+        LEFT JOIN playlist_comics ON playlists.id = playlist_comics.playlistId AND playlist_comics.comicRelativePath LIKE 'Videos/%'
+        GROUP BY playlists.id
+        ORDER BY playlists.createdAt DESC
+    """)
+    fun getAllPlaylistsWithCount(): Flow<List<PlaylistWithCountEntity>>
+
     @Query("SELECT * FROM playlists WHERE id = :id")
     suspend fun getPlaylistById(id: Long): PlaylistEntity?
 
@@ -56,3 +70,8 @@ interface PlaylistDao {
     @Query("SELECT MAX(position) FROM playlist_comics WHERE playlistId = :playlistId")
     suspend fun getMaxPosition(playlistId: Long): Int?
 }
+
+data class PlaylistWithCountEntity(
+    @Embedded val playlist: PlaylistEntity,
+    val count: Int
+)

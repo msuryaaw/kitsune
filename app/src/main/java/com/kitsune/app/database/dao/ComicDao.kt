@@ -19,6 +19,15 @@ interface ComicDao {
     @Query("SELECT * FROM comics WHERE relativePath = :path LIMIT 1")
     suspend fun getComicByPath(path: String): ComicEntity?
 
+    @Query("SELECT * FROM comics WHERE relativePath = :path LIMIT 1")
+    fun getComicFlowByPath(path: String): Flow<ComicEntity?>
+
+    /**
+     * Updates the per-comic reading mode override.
+     */
+    @Query("UPDATE comics SET readingMode = :readingMode WHERE relativePath = :relativePath")
+    suspend fun updateReadingMode(relativePath: String, readingMode: String?)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertComics(comics: List<ComicEntity>)
 

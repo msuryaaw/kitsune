@@ -440,7 +440,8 @@ fun ReaderBottomBar(
     ) {
         val currentPage by viewModel.currentPage.collectAsState()
         val uiState by viewModel.uiState.collectAsState()
-        val currentMode = (uiState as? ReaderUiState.Success)?.readingMode ?: "Vertical"
+        val effectiveMode = (uiState as? ReaderUiState.Success)?.readingMode ?: "Vertical"
+        val overrideMode by viewModel.readingModeOverride.collectAsState()
 
         Column(
             modifier = Modifier
@@ -450,7 +451,8 @@ fun ReaderBottomBar(
         ) {
             // REVISION 11.4.2: Reading Mode Selector
             ReadingModeSelector(
-                currentMode = currentMode,
+                effectiveMode = effectiveMode,
+                overrideMode = overrideMode,
                 onModeChange = { viewModel.updateReadingMode(it) }
             )
             
@@ -481,32 +483,42 @@ fun ReaderBottomBar(
 }
 
 /**
- * Komponen terisolasi untuk pemilihan Mode Membaca.
- * REVISION 11.4.3: Added Radio Chips for Reading Mode selection.
+ * Komponen terisolasi untuk pemilihan Mode Membaca dengan dukungan Per-Comic Override.
  */
 @Composable
 private fun ReadingModeSelector(
-    currentMode: String,
+    effectiveMode: String,
+    overrideMode: String?,
     onModeChange: (String) -> Unit
 ) {
-    val modes = listOf("Vertical", "LTR", "RTL")
+    val modes = listOf("Global", "Vertical", "LTR", "RTL")
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = "Mode",
+            text = if (overrideMode == null) "Mode: Global ($effectiveMode)" else "Mode: $overrideMode (Override)",
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             modes.forEach { mode ->
-                val isSelected = mode == currentMode
+                val isSelected = if (mode == "Global") {
+                    overrideMode == null
+                } else {
+                    overrideMode == mode
+                }
+                
                 FilterChip(
                     selected = isSelected,
                     onClick = { onModeChange(mode) },
-                    label = { Text(text = mode, style = MaterialTheme.typography.labelSmall) },
+                    label = { 
+                        Text(
+                            text = if (mode == "Global") "Global" else mode, 
+                            style = MaterialTheme.typography.labelSmall
+                        ) 
+                    },
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
                         selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer

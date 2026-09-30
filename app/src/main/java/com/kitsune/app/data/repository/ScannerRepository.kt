@@ -112,6 +112,33 @@ class ScannerRepository(
     }
 
     /**
+     * Get an observable Flow of a single comic by its relative path.
+     */
+    fun getComicFlowByPath(relativePath: String): Flow<Comic?> {
+        return comicDao.getComicFlowByPath(relativePath).map { entity ->
+            entity?.toDomain()
+        }
+    }
+
+    /**
+     * Updates per-comic reading mode override in metadata.json and Room DB.
+     */
+    suspend fun updateComicReadingMode(rootUri: Uri, comicRelativePath: String, readingMode: String?): Result<Unit> {
+        val validModes = setOf("Vertical", "LTR", "RTL")
+        val validatedMode = if (readingMode != null && validModes.contains(readingMode)) readingMode else null
+
+        val existingMeta = metadataManager.readMetadata(rootUri, comicRelativePath)
+        val updatedMeta = existingMeta.copy(readingMode = validatedMode)
+
+        val result = metadataManager.writeMetadata(rootUri, comicRelativePath, updatedMeta)
+        if (result.isSuccess) {
+            comicDao.updateReadingMode(comicRelativePath, validatedMode)
+            return Result.success(Unit)
+        }
+        return result
+    }
+
+    /**
      * Updates the search index for a specific comic.
      * REVISION 11.1.5: Direct update for tag synchronization.
      */
@@ -214,6 +241,7 @@ class ScannerRepository(
                 val finalAuthor = metadata.author ?: comic.author
                 val finalLanguage = metadata.language ?: comic.language
                 val finalType = metadata.type ?: comic.type
+                val finalReadingMode = metadata.readingMode ?: comic.readingMode
                 
                 val searchTags = if (metadata.tags.isEmpty()) null else metadata.tags.joinToString(" ")
                 
@@ -221,7 +249,8 @@ class ScannerRepository(
                     displayTitle = finalTitle,
                     author = finalAuthor,
                     language = finalLanguage,
-                    type = finalType
+                    type = finalType,
+                    readingMode = finalReadingMode
                 ).toEntity(searchTags)
             } else {
                 // Use cached entity if nothing changed
@@ -298,7 +327,8 @@ class ScannerRepository(
         coverUri = coverUri,
         lastModified = lastModified,
         searchTags = searchTags,
-        chapterCount = chapterCount
+        chapterCount = chapterCount,
+        readingMode = readingMode
     )
 
     private fun Comic.toEntity(searchTags: String?) = ComicEntity(
@@ -311,6 +341,7 @@ class ScannerRepository(
         coverUri = coverUri,
         lastModified = lastModified,
         searchTags = searchTags,
-        chapterCount = chapterCount
+        chapterCount = chapterCount,
+        readingMode = readingMode
     )
 }

@@ -18,5 +18,6 @@ data class Comic(
     val coverUri: String?,
     val lastModified: Long,
     val searchTags: String? = null,
-    val chapterCount: Int = 0
+    val chapterCount: Int = 0,
+    val readingMode: String? = null
 )

@@ -35,6 +35,14 @@ class ReaderViewModel(
     private val _currentPage = MutableStateFlow(1)
     val currentPage: StateFlow<Int> = _currentPage.asStateFlow()
 
+    /**
+     * State flow for observing per-comic reading mode override.
+     */
+    val readingModeOverride: StateFlow<String?> = scannerRepository.getComicFlowByPath(comicRelativePath)
+        .map { it?.readingMode }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
     private var chapters: List<Chapter> = emptyList()
     private var currentChapterIndex: Int = -1
 
@@ -79,7 +87,10 @@ class ReaderViewModel(
             try {
                 val settings = settingsRepository.settings.first()
                 val rootUriString = settings?.rootFolderUri
-                val readingMode = settings?.readingMode ?: "Vertical"
+                val globalReadingMode = settings?.readingMode ?: "Vertical"
+
+                val comic = scannerRepository.getComicByPath(comicRelativePath)
+                val readingMode = comic?.readingMode ?: globalReadingMode
 
                 if (rootUriString.isNullOrEmpty()) {
                     throw Exception("Library not configured")
@@ -164,16 +175,22 @@ class ReaderViewModel(
     }
 
     private fun observeSettings() {
-        settingsRepository.settings
-            .map { it?.readingMode ?: "Vertical" }
-            .distinctUntilChanged()
-            .onEach { mode ->
-                val current = _uiState.value
-                if (current is ReaderUiState.Success && current.readingMode != mode) {
-                    _uiState.value = current.copy(readingMode = mode)
-                }
+        combine(
+            scannerRepository.getComicFlowByPath(comicRelativePath),
+            settingsRepository.settings
+        ) { comic, settings ->
+            val globalMode = settings?.readingMode ?: "Vertical"
+            val effectiveMode = comic?.readingMode ?: globalMode
+            effectiveMode
+        }
+        .distinctUntilChanged()
+        .onEach { mode ->
+            val current = _uiState.value
+            if (current is ReaderUiState.Success && current.readingMode != mode) {
+                _uiState.value = current.copy(readingMode = mode)
             }
-            .launchIn(viewModelScope)
+        }
+        .launchIn(viewModelScope)
     }
 
     /**
@@ -320,11 +337,22 @@ class ReaderViewModel(
     }
 
     /**
-     * Memperbarui mode membaca (Vertical, LTR, RTL) dan menyimpannya ke pengaturan.
+     * Memperbarui mode membaca khusus untuk komik aktif.
+     * Jika mode = "Global", override dihapus (diset ke null) sehingga komik mengikuti pengaturan global.
      */
     fun updateReadingMode(mode: String) {
         viewModelScope.launch {
-            settingsRepository.updateReadingMode(mode)
+            try {
+                val settings = settingsRepository.getSettingsCached()
+                val rootUriString = settings?.rootFolderUri ?: return@launch
+                val rootUri = rootUriString.toUri()
+
+                val targetOverride = if (mode.equals("Global", ignoreCase = true)) null else mode
+
+                scannerRepository.updateComicReadingMode(rootUri, comicRelativePath, targetOverride)
+            } catch (e: Exception) {
+                Log.e("KitsuneReader", "Failed to update comic reading mode: ${e.message}")
+            }
         }
     }
 }

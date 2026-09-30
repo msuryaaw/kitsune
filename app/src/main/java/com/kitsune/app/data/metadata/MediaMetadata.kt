@@ -20,7 +20,8 @@ data class MediaMetadata(
     val title: String? = null,
     val author: String? = null,
     val language: String? = null,
-    val type: String? = null
+    val type: String? = null,
+    val readingMode: String? = null
 ) {
     companion object {
         /**

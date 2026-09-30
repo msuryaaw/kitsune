@@ -3,18 +3,25 @@ package com.kitsune.app.ui.reader
 import android.net.Uri
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.itemsIndexed as gridItemsIndexed
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -23,6 +30,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -50,6 +58,7 @@ fun ReaderScreen(
     
     // OPTIMIZATION: showControls is isolated to control overlays
     var showControls by remember { mutableStateOf(false) }
+    var showJumpSheet by remember { mutableStateOf(false) }
 
     // Stabilize back click
     val currentOnBackClick by rememberUpdatedState(onBackClick)
@@ -92,8 +101,24 @@ fun ReaderScreen(
             visible = showControls,
             uiState = uiState,
             viewModel = viewModel,
-            onBackClick = currentOnBackClick
+            onBackClick = currentOnBackClick,
+            onOpenJumpSheet = { showJumpSheet = true }
         )
+
+        val successState = uiState as? ReaderUiState.Success
+        if (showJumpSheet && successState != null) {
+            val currentPage by viewModel.currentPage.collectAsState()
+            PageJumpBottomSheet(
+                pages = successState.pages,
+                currentPage = currentPage,
+                chapterUri = successState.chapterUri,
+                onPageSelected = { pageNumber ->
+                    viewModel.jumpToPage(pageNumber)
+                    showJumpSheet = false
+                },
+                onDismiss = { showJumpSheet = false }
+            )
+        }
     }
 }
 
@@ -159,7 +184,8 @@ private fun BoxScope.ReaderControlsOverlay(
     visible: Boolean,
     uiState: ReaderUiState,
     viewModel: ReaderViewModel,
-    onBackClick: () -> Unit
+    onBackClick: () -> Unit,
+    onOpenJumpSheet: () -> Unit
 ) {
     val successState = uiState as? ReaderUiState.Success
     val chapterName = successState?.chapterName ?: ""
@@ -207,7 +233,8 @@ private fun BoxScope.ReaderControlsOverlay(
             hasPrev = viewModel.hasPreviousChapter(),
             onPageJump = remember(viewModel) { { viewModel.jumpToPage(it) } },
             onNextChapter = remember(viewModel) { { viewModel.navigateToNextChapter() } },
-            onPrevChapter = remember(viewModel) { { viewModel.navigateToPreviousChapter() } }
+            onPrevChapter = remember(viewModel) { { viewModel.navigateToPreviousChapter() } },
+            onOpenJumpSheet = onOpenJumpSheet
         )
     }
 }
@@ -432,7 +459,8 @@ fun ReaderBottomBar(
     hasPrev: Boolean,
     onPageJump: (Int) -> Unit,
     onNextChapter: () -> Unit,
-    onPrevChapter: () -> Unit
+    onPrevChapter: () -> Unit,
+    onOpenJumpSheet: () -> Unit
 ) {
     Surface(
         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
@@ -459,7 +487,7 @@ fun ReaderBottomBar(
             Spacer(modifier = Modifier.height(8.dp))
 
             // Isolated Page Position UI
-            PagePositionControls(currentPage, totalPages, onPageJump)
+            PagePositionControls(currentPage, totalPages, onPageJump, onOpenJumpSheet)
             
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -532,14 +560,15 @@ private fun ReadingModeSelector(
 }
 
 /**
- * Komponen terisolasi untuk Slider dan Text posisi halaman.
+ * Komponen terisolasi untuk Slider, Text posisi halaman, dan Tombol Grid Thumbnail.
  * Hanya komponen ini yang recompose saat halaman berubah.
  */
 @Composable
 private fun PagePositionControls(
     currentPage: Int,
     totalPages: Int,
-    onPageJump: (Int) -> Unit
+    onPageJump: (Int) -> Unit,
+    onOpenJumpSheet: () -> Unit
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -560,5 +589,177 @@ private fun PagePositionControls(
                 activeTrackColor = MaterialTheme.colorScheme.primary
             )
         )
+        IconButton(onClick = onOpenJumpSheet) {
+            Icon(
+                imageVector = Icons.Default.GridView,
+                contentDescription = "Page Grid",
+                tint = MaterialTheme.colorScheme.onSurface
+            )
+        }
+    }
+}
+
+/**
+ * ModalBottomSheet untuk menampilkan grid thumbnail seluruh halaman chapter.
+ * Menggunakan LazyVerticalGrid dengan downsampling Coil untuk efisiensi memori.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PageJumpBottomSheet(
+    pages: List<com.kitsune.app.domain.model.Page>,
+    currentPage: Int,
+    chapterUri: Uri,
+    onPageSelected: (Int) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+    val gridState = rememberLazyGridState(
+        initialFirstVisibleItemIndex = (currentPage - 1).coerceAtLeast(0)
+    )
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surface,
+        contentColor = MaterialTheme.colorScheme.onSurface
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 16.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Jump to Page",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "$currentPage / ${pages.size}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(4),
+                state = gridState,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 420.dp)
+            ) {
+                gridItemsIndexed(
+                    items = pages,
+                    key = { _, page -> page.entryPath }
+                ) { index, page ->
+                    val pageNumber = index + 1
+                    val isCurrent = pageNumber == currentPage
+
+                    PageThumbnailItem(
+                        pageNumber = pageNumber,
+                        chapterUri = chapterUri,
+                        entryPath = page.entryPath,
+                        isCurrent = isCurrent,
+                        onClick = { onPageSelected(pageNumber) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Item tunggal thumbnail halaman dalam LazyVerticalGrid.
+ * Mengirimkan ImageRequest dengan ukuran target downsampled ke Coil.
+ */
+@Composable
+fun PageThumbnailItem(
+    pageNumber: Int,
+    chapterUri: Uri,
+    entryPath: String,
+    isCurrent: Boolean,
+    onClick: () -> Unit
+) {
+    val context = LocalContext.current
+    val thumbnailRequest = remember(chapterUri, entryPath) {
+        ImageRequest.Builder(context)
+            .data(CbzPageModel(chapterUri, entryPath))
+            .size(120, 168) // Downsample target size for RAM protection
+            .crossfade(true)
+            .precision(coil.size.Precision.INEXACT)
+            .allowHardware(false)
+            .build()
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .aspectRatio(5f / 7f)
+            .clickable { onClick() }
+            .then(
+                if (isCurrent) {
+                    Modifier.border(
+                        width = 2.dp,
+                        color = MaterialTheme.colorScheme.primary,
+                        shape = RoundedCornerShape(8.dp)
+                    )
+                } else Modifier
+            ),
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isCurrent) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            AsyncImage(
+                model = thumbnailRequest,
+                contentDescription = "Page $pageNumber",
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+
+            // Page Number Badge
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(4.dp),
+                color = Color.Black.copy(alpha = 0.7f),
+                shape = RoundedCornerShape(4.dp)
+            ) {
+                Text(
+                    text = "$pageNumber",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White,
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                )
+            }
+
+            if (isCurrent) {
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(4.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                    shape = RoundedCornerShape(4.dp)
+                ) {
+                    Text(
+                        text = "CURRENT",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                    )
+                }
+            }
+        }
     }
 }

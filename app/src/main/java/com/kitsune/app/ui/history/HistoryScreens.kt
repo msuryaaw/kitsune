@@ -12,12 +12,14 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.kitsune.app.core.HistoryTimeGroup
 import com.kitsune.app.domain.model.LastReadComic
 import com.kitsune.app.domain.model.LastWatchedVideo
-import com.kitsune.app.ui.library.EmptyLibraryState
 import com.kitsune.app.ui.components.media.ContinueWatchingCard
 import com.kitsune.app.ui.components.media.LastReadCard
+import com.kitsune.app.ui.library.EmptyLibraryState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,14 +70,26 @@ fun ReadHistoryScreen(
                             contentPadding = PaddingValues(16.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            items(
-                                items = state.history,
-                                key = { it.comic.relativePath }
-                            ) { item ->
-                                LastReadCard(
-                                    lastRead = item,
-                                    onClick = { onContinueReading(item) }
-                                )
+                            state.groupedHistory.forEach { (group, items) ->
+                                item(key = "header_read_${group.name}") {
+                                    Text(
+                                        text = group.label,
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+                                    )
+                                }
+                                items(
+                                    items = items,
+                                    key = { "item_read_${it.comic.relativePath}" }
+                                ) { item ->
+                                    LastReadCard(
+                                        lastRead = item,
+                                        onClick = { onContinueReading(item) },
+                                        onDelete = { viewModel.deleteReadHistory(item.comic.relativePath) }
+                                    )
+                                }
                             }
                         }
                     }
@@ -134,14 +148,26 @@ fun WatchHistoryScreen(
                             contentPadding = PaddingValues(16.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            items(
-                                items = state.history,
-                                key = { it.video.relativePath }
-                            ) { item ->
-                                ContinueWatchingCard(
-                                    lastWatched = item,
-                                    onClick = { onContinueWatching(item) }
-                                )
+                            state.groupedHistory.forEach { (group, items) ->
+                                item(key = "header_watch_${group.name}") {
+                                    Text(
+                                        text = group.label,
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+                                    )
+                                }
+                                items(
+                                    items = items,
+                                    key = { "item_watch_${it.video.relativePath}" }
+                                ) { item ->
+                                    ContinueWatchingCard(
+                                        lastWatched = item,
+                                        onClick = { onContinueWatching(item) },
+                                        onDelete = { viewModel.deleteWatchHistory(item.video.relativePath) }
+                                    )
+                                }
                             }
                         }
                     }

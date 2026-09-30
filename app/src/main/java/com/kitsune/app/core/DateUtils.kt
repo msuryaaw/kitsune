@@ -50,4 +50,45 @@ object DateUtils {
             String.format(Locale.getDefault(), "%02d:%02d", remainingMinutes, seconds)
         }
     }
+
+    /**
+     * Mengelompokkan timestamp (milidetik) ke dalam kategori kelompok waktu kalender lokal (TASK-05).
+     */
+    fun getHistoryTimeGroup(timestamp: Long): HistoryTimeGroup {
+        if (timestamp <= 0) return HistoryTimeGroup.OLDER
+
+        val startOfToday = java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.HOUR_OF_DAY, 0)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }.timeInMillis
+
+        val startOfYesterday = startOfToday - (24 * 60 * 60 * 1000L)
+
+        val startOfThisWeek = java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.DAY_OF_WEEK, firstDayOfWeek)
+            set(java.util.Calendar.HOUR_OF_DAY, 0)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }.timeInMillis
+
+        return when {
+            timestamp >= startOfToday -> HistoryTimeGroup.TODAY
+            timestamp >= startOfYesterday -> HistoryTimeGroup.YESTERDAY
+            timestamp >= startOfThisWeek -> HistoryTimeGroup.THIS_WEEK
+            else -> HistoryTimeGroup.OLDER
+        }
+    }
+}
+
+/**
+ * Enum kelompok waktu untuk pengelompokan riwayat membaca/menonton (TASK-05).
+ */
+enum class HistoryTimeGroup(val label: String) {
+    TODAY("Hari Ini"),
+    YESTERDAY("Kemarin"),
+    THIS_WEEK("Minggu Ini"),
+    OLDER("Lebih Lama")
 }

@@ -3,6 +3,7 @@ package com.kitsune.app.ui.library
 import androidx.core.net.toUri
 import androidx.lifecycle.viewModelScope
 import com.kitsune.app.core.SearchUtils
+import com.kitsune.app.data.metadata.MetadataManager
 import com.kitsune.app.data.repository.BookmarkRepository
 import com.kitsune.app.data.repository.ReadingProgressRepository
 import com.kitsune.app.data.repository.ScannerRepository
@@ -10,6 +11,8 @@ import com.kitsune.app.data.repository.SettingsRepository
 import com.kitsune.app.domain.model.Comic
 import com.kitsune.app.database.entity.BookmarkEntity
 import com.kitsune.app.ui.library.base.BaseLibraryViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -28,7 +31,8 @@ class LibraryViewModel(
     scannerRepository: ScannerRepository,
     private val settingsRepository: SettingsRepository,
     private val bookmarkRepository: BookmarkRepository,
-    private val progressRepository: ReadingProgressRepository
+    private val progressRepository: ReadingProgressRepository,
+    private val metadataManager: MetadataManager
 ) : BaseLibraryViewModel(scannerRepository) {
 
     private val _errorMessage = MutableStateFlow<String?>(null)
@@ -252,6 +256,81 @@ class LibraryViewModel(
             bookmarkRepository.addComicsToBookmarks(bookmarkIds, paths)
             _snackbarMessage.emit("Added ${paths.size} comics to ${bookmarkIds.size} bookmarks.")
             clearSelection()
+        }
+    }
+
+    /**
+     * Adds tag(s) to all currently selected comics in Selection Mode (TASK-04).
+     * Parses comma-separated input, normalizes tags, updates metadata.json atomically on Dispatchers.IO,
+     * updates Room searchTags cache upon filesystem success, and handles cancellation gracefully.
+     */
+    fun addTagsToSelectedComics(rawTagInput: String) {
+        val paths = _selectedPaths.value.toList()
+        if (paths.isEmpty()) return
+
+        val newTagsToProcess = rawTagInput.split(",")
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .distinctBy { it.lowercase() }
+
+        if (newTagsToProcess.isEmpty()) return
+
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val settings = settingsRepository.getSettingsCached()
+                val rootUriString = settings?.rootFolderUri
+                if (rootUriString.isNullOrEmpty()) {
+                    _snackbarMessage.emit("Root folder not configured")
+                    return@launch
+                }
+                val rootUri = rootUriString.toUri()
+
+                var successCount = 0
+                var failureCount = 0
+
+                paths.forEach { path ->
+                    ensureActive()
+
+                    try {
+                        val existingMeta = metadataManager.readMetadata(rootUri, path)
+
+                        val existingTagLowerSet = existingMeta.tags.map { it.lowercase() }.toSet()
+                        val tagsToAdd = newTagsToProcess.filter { it.lowercase() !in existingTagLowerSet }
+
+                        if (tagsToAdd.isNotEmpty()) {
+                            val mergedTags = (existingMeta.tags + tagsToAdd).sortedBy { it.lowercase() }
+                            val updatedMeta = existingMeta.copy(tags = mergedTags)
+
+                            val result = metadataManager.writeMetadata(rootUri, path, updatedMeta)
+                            if (result.isSuccess) {
+                                scannerRepository.updateComicSearchTags(path, mergedTags)
+                                successCount++
+                            } else {
+                                failureCount++
+                            }
+                        } else {
+                            successCount++
+                        }
+                    } catch (e: Exception) {
+                        if (e is kotlinx.coroutines.CancellationException) throw e
+                        failureCount++
+                    }
+                }
+
+                ensureActive()
+
+                val message = when {
+                    failureCount == 0 -> "Added tags to $successCount comics"
+                    successCount > 0 -> "Added tags to $successCount of ${paths.size} comics ($failureCount failed)"
+                    else -> "Failed to add tags to selected comics"
+                }
+
+                _snackbarMessage.emit(message)
+                clearSelection()
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                _snackbarMessage.emit("Bulk tagging failed: ${e.message}")
+            }
         }
     }
 

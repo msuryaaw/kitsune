@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BookmarkAdd
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material.icons.filled.SortByAlpha
@@ -38,6 +39,7 @@ fun ComicLibraryScreen(
     
     // Picker Visibility
     var showBookmarkPicker by remember { mutableStateOf(false) }
+    var showBulkTagDialog by remember { mutableStateOf(false) }
     
     // Create Category Visibility
     var showCreateBookmarkDialog by remember { mutableStateOf(false) }
@@ -62,6 +64,11 @@ fun ComicLibraryScreen(
     // OPTIMIZATION: Remember selection actions
     val selectionActions = remember {
         listOf(
+            SelectionAction(
+                icon = Icons.Default.Edit,
+                label = "Add Tags",
+                onClick = { showBulkTagDialog = true }
+            ),
             SelectionAction(
                 icon = Icons.Default.BookmarkAdd,
                 label = "Add to Bookmark",
@@ -213,6 +220,66 @@ fun ComicLibraryScreen(
             onDismiss = { showCreateBookmarkDialog = false }
         )
     }
+
+    if (showBulkTagDialog) {
+        BulkTagInputDialog(
+            onConfirm = { tagInput ->
+                viewModel.addTagsToSelectedComics(tagInput)
+                showBulkTagDialog = false
+            },
+            onDismiss = { showBulkTagDialog = false }
+        )
+    }
+}
+
+/**
+ * Dialog for entering tags to add to selected comics in Bulk Mode (TASK-04).
+ */
+@Composable
+fun BulkTagInputDialog(
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var text by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add Tags to Selected Comics") },
+        text = {
+            Column {
+                Text(
+                    text = "Enter tag(s) separated by comma (e.g. Action, Romance, Fantasy):",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+                TextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    placeholder = { Text("Action, Fantasy") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    if (text.isNotBlank()) {
+                        onConfirm(text)
+                    }
+                },
+                enabled = text.isNotBlank()
+            ) {
+                Text("Add")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }
 
 /**

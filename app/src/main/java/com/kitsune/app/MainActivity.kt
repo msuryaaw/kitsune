@@ -100,7 +100,8 @@ class MainActivity : ComponentActivity() {
             scannerRepository, 
             settingsRepository, 
             bookmarkRepository,
-            progressRepository
+            progressRepository,
+            metadataManager
         )
 
         enableEdgeToEdge()

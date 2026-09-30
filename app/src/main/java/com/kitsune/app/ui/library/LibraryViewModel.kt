@@ -4,6 +4,7 @@ import androidx.core.net.toUri
 import androidx.lifecycle.viewModelScope
 import com.kitsune.app.core.SearchUtils
 import com.kitsune.app.data.repository.BookmarkRepository
+import com.kitsune.app.data.repository.ReadingProgressRepository
 import com.kitsune.app.data.repository.ScannerRepository
 import com.kitsune.app.data.repository.SettingsRepository
 import com.kitsune.app.domain.model.Comic
@@ -12,6 +13,13 @@ import com.kitsune.app.ui.library.base.BaseLibraryViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
+enum class ComicStatusFilter(val label: String) {
+    ALL("All"),
+    UNREAD("Unread"),
+    IN_PROGRESS("In Progress"),
+    FINISHED("Finished")
+}
+
 /**
  * ViewModel untuk mengelola data pada layar Library Komik.
  * Menangani sinkronisasi antara Database dan Filesystem serta logika pencarian dan seleksi massal.
@@ -19,13 +27,62 @@ import kotlinx.coroutines.launch
 class LibraryViewModel(
     scannerRepository: ScannerRepository,
     private val settingsRepository: SettingsRepository,
-    private val bookmarkRepository: BookmarkRepository
+    private val bookmarkRepository: BookmarkRepository,
+    private val progressRepository: ReadingProgressRepository
 ) : BaseLibraryViewModel(scannerRepository) {
 
     private val _errorMessage = MutableStateFlow<String?>(null)
 
     private val _sortOrder = MutableStateFlow(ComicSortOrder.TITLE_ASC)
     val sortOrder: StateFlow<ComicSortOrder> = _sortOrder.asStateFlow()
+
+    // --- Interactive Filter States (TASK-03) ---
+
+    private val _selectedStatusFilter = MutableStateFlow(ComicStatusFilter.ALL)
+    val selectedStatusFilter: StateFlow<ComicStatusFilter> = _selectedStatusFilter.asStateFlow()
+
+    private val _selectedTypeFilter = MutableStateFlow<String?>(null)
+    val selectedTypeFilter: StateFlow<String?> = _selectedTypeFilter.asStateFlow()
+
+    private val _selectedTagFilter = MutableStateFlow<String?>(null)
+    val selectedTagFilter: StateFlow<String?> = _selectedTagFilter.asStateFlow()
+
+    fun setStatusFilter(filter: ComicStatusFilter) {
+        _selectedStatusFilter.value = filter
+    }
+
+    fun setTypeFilter(type: String?) {
+        _selectedTypeFilter.value = if (_selectedTypeFilter.value.equals(type, ignoreCase = true)) null else type
+    }
+
+    fun setTagFilter(tag: String?) {
+        _selectedTagFilter.value = if (_selectedTagFilter.value.equals(tag, ignoreCase = true)) null else tag
+    }
+
+    fun clearFilters() {
+        _selectedStatusFilter.value = ComicStatusFilter.ALL
+        _selectedTypeFilter.value = null
+        _selectedTagFilter.value = null
+    }
+
+    /**
+     * Dynamically extracted top popular tags from existing comics' searchTags in memory.
+     */
+    val popularTags: StateFlow<List<String>> = scannerRepository.allComics
+        .map { comics ->
+            comics.mapNotNull { it.searchTags }
+                .flatMap { it.split(" ") }
+                .map { it.trim() }
+                .filter { it.isNotBlank() }
+                .groupingBy { it.lowercase() }
+                .eachCount()
+                .entries
+                .sortedByDescending { it.value }
+                .take(8)
+                .map { it.key }
+        }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     /**
      * Observable set of bookmarked paths.
@@ -43,22 +100,39 @@ class LibraryViewModel(
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    data class ComicFilterState(
+        val query: String,
+        val order: ComicSortOrder,
+        val status: ComicStatusFilter,
+        val type: String?,
+        val tag: String?
+    )
+
+    private val filterState = combine(
+        debouncedSearchQuery,
+        _sortOrder,
+        _selectedStatusFilter,
+        _selectedTypeFilter,
+        _selectedTagFilter
+    ) { query, order, status, type, tag ->
+        ComicFilterState(query, order, status, type, tag)
+    }.distinctUntilChanged()
+
     /**
      * Tahap 1: Pemfilteran & Pengurutan.
-     * Melakukan pencarian berdasarkan judul bersih, penulis, bahasa, dan tag.
-     * REVISION Masalah 3: Menggunakan Multi-token AND Search.
+     * Melakukan pencarian berdasarkan judul bersih, penulis, bahasa, tag, serta filter interaktif (TASK-03).
      */
     private val filteredComics = combine(
         scannerRepository.allComics,
-        debouncedSearchQuery,
-        _sortOrder
-    ) { comics, query, order ->
-        val filtered = if (query.isBlank()) {
+        filterState,
+        progressRepository.getFullReadHistory()
+    ) { comics, filter, history ->
+        var list = if (filter.query.isBlank()) {
             comics
         } else {
             comics.filter { comic ->
                 SearchUtils.matches(
-                    query = query,
+                    query = filter.query,
                     searchableFields = listOf(
                         comic.displayTitle,
                         comic.author,
@@ -70,12 +144,43 @@ class LibraryViewModel(
             }
         }
 
-        when (order) {
-            ComicSortOrder.TITLE_ASC -> filtered.sortedBy { it.displayTitle.lowercase() }
-            ComicSortOrder.TITLE_DESC -> filtered.sortedByDescending { it.displayTitle.lowercase() }
-            ComicSortOrder.AUTHOR_ASC -> filtered.sortedBy { (it.author ?: "").lowercase() }
-            ComicSortOrder.AUTHOR_DESC -> filtered.sortedByDescending { (it.author ?: "").lowercase() }
-            ComicSortOrder.DATE_ADDED_DESC -> filtered.sortedByDescending { it.lastModified }
+        if (filter.type != null) {
+            list = list.filter { comic ->
+                comic.type?.equals(filter.type, ignoreCase = true) == true
+            }
+        }
+
+        if (filter.tag != null) {
+            list = list.filter { comic ->
+                comic.searchTags?.contains(filter.tag, ignoreCase = true) == true
+            }
+        }
+
+        if (filter.status != ComicStatusFilter.ALL) {
+            val historyMap = history.associateBy { it.comic.relativePath }
+            list = list.filter { comic ->
+                val lastRead = historyMap[comic.relativePath]
+                when (filter.status) {
+                    ComicStatusFilter.UNREAD -> lastRead == null
+                    ComicStatusFilter.IN_PROGRESS -> {
+                        val progress = lastRead?.progress
+                        progress != null && progress.pageNumber < progress.totalPages
+                    }
+                    ComicStatusFilter.FINISHED -> {
+                        val progress = lastRead?.progress
+                        progress != null && progress.pageNumber >= progress.totalPages
+                    }
+                    ComicStatusFilter.ALL -> true
+                }
+            }
+        }
+
+        when (filter.order) {
+            ComicSortOrder.TITLE_ASC -> list.sortedBy { it.displayTitle.lowercase() }
+            ComicSortOrder.TITLE_DESC -> list.sortedByDescending { it.displayTitle.lowercase() }
+            ComicSortOrder.AUTHOR_ASC -> list.sortedBy { (it.author ?: "").lowercase() }
+            ComicSortOrder.AUTHOR_DESC -> list.sortedByDescending { (it.author ?: "").lowercase() }
+            ComicSortOrder.DATE_ADDED_DESC -> list.sortedByDescending { it.lastModified }
         }
     }.distinctUntilChanged()
 

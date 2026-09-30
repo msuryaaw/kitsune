@@ -99,7 +99,8 @@ class MainActivity : ComponentActivity() {
         val libraryViewModelInstance = LibraryViewModel(
             scannerRepository, 
             settingsRepository, 
-            bookmarkRepository
+            bookmarkRepository,
+            progressRepository
         )
 
         enableEdgeToEdge()

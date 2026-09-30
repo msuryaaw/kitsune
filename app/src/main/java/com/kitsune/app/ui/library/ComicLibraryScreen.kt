@@ -1,6 +1,8 @@
 package com.kitsune.app.ui.library
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BookmarkAdd
 import androidx.compose.material.icons.filled.Check
@@ -68,6 +70,11 @@ fun ComicLibraryScreen(
         )
     }
 
+    val selectedStatus by viewModel.selectedStatusFilter.collectAsState()
+    val selectedType by viewModel.selectedTypeFilter.collectAsState()
+    val selectedTag by viewModel.selectedTagFilter.collectAsState()
+    val popularTags by viewModel.popularTags.collectAsState()
+
     MediaLibraryScaffold(
         title = "Comic Library",
         searchQuery = searchQuery,
@@ -116,45 +123,60 @@ fun ComicLibraryScreen(
             }
         } else null
     ) {
-        when (val state = uiState) {
-            is LibraryUiState.Loading -> {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-            }
-            is LibraryUiState.Empty -> {
-                EmptyLibraryState(
-                    message = if (searchQuery.isNotEmpty()) "No results for \"$searchQuery\"" else "No Comics Found",
-                    icon = Icons.Default.SearchOff
-                )
-            }
-            is LibraryUiState.Error -> {
-                Column(
-                    modifier = Modifier.align(Alignment.Center),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(text = state.message, color = MaterialTheme.colorScheme.error)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Button(onClick = { viewModel.refreshLibrary() }) {
-                        Text("Retry")
+        Column(modifier = Modifier.fillMaxSize()) {
+            FilterChipsRow(
+                selectedStatus = selectedStatus,
+                selectedType = selectedType,
+                selectedTag = selectedTag,
+                popularTags = popularTags,
+                onStatusSelected = viewModel::setStatusFilter,
+                onTypeSelected = viewModel::setTypeFilter,
+                onTagSelected = viewModel::setTagFilter
+            )
+
+            Box(modifier = Modifier.weight(1f)) {
+                when (val state = uiState) {
+                    is LibraryUiState.Loading -> {
+                        CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                    }
+                    is LibraryUiState.Empty -> {
+                        val isFiltered = searchQuery.isNotEmpty() || selectedStatus != ComicStatusFilter.ALL || selectedType != null || selectedTag != null
+                        EmptyLibraryState(
+                            message = if (isFiltered) "No results matching selected filters" else "No Comics Found",
+                            icon = Icons.Default.SearchOff
+                        )
+                    }
+                    is LibraryUiState.Error -> {
+                        Column(
+                            modifier = Modifier.align(Alignment.Center),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(text = state.message, color = MaterialTheme.colorScheme.error)
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Button(onClick = { viewModel.refreshLibrary() }) {
+                                Text("Retry")
+                            }
+                        }
+                    }
+                    is LibraryUiState.Success -> {
+                        ComicGrid(
+                            comics = state.comics,
+                            gridSize = state.gridSize,
+                            comicStatuses = state.comicStatuses,
+                            selectedPaths = selectedPaths,
+                            onComicClick = { comic ->
+                                if (selectionMode) {
+                                    viewModel.toggleSelection(comic.relativePath)
+                                } else {
+                                    onComicClick(comic)
+                                }
+                            },
+                            onComicLongClick = { comic ->
+                                viewModel.toggleSelection(comic.relativePath)
+                            }
+                        )
                     }
                 }
-            }
-            is LibraryUiState.Success -> {
-                ComicGrid(
-                    comics = state.comics,
-                    gridSize = state.gridSize,
-                    comicStatuses = state.comicStatuses,
-                    selectedPaths = selectedPaths,
-                    onComicClick = { comic ->
-                        if (selectionMode) {
-                            viewModel.toggleSelection(comic.relativePath)
-                        } else {
-                            onComicClick(comic)
-                        }
-                    },
-                    onComicLongClick = { comic ->
-                        viewModel.toggleSelection(comic.relativePath)
-                    }
-                )
             }
         }
     }
@@ -190,5 +212,99 @@ fun ComicLibraryScreen(
             },
             onDismiss = { showCreateBookmarkDialog = false }
         )
+    }
+}
+
+/**
+ * Interactive Filter Chips Row for Comic Library (TASK-03).
+ */
+@Composable
+fun FilterChipsRow(
+    selectedStatus: ComicStatusFilter,
+    selectedType: String?,
+    selectedTag: String?,
+    popularTags: List<String>,
+    onStatusSelected: (ComicStatusFilter) -> Unit,
+    onTypeSelected: (String?) -> Unit,
+    onTagSelected: (String?) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    LazyRow(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        contentPadding = PaddingValues(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Status Filter Chips
+        items(ComicStatusFilter.entries.toTypedArray()) { status ->
+            val isSelected = selectedStatus == status
+            FilterChip(
+                selected = isSelected,
+                onClick = { onStatusSelected(status) },
+                label = { Text(status.label, style = MaterialTheme.typography.labelSmall) },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                ),
+                border = null,
+                modifier = Modifier.height(32.dp)
+            )
+        }
+
+        // Divider
+        item {
+            VerticalDivider(
+                modifier = Modifier
+                    .height(20.dp)
+                    .padding(horizontal = 4.dp),
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
+        }
+
+        // Type Filter Chips
+        val types = listOf("Manga", "Manhwa", "Manhua")
+        items(types.toTypedArray()) { type ->
+            val isSelected = selectedType?.equals(type, ignoreCase = true) == true
+            FilterChip(
+                selected = isSelected,
+                onClick = { onTypeSelected(type) },
+                label = { Text(type, style = MaterialTheme.typography.labelSmall) },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer
+                ),
+                border = null,
+                modifier = Modifier.height(32.dp)
+            )
+        }
+
+        // Popular Tags Chips (If available)
+        if (popularTags.isNotEmpty()) {
+            item {
+                VerticalDivider(
+                    modifier = Modifier
+                        .height(20.dp)
+                        .padding(horizontal = 4.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant
+                )
+            }
+
+            items(popularTags.toTypedArray()) { tag ->
+                val isSelected = selectedTag?.equals(tag, ignoreCase = true) == true
+                FilterChip(
+                    selected = isSelected,
+                    onClick = { onTagSelected(tag) },
+                    label = { Text("#$tag", style = MaterialTheme.typography.labelSmall) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                        selectedLabelColor = MaterialTheme.colorScheme.onTertiaryContainer
+                    ),
+                    border = null,
+                    modifier = Modifier.height(32.dp)
+                )
+            }
+        }
     }
 }

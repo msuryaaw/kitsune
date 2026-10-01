@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kitsune.app.data.repository.*
 import com.kitsune.app.database.entity.SettingsEntity
+import com.kitsune.app.domain.model.ScanSummary
 import com.kitsune.app.domain.model.VideoStatistics
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -25,6 +26,11 @@ class SettingsViewModel(
 
     private val _uiState = MutableStateFlow<SettingsUiState>(SettingsUiState.Loading)
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
+
+    /**
+     * Event stream for scan summary results (TASK-06).
+     */
+    val scanSummaryEvent: SharedFlow<ScanSummary> = scannerRepository.scanSummaryResult
 
     /**
      * REVISION 11.2.8: Connected to Global Scanning State via ScannerRepository.

@@ -22,6 +22,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.kitsune.app.core.StorageHelper
 import com.kitsune.app.database.entity.SettingsEntity
+import com.kitsune.app.domain.model.ScanStatus
+import com.kitsune.app.domain.model.ScanSummary
 import com.kitsune.app.domain.model.VideoStatistics
 import kotlinx.coroutines.flow.collectLatest
 
@@ -48,10 +50,25 @@ fun OtherScreen(
     var showThemeDialog by remember { mutableStateOf(false) }
     var showClearHistoryDialog by remember { mutableStateOf(false) }
     var showClearWatchingHistoryDialog by remember { mutableStateOf(false) }
+    var scanSummaryDialogData by remember { mutableStateOf<ScanSummary?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.snackbarMessage.collectLatest { message ->
             snackbarHostState.showSnackbar(message)
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.scanSummaryEvent.collectLatest { summary ->
+            if (summary.hasChanges) {
+                scanSummaryDialogData = summary
+            } else if (summary.status == ScanStatus.SUCCESS) {
+                snackbarHostState.showSnackbar("Library is up to date.")
+            } else if (summary.status == ScanStatus.PARTIAL) {
+                snackbarHostState.showSnackbar("Scan partially completed: ${summary.errorMessage ?: ""}")
+            } else if (summary.status == ScanStatus.FAILED) {
+                snackbarHostState.showSnackbar("Scan failed: ${summary.errorMessage ?: "Unknown error"}")
+            }
         }
     }
 
@@ -164,6 +181,13 @@ fun OtherScreen(
                                 showClearWatchingHistoryDialog = false
                             },
                             onDismiss = { showClearWatchingHistoryDialog = false }
+                        )
+                    }
+
+                    if (scanSummaryDialogData != null) {
+                        ScanSummaryDialog(
+                            summary = scanSummaryDialogData!!,
+                            onDismiss = { scanSummaryDialogData = null }
                         )
                     }
                 }
@@ -522,6 +546,74 @@ fun ClearWatchingHistoryDialog(
         dismissButton = {
             TextButton(onClick = onDismiss) {
                 Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+fun ScanSummaryDialog(
+    summary: ScanSummary,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.CheckCircle,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = if (summary.status == ScanStatus.PARTIAL) "Scan Partially Completed" else "Scan Completed",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = "Comics",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                StatRow(label = "New", value = "+${summary.comicMetrics.newCount}")
+                StatRow(label = "Updated", value = "+${summary.comicMetrics.updatedCount}")
+                StatRow(label = "Deleted", value = "-${summary.comicMetrics.deletedCount}")
+
+                Spacer(modifier = Modifier.height(12.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = "Videos",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                StatRow(label = "New", value = "+${summary.videoMetrics.newCount}")
+                StatRow(label = "Updated", value = "+${summary.videoMetrics.updatedCount}")
+                StatRow(label = "Deleted", value = "-${summary.videoMetrics.deletedCount}")
+
+                if (summary.errorMessage != null) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "Note: ${summary.errorMessage}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("OK")
             }
         }
     )

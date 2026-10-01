@@ -13,12 +13,18 @@ import com.kitsune.app.database.entity.VideoEntity
 import com.kitsune.app.domain.model.Chapter
 import com.kitsune.app.domain.model.Comic
 import com.kitsune.app.domain.model.Episode
+import com.kitsune.app.domain.model.MediaScanMetrics
+import com.kitsune.app.domain.model.ScanStatus
+import com.kitsune.app.domain.model.ScanSummary
 import com.kitsune.app.scanner.ComicScanner
 import com.kitsune.app.scanner.ScannerCoordinator
 import com.kitsune.app.scanner.VideoScanner
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.withLock
@@ -46,6 +52,12 @@ class ScannerRepository(
      * Active request lock to prevent overlapping calls from ViewModel.
      */
     private val scanMutex = kotlinx.coroutines.sync.Mutex()
+
+    /**
+     * Single-delivery event flow for detailed scan summary (TASK-06).
+     */
+    private val _scanSummaryResult = MutableSharedFlow<ScanSummary>()
+    val scanSummaryResult: SharedFlow<ScanSummary> = _scanSummaryResult.asSharedFlow()
 
     /**
      * Listener to notify other components that scanning is about to start.
@@ -171,22 +183,63 @@ class ScannerRepository(
 
     /**
      * Performs a full incremental scan for both Comics and Videos.
-     * REVISION Masalah 1: Removed cooldown. Manual scan is always allowed when requested.
+     * Captures MediaScanMetrics for Comics and Videos and emits a detailed ScanSummary.
      */
     suspend fun performIncrementalScan(rootUri: Uri) {
         if (scanMutex.isLocked) return
         
         scanMutex.withLock {
             onScanStarted?.invoke()
+            var comicMetrics = MediaScanMetrics()
+            var videoMetrics = MediaScanMetrics()
+            var comicSuccess = false
+            var videoSuccess = false
+            var scanErrorMessage: String? = null
+
             try {
-                coordinator.fullScan(
-                    rootUri = rootUri,
-                    comicAction = { uri -> scanComicsIncremental(uri) },
-                    videoAction = { uri -> scanVideosIncremental(uri) }
+                try {
+                    coordinator.performComicScan(rootUri) { uri ->
+                        comicMetrics = scanComicsIncremental(uri)
+                        comicSuccess = true
+                    }
+                } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    scanErrorMessage = "Comic scan error: ${e.message}"
+                }
+
+                try {
+                    coordinator.performVideoScan(rootUri) { uri ->
+                        videoMetrics = scanVideosIncremental(uri)
+                        videoSuccess = true
+                    }
+                } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    if (scanErrorMessage == null) {
+                        scanErrorMessage = "Video scan error: ${e.message}"
+                    } else {
+                        scanErrorMessage += " | Video scan error: ${e.message}"
+                    }
+                }
+
+                val status = when {
+                    comicSuccess && videoSuccess -> ScanStatus.SUCCESS
+                    comicSuccess || videoSuccess -> ScanStatus.PARTIAL
+                    else -> ScanStatus.FAILED
+                }
+
+                val summary = ScanSummary(
+                    comicMetrics = comicMetrics,
+                    videoMetrics = videoMetrics,
+                    status = status,
+                    errorMessage = scanErrorMessage
                 )
 
-                // Update success timestamp
-                settingsRepository.updateLastScanTime(System.currentTimeMillis())
+                // Update success timestamp if at least one scanner succeeded
+                if (status == ScanStatus.SUCCESS || status == ScanStatus.PARTIAL) {
+                    settingsRepository.updateLastScanTime(System.currentTimeMillis())
+                }
+
+                _scanSummaryResult.emit(summary)
             } finally {
                 onScanFinished?.invoke(rootUri)
             }
@@ -195,11 +248,10 @@ class ScannerRepository(
 
     /**
      * Specific incremental scan for Comics.
-     * REVISION Masalah 1: Optimized metadata sync. 
-     * Only reads metadata.json if the folder has been modified since last scan.
+     * Calculates new, updated, and deleted metrics without extra SAF I/O.
      */
-    suspend fun scanComicsIncremental(rootUri: Uri) {
-        if (!comicScanner.isCategoryFolderValid(rootUri, "Comics")) return
+    suspend fun scanComicsIncremental(rootUri: Uri): MediaScanMetrics {
+        if (!comicScanner.isCategoryFolderValid(rootUri, "Comics")) return MediaScanMetrics()
 
         val cachedComics = comicDao.getAllComicsSync()
         val cacheMap = cachedComics.associateBy { it.relativePath }
@@ -218,11 +270,20 @@ class ScannerRepository(
             .filter { it.relativePath !in scannedPaths }
             .map { it.relativePath }
 
+        var newCount = 0
+        var updatedCount = 0
+
         val toInsert = scannedComics.map { comic ->
             val cached = cacheMap[comic.relativePath]
             
             // Optimization: Only read metadata.json if folder is new or changed
             if (cached == null || cached.lastModified != comic.lastModified) {
+                if (cached == null) {
+                    newCount++
+                } else {
+                    updatedCount++
+                }
+
                 // Auto-generate metadata.json if missing
                 if (!metadataManager.exists(rootUri, comic.relativePath)) {
                     val autoMetadata = MediaMetadata(
@@ -267,14 +328,20 @@ class ScannerRepository(
                 comicDao.updateLibrary(toInsert, toDelete)
             }
         }
+
+        return MediaScanMetrics(
+            newCount = newCount,
+            updatedCount = updatedCount,
+            deletedCount = toDelete.size
+        )
     }
 
     /**
      * Specific incremental scan for Videos.
-     * REVISION Masalah 1: Optimized to skip metadata.json if folder timestamp is unchanged.
+     * Calculates new, updated, and deleted metrics without extra SAF I/O.
      */
-    suspend fun scanVideosIncremental(rootUri: Uri) {
-        if (!videoScanner.isCategoryFolderValid(rootUri, "Videos")) return
+    suspend fun scanVideosIncremental(rootUri: Uri): MediaScanMetrics {
+        if (!videoScanner.isCategoryFolderValid(rootUri, "Videos")) return MediaScanMetrics()
 
         val cachedVideos = videoDao.getAllVideosSync()
         val cacheMap = cachedVideos.associateBy { it.relativePath }
@@ -293,10 +360,19 @@ class ScannerRepository(
             .filter { it.relativePath !in scannedPaths }
             .map { it.relativePath }
 
+        var newCount = 0
+        var updatedCount = 0
+
         val toInsert = scannedEntities.map { entity ->
             val cached = cacheMap[entity.relativePath]
             
             if (cached == null || cached.lastModified != entity.lastModified) {
+                if (cached == null) {
+                    newCount++
+                } else {
+                    updatedCount++
+                }
+
                 // Populate searchTags from metadata.json during scan
                 val metadata = metadataManager.readMetadata(rootUri, entity.relativePath)
                 val searchTags = if (metadata.tags.isEmpty()) null else metadata.tags.joinToString(" ")
@@ -315,6 +391,12 @@ class ScannerRepository(
                 videoDao.updateLibrary(toInsert, toDelete)
             }
         }
+
+        return MediaScanMetrics(
+            newCount = newCount,
+            updatedCount = updatedCount,
+            deletedCount = toDelete.size
+        )
     }
 
     private fun ComicEntity.toDomain() = Comic(

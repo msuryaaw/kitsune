@@ -59,10 +59,14 @@ fun VideoCard(
                 ) {}
             }
 
-            // Collection Badges (Top Start) - Unified 7.9.2
-            if (!isSelected) {
+            // Collection Badges (Top Start) - Filter out IN_PLAYLIST badge to remove Playlist icon badge from Video Library
+            val filteredStatuses = remember(mediaUiModel.statuses) {
+                mediaUiModel.statuses.filter { it != ComicStatus.IN_PLAYLIST }.toSet()
+            }
+
+            if (!isSelected && filteredStatuses.isNotEmpty()) {
                 MediaCollectionBadges(
-                    statuses = mediaUiModel.statuses,
+                    statuses = filteredStatuses,
                     modifier = Modifier.align(Alignment.TopStart)
                 )
             }

@@ -3,6 +3,7 @@ package com.kitsune.app.ui.playlist
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material.icons.Icons
@@ -322,10 +323,34 @@ fun PlaylistMediaGrid(
                     ) else Modifier
                 )
 
-                if (!isSelected) {
-                    MediaCollectionBadges(
-                        statuses = item.statuses,
+                // Episode Count Badge (Top Start) - Replaces Playlist Icon Badge
+                if (!isSelected && item.badgeText != null) {
+                    Surface(
+                        color = Color.Black.copy(alpha = 0.7f),
+                        shape = RoundedCornerShape(bottomEnd = 8.dp, topStart = 8.dp),
                         modifier = Modifier.align(Alignment.TopStart)
+                    ) {
+                        Text(
+                            text = item.badgeText,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+
+                // Collection Badges (Filter out IN_PLAYLIST badge to remove Playlist icon badge)
+                val filteredStatuses = remember(item.statuses) {
+                    item.statuses.filter { it != ComicStatus.IN_PLAYLIST }.toSet()
+                }
+                if (!isSelected && filteredStatuses.isNotEmpty()) {
+                    val startPadding = if (item.badgeText != null) 48.dp else 0.dp
+                    MediaCollectionBadges(
+                        statuses = filteredStatuses,
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(start = startPadding)
                     )
                 }
 

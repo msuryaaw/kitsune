@@ -34,7 +34,7 @@ class BookmarkDetailViewModel(
         .debounce(300)
         .distinctUntilChanged()
 
-    private val _sortOrder = MutableStateFlow(ComicSortOrder.TITLE_ASC)
+    private val _sortOrder = MutableStateFlow(settingsRepository.getBookmarkDetailSortOrder())
     val sortOrder: StateFlow<ComicSortOrder> = _sortOrder.asStateFlow()
 
     private val _uiState = MutableStateFlow<BookmarkDetailUiState>(BookmarkDetailUiState.Loading)
@@ -137,6 +137,7 @@ class BookmarkDetailViewModel(
 
     fun setSortOrder(order: ComicSortOrder) {
         _sortOrder.value = order
+        settingsRepository.saveBookmarkDetailSortOrder(order)
     }
 
     fun toggleSelection(path: String) {

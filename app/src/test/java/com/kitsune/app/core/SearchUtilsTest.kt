@@ -59,6 +59,13 @@ class SearchUtilsTest {
     }
 
     @Test
+    fun `test cross field matching doujin and english`() {
+        val doujinFields = listOf("My Doujin Title", "Famous Artist", "EN", "Doujin", "english romance c99")
+        assertTrue(SearchUtils.matches("doujin, english", doujinFields))
+        assertFalse(SearchUtils.matches("doujin, japanese", doujinFields))
+    }
+
+    @Test
     fun `test null fields handled safely`() {
         val nullableFields = listOf("Title", null, "Author", null)
         assertTrue(SearchUtils.matches("title", nullableFields))

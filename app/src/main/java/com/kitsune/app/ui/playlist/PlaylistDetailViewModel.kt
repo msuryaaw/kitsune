@@ -121,10 +121,17 @@ class PlaylistDetailViewModel(
                 var result = if (query.isBlank()) {
                     items
                 } else {
-                    items.filter { 
+                    items.filter { item ->
+                        val video = mediaMap[item.id]
                         SearchUtils.matches(
                             query = query,
-                            searchableFields = listOf(it.displayTitle, it.title)
+                            searchableFields = listOf(
+                                item.displayTitle,
+                                item.title,
+                                item.author,
+                                item.type,
+                                video?.searchTags
+                            )
                         )
                     }
                 }

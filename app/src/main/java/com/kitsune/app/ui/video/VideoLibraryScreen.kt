@@ -2,7 +2,7 @@ package com.kitsune.app.ui.video
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -59,7 +59,7 @@ fun VideoLibraryScreen(
     val selectionActions = remember {
         listOf(
             SelectionAction(
-                icon = Icons.AutoMirrored.Filled.List,
+                icon = Icons.AutoMirrored.Filled.PlaylistPlay,
                 label = "Add to Playlist",
                 onClick = { showPlaylistPicker = true }
             )

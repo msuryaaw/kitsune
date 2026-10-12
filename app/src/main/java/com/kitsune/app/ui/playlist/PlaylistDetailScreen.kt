@@ -7,7 +7,7 @@ import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -175,7 +175,7 @@ fun PlaylistDetailScreen(
                 is PlaylistDetailUiState.Empty -> {
                     EmptyLibraryState(
                         message = if (searchQuery.isNotEmpty()) "No results for \"$searchQuery\"" else "No items in this playlist",
-                        icon = if (searchQuery.isNotEmpty()) Icons.Default.SearchOff else Icons.AutoMirrored.Filled.List
+                        icon = if (searchQuery.isNotEmpty()) Icons.Default.SearchOff else Icons.AutoMirrored.Filled.PlaylistPlay
                     )
                 }
                 is PlaylistDetailUiState.Error -> {

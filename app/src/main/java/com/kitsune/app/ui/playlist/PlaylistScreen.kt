@@ -6,7 +6,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -56,7 +56,7 @@ fun PlaylistScreen(
             Box(modifier = Modifier.fillMaxSize().padding(padding)) {
                 EmptyLibraryState(
                     message = "No playlists yet. Click + to create one.",
-                    icon = Icons.AutoMirrored.Filled.List
+                    icon = Icons.AutoMirrored.Filled.PlaylistPlay
                 )
             }
         } else {
@@ -133,7 +133,7 @@ fun PlaylistCategoryItem(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    imageVector = Icons.AutoMirrored.Filled.List,
+                    imageVector = Icons.AutoMirrored.Filled.PlaylistPlay,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary
                 )

@@ -1,7 +1,10 @@
 package com.kitsune.app.data.repository
 
+import android.content.Context
+import android.content.SharedPreferences
 import com.kitsune.app.database.dao.SettingsDao
 import com.kitsune.app.database.entity.SettingsEntity
+import com.kitsune.app.ui.library.ComicSortOrder
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.onEach
@@ -9,8 +12,44 @@ import kotlinx.coroutines.flow.onEach
 /**
  * Repository for managing application settings.
  * REVISION 10.5.1: Implemented memory caching for settings to reduce Room overhead during navigation.
+ * REVISION Task B: Added SharedPreferences persistence for Comic Library and Bookmark sorting preferences.
  */
-class SettingsRepository(private val settingsDao: SettingsDao) {
+class SettingsRepository(
+    private val settingsDao: SettingsDao,
+    context: Context? = null
+) {
+    private val prefs: SharedPreferences? = context?.applicationContext?.getSharedPreferences("kitsune_preferences", Context.MODE_PRIVATE)
+
+    companion object {
+        private const val KEY_COMIC_LIBRARY_SORT = "pref_comic_library_sort"
+        private const val KEY_BOOKMARK_DETAIL_SORT = "pref_bookmark_detail_sort"
+    }
+
+    fun getComicLibrarySortOrder(): ComicSortOrder {
+        val savedName = prefs?.getString(KEY_COMIC_LIBRARY_SORT, ComicSortOrder.TITLE_ASC.name)
+        return try {
+            if (savedName != null) ComicSortOrder.valueOf(savedName) else ComicSortOrder.TITLE_ASC
+        } catch (e: Exception) {
+            ComicSortOrder.TITLE_ASC
+        }
+    }
+
+    fun saveComicLibrarySortOrder(order: ComicSortOrder) {
+        prefs?.edit()?.putString(KEY_COMIC_LIBRARY_SORT, order.name)?.apply()
+    }
+
+    fun getBookmarkDetailSortOrder(): ComicSortOrder {
+        val savedName = prefs?.getString(KEY_BOOKMARK_DETAIL_SORT, ComicSortOrder.TITLE_ASC.name)
+        return try {
+            if (savedName != null) ComicSortOrder.valueOf(savedName) else ComicSortOrder.TITLE_ASC
+        } catch (e: Exception) {
+            ComicSortOrder.TITLE_ASC
+        }
+    }
+
+    fun saveBookmarkDetailSortOrder(order: ComicSortOrder) {
+        prefs?.edit()?.putString(KEY_BOOKMARK_DETAIL_SORT, order.name)?.apply()
+    }
     
     private var _cachedSettings: SettingsEntity? = null
 

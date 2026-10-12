@@ -331,7 +331,7 @@ fun FilterChipsRow(
         }
 
         // Type Filter Chips
-        val types = listOf("Manga", "Manhwa", "Manhua")
+        val types = listOf("Doujin", "Artist CG")
         items(types.toTypedArray()) { type ->
             val isSelected = selectedType?.equals(type, ignoreCase = true) == true
             FilterChip(

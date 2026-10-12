@@ -14,6 +14,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.kitsune.app.ui.components.media.*
 import com.kitsune.app.ui.components.media.mapper.toMediaUiModel
+import com.kitsune.app.ui.library.ComicStatus
 
 /**
  * Komponen kartu untuk menampilkan item Video di Library.
@@ -31,6 +32,7 @@ fun VideoCard(
     onLongClick: () -> Unit = {}
 ) {
     val mediaUiModel = remember(state) { state.toMediaUiModel(state.statuses) }
+    val isInPlaylist = remember(state.statuses) { state.statuses.contains(ComicStatus.IN_PLAYLIST) }
 
     MediaCardContainer(
         onClick = onClick,
@@ -48,8 +50,16 @@ fun VideoCard(
                 ) else Modifier
             )
 
+            // Dimmed Overlay for videos in a playlist (Task C)
+            if (isInPlaylist && !isSelected) {
+                Surface(
+                    modifier = Modifier.matchParentSize(),
+                    color = Color.Black.copy(alpha = 0.4f),
+                    shape = MaterialTheme.shapes.medium
+                ) {}
+            }
+
             // Collection Badges (Top Start) - Unified 7.9.2
-            // Tetap dipertahankan untuk menampilkan indikator Playlist.
             if (!isSelected) {
                 MediaCollectionBadges(
                     statuses = mediaUiModel.statuses,

@@ -3,7 +3,7 @@ package com.kitsune.app.navigation
 import android.app.Application
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
@@ -126,7 +126,7 @@ fun MainContainer(
     val innerNavController = androidx.navigation.compose.rememberNavController()
     val items = listOf(
         BottomNavItem("Bookmark", Screen.Bookmark.route, Icons.Default.Bookmark),
-        BottomNavItem("Playlist", Screen.Playlist.route, Icons.AutoMirrored.Filled.List),
+        BottomNavItem("Playlist", Screen.Playlist.route, Icons.AutoMirrored.Filled.PlaylistPlay),
         BottomNavItem("Local", Screen.Local.route, Icons.Default.Home),
         BottomNavItem("Settings", Screen.Other.route, Icons.Default.Settings),
     )

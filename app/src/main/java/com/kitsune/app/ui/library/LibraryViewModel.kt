@@ -37,7 +37,7 @@ class LibraryViewModel(
 
     private val _errorMessage = MutableStateFlow<String?>(null)
 
-    private val _sortOrder = MutableStateFlow(ComicSortOrder.TITLE_ASC)
+    private val _sortOrder = MutableStateFlow(settingsRepository.getComicLibrarySortOrder())
     val sortOrder: StateFlow<ComicSortOrder> = _sortOrder.asStateFlow()
 
     // --- Interactive Filter States (TASK-03) ---
@@ -340,6 +340,7 @@ class LibraryViewModel(
 
     fun setSortOrder(order: ComicSortOrder) {
         _sortOrder.value = order
+        settingsRepository.saveComicLibrarySortOrder(order)
     }
 
     override fun refreshLibrary() {

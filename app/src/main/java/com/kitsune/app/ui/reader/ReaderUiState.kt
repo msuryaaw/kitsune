@@ -11,6 +11,7 @@ sealed class ReaderUiState {
     data class Success(
         val pages: List<Page>,
         val chapterName: String,
+        val comicTitle: String = "",
         val readingMode: String = "Vertical",
         val chapterUri: Uri // Ditambahkan untuk atomisitas state (Phase 6.7.4)
     ) : ReaderUiState()

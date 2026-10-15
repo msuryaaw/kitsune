@@ -22,6 +22,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -31,6 +32,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -40,6 +42,7 @@ import coil.compose.AsyncImage
 import coil.imageLoader
 import coil.request.ImageRequest
 import com.kitsune.app.reader.CbzPageModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlin.math.abs
@@ -103,6 +106,15 @@ fun ReaderScreen(
             viewModel = viewModel,
             onBackClick = currentOnBackClick,
             onOpenJumpSheet = { showJumpSheet = true }
+        )
+
+        // FLOATING PAGE INDICATOR: Unobtrusive overlay when controls are hidden
+        val currentPage by viewModel.currentPage.collectAsState()
+        val totalPages = (uiState as? ReaderUiState.Success)?.pages?.size ?: 0
+        FloatingPageIndicator(
+            currentPage = currentPage,
+            totalPages = totalPages,
+            controlsVisible = showControls
         )
 
         val successState = uiState as? ReaderUiState.Success
@@ -176,6 +188,51 @@ private fun ReaderContent(
 }
 
 /**
+ * Floating Page Indicator overlay when main controls are hidden.
+ */
+@Composable
+private fun BoxScope.FloatingPageIndicator(
+    currentPage: Int,
+    totalPages: Int,
+    controlsVisible: Boolean
+) {
+    var isVisible by remember { mutableStateOf(false) }
+
+    LaunchedEffect(currentPage, controlsVisible) {
+        if (!controlsVisible && totalPages > 0) {
+            isVisible = true
+            delay(2000L)
+            isVisible = false
+        } else {
+            isVisible = false
+        }
+    }
+
+    AnimatedVisibility(
+        visible = isVisible && !controlsVisible,
+        enter = fadeIn() + slideInVertically { it / 2 },
+        exit = fadeOut() + slideOutVertically { it / 2 },
+        modifier = Modifier
+            .align(Alignment.BottomEnd)
+            .padding(bottom = 24.dp, end = 16.dp)
+    ) {
+        Surface(
+            color = Color.Black.copy(alpha = 0.75f),
+            shape = RoundedCornerShape(16.dp),
+            tonalElevation = 4.dp
+        ) {
+            Text(
+                text = "$currentPage / $totalPages",
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+            )
+        }
+    }
+}
+
+/**
  * Komponen pembungkus overlay kontrol (Top & Bottom Bar).
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -188,6 +245,7 @@ private fun BoxScope.ReaderControlsOverlay(
     onOpenJumpSheet: () -> Unit
 ) {
     val successState = uiState as? ReaderUiState.Success
+    val comicTitle = successState?.comicTitle ?: ""
     val chapterName = successState?.chapterName ?: ""
     val totalPages = successState?.pages?.size ?: 1
 
@@ -203,7 +261,26 @@ private fun BoxScope.ReaderControlsOverlay(
             contentColor = MaterialTheme.colorScheme.onSurface
         ) {
             TopAppBar(
-                title = { Text(text = chapterName, style = MaterialTheme.typography.titleMedium, maxLines = 1) },
+                title = {
+                    Column {
+                        if (comicTitle.isNotBlank()) {
+                            Text(
+                                text = comicTitle,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        Text(
+                            text = chapterName,
+                            style = if (comicTitle.isNotBlank()) MaterialTheme.typography.bodySmall else MaterialTheme.typography.titleMedium,
+                            color = if (comicTitle.isNotBlank()) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -314,14 +391,40 @@ fun VerticalReader(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(300.dp)
-                        .clickable { currentOnNextChapter() },
+                        .padding(vertical = 24.dp, horizontal = 16.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        CircularProgressIndicator(color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(text = "Tap to load Next Chapter", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    OutlinedCard(
+                        onClick = { currentOnNextChapter() },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(100.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.outlinedCardColors(
+                            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.PlayArrow,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(28.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Tap to load Next Chapter",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
                     }
                 }
             }
@@ -410,8 +513,52 @@ fun HorizontalReader(
             beyondViewportPageCount = 2
         ) { index ->
             when {
-                hasPrev && index == 0 -> Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background))
-                hasNext && index == totalCount - 1 -> Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background))
+                hasPrev && index == 0 -> {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(MaterialTheme.colorScheme.background),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(32.dp)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Loading Previous Chapter...",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+                hasNext && index == totalCount - 1 -> {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(MaterialTheme.colorScheme.background),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(32.dp)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Loading Next Chapter...",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
                 else -> {
                     val pageIdx = if (hasPrev) index - 1 else index
                     if (pageIdx in state.pages.indices) {
@@ -497,11 +644,6 @@ fun ReaderBottomBar(
                 IconButton(onClick = onPrevChapter, enabled = hasPrev) {
                     Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Prev Chapter")
                 }
-                Text(
-                    text = "Chapter Navigation", 
-                    style = MaterialTheme.typography.labelMedium, 
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
                 IconButton(onClick = onNextChapter, enabled = hasNext) {
                     Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Next Chapter")
                 }
@@ -520,17 +662,20 @@ private fun ReadingModeSelector(
     onModeChange: (String) -> Unit
 ) {
     val modes = listOf("Global", "Vertical", "LTR", "RTL")
-    Row(
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         Text(
             text = if (overrideMode == null) "Mode: Global ($effectiveMode)" else "Mode: $overrideMode (Override)",
-            style = MaterialTheme.typography.labelMedium,
+            style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             modes.forEach { mode ->
                 val isSelected = if (mode == "Global") {
                     overrideMode == null
@@ -543,8 +688,9 @@ private fun ReadingModeSelector(
                     onClick = { onModeChange(mode) },
                     label = { 
                         Text(
-                            text = if (mode == "Global") "Global" else mode, 
-                            style = MaterialTheme.typography.labelSmall
+                            text = mode, 
+                            style = MaterialTheme.typography.labelSmall,
+                            maxLines = 1
                         ) 
                     },
                     colors = FilterChipDefaults.filterChipColors(
@@ -552,7 +698,9 @@ private fun ReadingModeSelector(
                         selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
                     ),
                     border = null,
-                    modifier = Modifier.height(32.dp)
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(32.dp)
                 )
             }
         }
@@ -576,9 +724,14 @@ private fun PagePositionControls(
     ) {
         Text(
             text = "$currentPage / $totalPages",
-            style = MaterialTheme.typography.bodySmall,
-            modifier = Modifier.width(56.dp)
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            softWrap = false,
+            modifier = Modifier.widthIn(min = 64.dp)
         )
+        Spacer(modifier = Modifier.width(8.dp))
         Slider(
             value = currentPage.toFloat(),
             onValueChange = { onPageJump(it.toInt()) },
@@ -709,7 +862,7 @@ fun PageThumbnailItem(
             .then(
                 if (isCurrent) {
                     Modifier.border(
-                        width = 2.dp,
+                        width = 2.5.dp,
                         color = MaterialTheme.colorScheme.primary,
                         shape = RoundedCornerShape(8.dp)
                     )
@@ -733,32 +886,16 @@ fun PageThumbnailItem(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(4.dp),
-                color = Color.Black.copy(alpha = 0.7f),
+                color = Color.Black.copy(alpha = 0.75f),
                 shape = RoundedCornerShape(4.dp)
             ) {
                 Text(
                     text = "$pageNumber",
                     style = MaterialTheme.typography.labelSmall,
                     color = Color.White,
-                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
                 )
-            }
-
-            if (isCurrent) {
-                Surface(
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(4.dp),
-                    color = MaterialTheme.colorScheme.primary,
-                    shape = RoundedCornerShape(4.dp)
-                ) {
-                    Text(
-                        text = "CURRENT",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                    )
-                }
             }
         }
     }

@@ -90,6 +90,7 @@ class ReaderViewModel(
                 val globalReadingMode = settings?.readingMode ?: "Vertical"
 
                 val comic = scannerRepository.getComicByPath(comicRelativePath)
+                val comicTitle = comic?.displayTitle ?: comicRelativePath.substringAfter("Comics/").substringBefore('/')
                 val readingMode = comic?.readingMode ?: globalReadingMode
 
                 if (rootUriString.isNullOrEmpty()) {
@@ -124,9 +125,9 @@ class ReaderViewModel(
                         return@launch
                     }
                     val uri = fallbackDoc.uri
-                    processChapterPages(uri, chapterPath, targetChapterName, readingMode, fallbackDoc.lastModified())
+                    processChapterPages(uri, chapterPath, targetChapterName, comicTitle, readingMode, fallbackDoc.lastModified())
                 } else {
-                    processChapterPages(chapterDoc.uri, chapterPath, targetChapterName, readingMode, chapterDoc.lastModified())
+                    processChapterPages(chapterDoc.uri, chapterPath, targetChapterName, comicTitle, readingMode, chapterDoc.lastModified())
                 }
             } catch (e: Exception) {
                 Log.e("KitsuneReader", "Error loading chapter: $chapterPath", e)
@@ -142,6 +143,7 @@ class ReaderViewModel(
         uri: Uri,
         chapterPath: String,
         chapterName: String,
+        comicTitle: String,
         readingMode: String,
         lastModified: Long
     ) {
@@ -166,6 +168,7 @@ class ReaderViewModel(
             _uiState.value = ReaderUiState.Success(
                 pages = pages,
                 chapterName = chapterName,
+                comicTitle = comicTitle,
                 readingMode = readingMode,
                 chapterUri = uri
             )

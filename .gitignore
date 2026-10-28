@@ -1,0 +1,30 @@
+# Gradle & Build Output
+.gradle/
+build/
+**/build/
+
+# Local & Environment Configuration
+local.properties
+
+# Android Studio / IntelliJ IDEA
+*.iml
+.idea/caches/
+.idea/libraries/
+.idea/modules.xml
+.idea/workspace.xml
+.idea/navEditor.xml
+.idea/assetWizardSettings.xml
+
+# NDK & Native Builds
+.externalNativeBuild/
+.cxx/
+
+# Android Captures & Profiler
+captures/
+
+# OS Specific
+.DS_Store
+Thumbs.db
+
+# Project Specific
+/docs/

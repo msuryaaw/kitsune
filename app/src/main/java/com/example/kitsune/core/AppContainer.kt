@@ -10,6 +10,8 @@ import com.example.kitsune.scanner.DefaultCbzCataloger
 import com.example.kitsune.scanner.DefaultChapterScanner
 import com.example.kitsune.scanner.DefaultComicFolderScanner
 import com.example.kitsune.scanner.DefaultComicsDirectoryDetector
+import com.example.kitsune.scanner.DefaultLibraryScanner
+import com.example.kitsune.scanner.LibraryScanner
 import com.example.kitsune.storage.SafStorageGateway
 import com.example.kitsune.storage.StorageGateway
 
@@ -24,6 +26,7 @@ interface AppContainer {
     val comicFolderScanner: ComicFolderScanner
     val chapterScanner: ChapterScanner
     val cbzCataloger: CbzCataloger
+    val libraryScanner: LibraryScanner
 }
 
 /**
@@ -54,5 +57,9 @@ class DefaultAppContainer(
 
     override val cbzCataloger: CbzCataloger by lazy {
         DefaultCbzCataloger(storageGateway)
+    }
+
+    override val libraryScanner: LibraryScanner by lazy {
+        DefaultLibraryScanner(comicFolderScanner, chapterScanner, cbzCataloger)
     }
 }

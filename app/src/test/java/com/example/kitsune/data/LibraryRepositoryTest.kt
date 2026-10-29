@@ -1,5 +1,7 @@
 package com.example.kitsune.data
 
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
 import com.example.kitsune.data.dao.ChapterDao
 import com.example.kitsune.data.dao.ComicDao
 import com.example.kitsune.data.dao.ReadingProgressDao
@@ -20,6 +22,7 @@ import com.example.kitsune.scanner.ScannedComic
 import com.example.kitsune.scanner.ScanSummary
 import com.example.kitsune.storage.FakeStorageGateway
 import com.example.kitsune.storage.StorageEntry
+import java.io.File
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
@@ -70,7 +73,13 @@ class LibraryRepositoryTest {
         // is never invoked. Passing a real IncrementalCbzCataloger satisfies the constructor.
         val noopCataloger = IncrementalCbzCataloger(NoopCbzCataloger)
         val coverExtractor = CoverExtractor(FakeStorageGateway(), fakeComicDao, fakeChapterDao)
-        repository = DefaultLibraryRepository(fakeScanner, noopCataloger, fakeComicDao, fakeChapterDao, fakeReadingProgressDao, coverExtractor)
+        val coverCacheManager = CoverCacheManager(
+            File(System.getProperty("java.io.tmpdir"), "test_repo_covers"),
+            coverExtractor, fakeComicDao, fakeChapterDao
+        )
+        repository = DefaultLibraryRepository(
+            fakeScanner, noopCataloger, fakeComicDao, fakeChapterDao, fakeReadingProgressDao, coverExtractor, coverCacheManager
+        )
     }
 
     // ═══════════════════════════════════════════════════════════════════════

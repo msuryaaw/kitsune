@@ -55,9 +55,12 @@ class ReconciliationTest {
         fakeReadingProgressDao = FakeReadingProgressDao()
         fakeScanner = FakeLibraryScanner()
         val noopCataloger = IncrementalCbzCataloger(NoopCbzCataloger)
-        val coverExtractor = CoverExtractor(com.example.kitsune.storage.FakeStorageGateway(), fakeComicDao, fakeChapterDao)
+        val fakeStorage = com.example.kitsune.storage.FakeStorageGateway()
+        val coverExtractor = CoverExtractor(fakeStorage, fakeComicDao, fakeChapterDao)
+        val cacheDir = java.io.File(System.getProperty("java.io.tmpdir"), "test_recon_covers")
+        val coverCacheManager = CoverCacheManager(cacheDir, coverExtractor, fakeComicDao, fakeChapterDao)
         repository = DefaultLibraryRepository(
-            fakeScanner, noopCataloger, fakeComicDao, fakeChapterDao, fakeReadingProgressDao, coverExtractor
+            fakeScanner, noopCataloger, fakeComicDao, fakeChapterDao, fakeReadingProgressDao, coverExtractor, coverCacheManager
         )
     }
 

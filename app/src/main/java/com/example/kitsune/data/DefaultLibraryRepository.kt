@@ -63,6 +63,7 @@ class DefaultLibraryRepository(
     private val chapterDao: ChapterDao,
     private val readingProgressDao: ReadingProgressDao,
     private val coverExtractor: CoverExtractor,
+    private val coverCacheManager: CoverCacheManager,
 ) : LibraryRepository {
 
     /**
@@ -351,4 +352,11 @@ class DefaultLibraryRepository(
 
     override suspend fun fetchCover(comicId: Long): CoverResult =
         coverExtractor.extractCover(comicId)
+
+    override suspend fun getCoverFile(comicId: Long): CoverCacheResult =
+        coverCacheManager.getCoverFile(comicId)
+
+    override suspend fun releaseCoverFile(file: java.io.File) {
+        coverCacheManager.releaseCoverFile(file)
+    }
 }

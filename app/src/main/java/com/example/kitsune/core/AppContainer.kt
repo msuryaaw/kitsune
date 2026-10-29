@@ -2,7 +2,7 @@ package com.example.kitsune.core
 
 import android.content.Context
 import androidx.room.Room
-
+import com.example.kitsune.data.CoverCacheManager
 import com.example.kitsune.data.CoverExtractor
 import com.example.kitsune.data.DefaultLibraryRepository
 import com.example.kitsune.data.DefaultSettingsRepository
@@ -22,6 +22,7 @@ import com.example.kitsune.scanner.IncrementalCbzCataloger
 import com.example.kitsune.scanner.LibraryScanner
 import com.example.kitsune.storage.SafStorageGateway
 import com.example.kitsune.storage.StorageGateway
+import java.io.File
 
 /**
  * Dependency container contract for Kitsune application.
@@ -38,6 +39,7 @@ interface AppContainer {
     val libraryScanner: LibraryScanner
     val database: KitsuneDatabase
     val coverExtractor: CoverExtractor
+    val coverCacheManager: CoverCacheManager
     val libraryRepository: LibraryRepository
     val settingsRepository: SettingsRepository
 }
@@ -96,6 +98,15 @@ class DefaultAppContainer(
         )
     }
 
+    override val coverCacheManager: CoverCacheManager by lazy {
+        CoverCacheManager(
+            cacheDir = File(appContext.cacheDir, "covers"),
+            coverExtractor = coverExtractor,
+            comicDao = database.comicDao(),
+            chapterDao = database.chapterDao()
+        )
+    }
+
     override val libraryRepository: LibraryRepository by lazy {
         DefaultLibraryRepository(
             libraryScanner = libraryScanner,
@@ -103,7 +114,8 @@ class DefaultAppContainer(
             comicDao = database.comicDao(),
             chapterDao = database.chapterDao(),
             readingProgressDao = database.readingProgressDao(),
-            coverExtractor = coverExtractor
+            coverExtractor = coverExtractor,
+            coverCacheManager = coverCacheManager
         )
     }
 

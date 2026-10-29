@@ -77,5 +77,15 @@ interface LibraryRepository {
      * Extracts the single cover image byte payload from Chapter 1.cbz for [comicId].
      */
     suspend fun fetchCover(comicId: Long): CoverResult
+
+    /**
+     * Retrieves or extracts the cached cover image file for [comicId].
+     */
+    suspend fun getCoverFile(comicId: Long): CoverCacheResult
+
+    /**
+     * Releases an active consumer reference for an ephemeral cover file when reading completes.
+     */
+    suspend fun releaseCoverFile(file: java.io.File)
 }
 

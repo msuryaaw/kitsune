@@ -18,6 +18,7 @@ import com.example.kitsune.scanner.RejectedChapterFile
 import com.example.kitsune.scanner.ScannedChapter
 import com.example.kitsune.scanner.ScannedComic
 import com.example.kitsune.scanner.ScanSummary
+import com.example.kitsune.storage.FakeStorageGateway
 import com.example.kitsune.storage.StorageEntry
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -68,7 +69,8 @@ class LibraryRepositoryTest {
         // FakeLibraryScanner which returns pre-built ScannedChapters, so the cataloger
         // is never invoked. Passing a real IncrementalCbzCataloger satisfies the constructor.
         val noopCataloger = IncrementalCbzCataloger(NoopCbzCataloger)
-        repository = DefaultLibraryRepository(fakeScanner, noopCataloger, fakeComicDao, fakeChapterDao, fakeReadingProgressDao)
+        val coverExtractor = CoverExtractor(FakeStorageGateway(), fakeComicDao, fakeChapterDao)
+        repository = DefaultLibraryRepository(fakeScanner, noopCataloger, fakeComicDao, fakeChapterDao, fakeReadingProgressDao, coverExtractor)
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -700,6 +702,9 @@ open class FakeChapterDao : ChapterDao {
 
     override suspend fun getByComicAndPath(comicId: Long, relativePath: String): ChapterEntity? =
         chapters.values.find { it.comicId == comicId && it.relativePath == relativePath }
+
+    override suspend fun getChapterOneByComicId(comicId: Long): ChapterEntity? =
+        chapters.values.find { it.comicId == comicId && it.chapterNumber == 1 }
 
     override suspend fun getAllByComicId(comicId: Long): List<ChapterEntity> =
         chapters.values.filter { it.comicId == comicId }.sortedBy { it.chapterNumber }

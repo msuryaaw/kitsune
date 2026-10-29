@@ -62,6 +62,7 @@ class DefaultLibraryRepository(
     private val comicDao: ComicDao,
     private val chapterDao: ChapterDao,
     private val readingProgressDao: ReadingProgressDao,
+    private val coverExtractor: CoverExtractor,
 ) : LibraryRepository {
 
     /**
@@ -347,4 +348,7 @@ class DefaultLibraryRepository(
     override suspend fun setBookmarked(comicId: Long, bookmarked: Boolean) {
         comicDao.setBookmarked(comicId, bookmarked)
     }
+
+    override suspend fun fetchCover(comicId: Long): CoverResult =
+        coverExtractor.extractCover(comicId)
 }

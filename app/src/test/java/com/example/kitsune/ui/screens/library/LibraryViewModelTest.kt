@@ -1,6 +1,7 @@
 package com.example.kitsune.ui.screens.library
 
 import com.example.kitsune.core.FakeRootFolderPreferences
+import com.example.kitsune.data.CoverResult
 import com.example.kitsune.data.LibraryRepository
 import com.example.kitsune.data.SettingsRepository
 import com.example.kitsune.data.entity.ChapterEntity
@@ -60,6 +61,8 @@ class FakeLibraryRepository : LibraryRepository {
     override suspend fun saveReadingProgress(progress: ReadingProgressEntity) {}
 
     override suspend fun setBookmarked(comicId: Long, bookmarked: Boolean) {}
+
+    override suspend fun fetchCover(comicId: Long): CoverResult = CoverResult.Unavailable("Fake")
 }
 
 class FakeSettingsRepository(

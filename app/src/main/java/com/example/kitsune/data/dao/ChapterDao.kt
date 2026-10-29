@@ -47,6 +47,12 @@ interface ChapterDao {
     suspend fun getAllByComicId(comicId: Long): List<ChapterEntity>
 
     /**
+     * Retrieves Chapter 1 for a given comic, or null if Chapter 1 is missing/not indexed.
+     */
+    @Query("SELECT * FROM chapters WHERE comicId = :comicId AND chapterNumber = 1 LIMIT 1")
+    suspend fun getChapterOneByComicId(comicId: Long): ChapterEntity?
+
+    /**
      * Returns the count of chapters for a given comic.
      */
     @Query("SELECT COUNT(*) FROM chapters WHERE comicId = :comicId")

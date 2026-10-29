@@ -55,8 +55,9 @@ class ReconciliationTest {
         fakeReadingProgressDao = FakeReadingProgressDao()
         fakeScanner = FakeLibraryScanner()
         val noopCataloger = IncrementalCbzCataloger(NoopCbzCataloger)
+        val coverExtractor = CoverExtractor(com.example.kitsune.storage.FakeStorageGateway(), fakeComicDao, fakeChapterDao)
         repository = DefaultLibraryRepository(
-            fakeScanner, noopCataloger, fakeComicDao, fakeChapterDao, fakeReadingProgressDao
+            fakeScanner, noopCataloger, fakeComicDao, fakeChapterDao, fakeReadingProgressDao, coverExtractor
         )
     }
 

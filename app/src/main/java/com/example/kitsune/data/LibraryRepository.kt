@@ -72,5 +72,10 @@ interface LibraryRepository {
      * Toggles the bookmark state for [comicId].
      */
     suspend fun setBookmarked(comicId: Long, bookmarked: Boolean)
+
+    /**
+     * Extracts the single cover image byte payload from Chapter 1.cbz for [comicId].
+     */
+    suspend fun fetchCover(comicId: Long): CoverResult
 }
 

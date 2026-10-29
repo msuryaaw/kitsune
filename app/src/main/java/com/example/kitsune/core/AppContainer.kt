@@ -3,6 +3,7 @@ package com.example.kitsune.core
 import android.content.Context
 import androidx.room.Room
 
+import com.example.kitsune.data.CoverExtractor
 import com.example.kitsune.data.DefaultLibraryRepository
 import com.example.kitsune.data.DefaultSettingsRepository
 import com.example.kitsune.data.KitsuneDatabase
@@ -36,6 +37,7 @@ interface AppContainer {
     val incrementalCbzCataloger: IncrementalCbzCataloger
     val libraryScanner: LibraryScanner
     val database: KitsuneDatabase
+    val coverExtractor: CoverExtractor
     val libraryRepository: LibraryRepository
     val settingsRepository: SettingsRepository
 }
@@ -86,13 +88,22 @@ class DefaultAppContainer(
         ).build()
     }
 
+    override val coverExtractor: CoverExtractor by lazy {
+        CoverExtractor(
+            storageGateway = storageGateway,
+            comicDao = database.comicDao(),
+            chapterDao = database.chapterDao()
+        )
+    }
+
     override val libraryRepository: LibraryRepository by lazy {
         DefaultLibraryRepository(
             libraryScanner = libraryScanner,
             incrementalCataloger = incrementalCbzCataloger,
             comicDao = database.comicDao(),
             chapterDao = database.chapterDao(),
-            readingProgressDao = database.readingProgressDao()
+            readingProgressDao = database.readingProgressDao(),
+            coverExtractor = coverExtractor
         )
     }
 

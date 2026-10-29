@@ -114,7 +114,8 @@ class IncrementalScanTest {
             incrementalCataloger = incrementalForIntegration,
             comicDao = fakeComicDao,
             chapterDao = fakeChapterDao,
-            readingProgressDao = fakeReadingProgressDao
+            readingProgressDao = fakeReadingProgressDao,
+            coverExtractor = CoverExtractor(fakeStorage, fakeComicDao, fakeChapterDao)
         )
     }
 
@@ -541,7 +542,8 @@ class IncrementalScanTest {
             incrementalCataloger = IncrementalCbzCataloger(NoopCbzCataloger),
             comicDao = FakeComicDao(),
             chapterDao = FakeChapterDao(),
-            readingProgressDao = FakeReadingProgressDao()
+            readingProgressDao = FakeReadingProgressDao(),
+            coverExtractor = CoverExtractor(FakeStorageGateway(), FakeComicDao(), FakeChapterDao())
         )
         val result = repo.buildSynthesizedSuccess("path.cbz", pageCount = 3, coverEntryPath = "my_cover.jpg")
 
@@ -557,7 +559,8 @@ class IncrementalScanTest {
             incrementalCataloger = IncrementalCbzCataloger(NoopCbzCataloger),
             comicDao = FakeComicDao(),
             chapterDao = FakeChapterDao(),
-            readingProgressDao = FakeReadingProgressDao()
+            readingProgressDao = FakeReadingProgressDao(),
+            coverExtractor = CoverExtractor(FakeStorageGateway(), FakeComicDao(), FakeChapterDao())
         )
         val result = repo.buildSynthesizedSuccess("path.cbz", pageCount = 2, coverEntryPath = null)
 
@@ -573,7 +576,8 @@ class IncrementalScanTest {
             incrementalCataloger = IncrementalCbzCataloger(NoopCbzCataloger),
             comicDao = FakeComicDao(),
             chapterDao = FakeChapterDao(),
-            readingProgressDao = FakeReadingProgressDao()
+            readingProgressDao = FakeReadingProgressDao(),
+            coverExtractor = CoverExtractor(FakeStorageGateway(), FakeComicDao(), FakeChapterDao())
         )
         val result = repo.buildSynthesizedSuccess("path.cbz", pageCount = 0, coverEntryPath = null)
         assertEquals(0, result.pages.size)

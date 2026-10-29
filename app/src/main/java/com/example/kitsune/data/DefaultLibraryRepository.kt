@@ -1,4 +1,4 @@
-package com.example.kitsune.data
+﻿package com.example.kitsune.data
 
 import com.example.kitsune.data.dao.ChapterDao
 import com.example.kitsune.data.dao.ComicDao
@@ -8,6 +8,7 @@ import com.example.kitsune.data.entity.ComicEntity
 import com.example.kitsune.data.entity.ReadingProgressEntity
 import com.example.kitsune.scanner.CbzCatalogResult
 import com.example.kitsune.scanner.CbzPageEntry
+import com.example.kitsune.scanner.ComicScanIssue
 import com.example.kitsune.scanner.IncrementalCbzCataloger
 import com.example.kitsune.scanner.LibraryScanner
 import com.example.kitsune.scanner.LibraryScanResult
@@ -26,8 +27,10 @@ import kotlinx.coroutines.sync.withLock
  * 2. Delegates scanning to [LibraryScanner]. The [IncrementalCbzCataloger] intercepts each
  *    `catalogArchive()` call: unchanged chapters bypass actual ZIP I/O and return a synthesized
  *    cached result built from stored [ChapterEntity] metadata.
- * 3. On [LibraryScanResult.Success], maps every scanned comic and chapter to Room entities and
- *    upserts them. All chapters are always upserted so DB metadata stays up to date.
+ * 3. On [LibraryScanResult.Success], maps every scanned comic and chapter to Room entities,
+ *    upserts them, and then reconciles (deletes) stale records that are no longer present on the
+ *    filesystem. Chapter reconciliation is skipped for comics whose folder listing failed.
+ *    Comic reconciliation removes comics whose folder is absent from the root enumeration.
  * 4. Exposes reactive [Flow] queries from the DAOs to the UI layer.
  *
  * Incremental CBZ skip conditions (ALL must hold for a chapter to skip CBZ I/O):
@@ -48,8 +51,10 @@ import kotlinx.coroutines.sync.withLock
  * Key invariants:
  * - [ComicDao.upsertByRootAndPath] preserves [ComicEntity.isBookmarked] and [ComicEntity.lastReadAt].
  * - [ChapterDao.upsertByComicAndPath] preserves chapter IDs, protecting [ReadingProgressEntity] refs.
- * - Cover is derived from [ScannedComic.coverEntryPath] (Chapter 1 only, K-07).
+ * - Cover is derived from [ScannedComic.coverEntryPath] (Chapter 1 only, K-07); cleared when
+ *   Chapter 1 is deleted during reconciliation.
  * - Any non-Success scan result leaves existing database records untouched (K-03).
+ * - Reconciliation never runs on failed or partial scans, preventing mass deletion on transient errors.
  */
 class DefaultLibraryRepository(
     private val libraryScanner: LibraryScanner,
@@ -171,20 +176,33 @@ class DefaultLibraryRepository(
     // ── Sync on success ───────────────────────────────────────────────────────
 
     /**
-     * Persists each scanned comic and its chapters from a successful scan result.
+     * Persists each scanned comic and its chapters from a successful scan result, then
+     * reconciles (deletes) stale records that are no longer present on the filesystem.
      *
      * All chapters are always upserted. The incremental optimization occurs at the I/O layer
      * ([IncrementalCbzCataloger] skips ZIP reads), not at the DB layer, so every chapter's
      * current metadata is always reflected in the database after a sync.
      *
-     * Does NOT delete comics or chapters absent from the scan — deletion reconciliation is
-     * deferred to Task 3.5.
+     * Reconciliation rules:
+     * - **Chapter reconciliation** — runs per comic only when its folder listing completed
+     *   successfully (no [ComicScanIssue.ComicDirectoryMissing] or
+     *   [ComicScanIssue.ChapterEnumerationError] in [ScannedComic.issues]).
+     *   Chapters that are still present on disk but corrupt ([ScannedChapter.isValid] == false)
+     *   are in the scanned list and are NOT deleted.
+     * - **Comic reconciliation** — after all comics are processed, comics whose
+     *   [ComicEntity.relativePath] is absent from the scan results are deleted.
+     *   [ComicDao.deleteById] cascades to associated [ChapterEntity] rows via FK.
+     * - **Cover clearing** — when Chapter 1 is among the deleted chapters, the parent comic's
+     *   [ComicEntity.coverEntryPath] is set to null (no fallback to other chapters, K-07).
+     * - **ReadingProgress safety** — [ReadingProgressEntity] has no FK to [ChapterEntity],
+     *   so deleting chapters never cascade-deletes reading progress records.
      */
     private suspend fun syncSuccess(
         rootUri: String,
         result: LibraryScanResult.Success,
         nowMillis: Long
     ) {
+        // ── Phase 1: upsert comics and chapters ──────────────────────────────
         for (scannedComic in result.comics) {
             val comicEntity = mapScannedComicToEntity(rootUri, scannedComic, nowMillis)
             val comicId = comicDao.upsertByRootAndPath(comicEntity)
@@ -192,6 +210,65 @@ class DefaultLibraryRepository(
             for (scannedChapter in scannedComic.chapters) {
                 val chapterEntity = mapScannedChapterToEntity(comicId, scannedChapter)
                 chapterDao.upsertByComicAndPath(chapterEntity)
+            }
+
+            // ── Phase 2: reconcile chapters for this comic ───────────────────
+            // Only reconcile when the folder listing completed successfully.
+            // ComicDirectoryMissing means the folder vanished during scanning — we cannot
+            // treat the empty chapter list as authoritative; chapters must be preserved.
+            // ChapterEnumerationError is a folder-level I/O failure (directory listing failed) —
+            // chapter list is empty and not authoritative; preserved chapters must not be deleted.
+            // ChapterCatalogError is a file-level failure (specific CBZ found but could not be
+            // opened during cataloging); directory enumeration DID succeed, the chapter list
+            // IS authoritative, and reconciliation should proceed for the other chapters.
+            // Other issue types (CorruptChapter, EmptyChapter, etc.) are also file-level and
+            // do NOT prevent the chapter list from being authoritative.
+            val folderListingSucceeded = scannedComic.issues.none { issue ->
+                issue is ComicScanIssue.ComicDirectoryMissing ||
+                    issue is ComicScanIssue.ChapterEnumerationError
+            }
+            if (folderListingSucceeded) {
+                reconcileChapters(comicId, scannedComic)
+            }
+        }
+
+        // ── Phase 3: reconcile comics at root level ───────────────────────────
+        // The LibraryScanResult.Success.comics list is the complete set of folders found
+        // under the Comics directory for this root. Any DB record not in that set is stale.
+        val scannedComicPaths = result.comics.map { it.relativePath }
+        val orphanedComicIds = comicDao.findOrphanedIds(rootUri, scannedComicPaths)
+        for (comicId in orphanedComicIds) {
+            // FK CASCADE removes child chapters automatically; reading progress is
+            // intentionally preserved (no FK from ReadingProgressEntity to ComicEntity).
+            comicDao.deleteById(comicId)
+        }
+    }
+
+    /**
+     * Deletes chapters belonging to [comicId] that are absent from [scannedComic]'s chapter list.
+     *
+     * Before deleting, inspects whether any orphaned chapter is Chapter 1 and, if so,
+     * clears [ComicEntity.coverEntryPath] (no fallback to other chapters, K-07).
+     *
+     * Chapters on disk that failed cataloging ([ScannedChapter.isValid] == false) are still
+     * present in [ScannedComic.chapters] and are NOT deleted — they are found files.
+     */
+    private suspend fun reconcileChapters(comicId: Long, scannedComic: ScannedComic) {
+        val scannedChapterPaths = scannedComic.chapters.map { it.discoveredChapter.relativePath }
+        val orphanedIds = chapterDao.findOrphanedIds(comicId, scannedChapterPaths)
+        if (orphanedIds.isEmpty()) return
+
+        // Determine whether Chapter 1 is being removed; if so, cover must be cleared.
+        val chapter1Deleted = orphanedIds.any { id ->
+            chapterDao.getById(id)?.chapterNumber == 1
+        }
+
+        chapterDao.deleteByIds(orphanedIds)
+
+        if (chapter1Deleted) {
+            // Clear cover on the parent comic — no fallback to other chapters (K-07).
+            comicDao.getById(comicId)?.let { comic ->
+                comicDao.update(comic.copy(coverEntryPath = null))
             }
         }
     }

@@ -66,9 +66,34 @@ sealed class ComicScanIssue {
 
     /**
      * An I/O error occurred while inspecting a chapter archive.
+     *
+     * This issue is emitted only when a specific CBZ file was successfully discovered
+     * during folder enumeration but failed during archive cataloging. Folder enumeration
+     * DID succeed for the comic; the resulting chapter list is authoritative, and chapter
+     * reconciliation may safely proceed for this comic.
+     *
+     * Distinguished from [ChapterEnumerationError] which fires when the folder listing
+     * itself failed — in that case the chapter list is empty and NOT authoritative.
      */
     data class ChapterCatalogError(
         val cbzRelativePath: String,
+        val exception: Throwable
+    ) : ComicScanIssue()
+
+    /**
+     * An I/O error occurred while enumerating the chapter list for a comic folder.
+     *
+     * This issue is emitted when [com.example.kitsune.scanner.ChapterDiscoveryResult.Error]
+     * is returned — the directory listing of the comic folder itself failed. The resulting
+     * [ScannedComic.chapters] list is empty and NOT authoritative; chapter reconciliation
+     * must NOT proceed based on this empty list, as doing so would delete all previously
+     * indexed chapters for this comic.
+     *
+     * Distinguished from [ChapterCatalogError] which fires when a specific CBZ file was
+     * found but failed during archive cataloging — enumeration DID succeed in that case.
+     */
+    data class ChapterEnumerationError(
+        val comicRelativePath: String,
         val exception: Throwable
     ) : ComicScanIssue()
 }

@@ -54,10 +54,12 @@ class DefaultLibraryScanner(
                     comicIssues.add(ComicScanIssue.ComicDirectoryMissing(folder.relativePath))
                 }
                 is ChapterDiscoveryResult.Error -> {
-                    // I/O error saat scan folder komik individual, isolasi agar tidak membatalkan seluruh library
+                    // I/O error saat enumerasi daftar chapter komik — chapter list TIDAK otoritatif.
+                    // Gunakan ChapterEnumerationError agar repository dapat membedakan kegagalan
+                    // enumerasi folder dari kegagalan katalogisasi file CBZ individual.
                     comicIssues.add(
-                        ComicScanIssue.ChapterCatalogError(
-                            cbzRelativePath = folder.relativePath,
+                        ComicScanIssue.ChapterEnumerationError(
+                            comicRelativePath = folder.relativePath,
                             exception = chapterResult.exception
                         )
                     )

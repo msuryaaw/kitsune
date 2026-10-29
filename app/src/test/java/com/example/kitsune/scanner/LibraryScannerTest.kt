@@ -1,4 +1,4 @@
-package com.example.kitsune.scanner
+﻿package com.example.kitsune.scanner
 
 import com.example.kitsune.storage.FakeStorageGateway
 import com.example.kitsune.storage.StorageEntry
@@ -318,12 +318,12 @@ class LibraryScannerTest {
         assertEquals(2, success.comics.size)
         val failingComic = success.comics.first { it.title == "FailingComic" }
         assertFalse(failingComic.hasValidChapters)
-        // Assert exact list of issues for FailingComic: only the I/O ChapterCatalogError, no false NoValidChapters or MissingFirstChapter
+        // Assert exact list of issues for FailingComic: only the I/O ChapterEnumerationError
+        // (folder-level), no false NoValidChapters or MissingFirstChapter
         assertEquals(1, failingComic.issues.size)
-        val errorIssue = failingComic.issues[0] as ComicScanIssue.ChapterCatalogError
-        assertEquals("Comics/FailingComic", errorIssue.cbzRelativePath)
+        val errorIssue = failingComic.issues[0] as ComicScanIssue.ChapterEnumerationError
+        assertEquals("Comics/FailingComic", errorIssue.comicRelativePath)
         assertTrue(errorIssue.exception is IOException)
-        // HealthyComic is readable and empty, so HealthyComic legitimately has MissingFirstChapter count = 1
         assertEquals(1, success.summary.comicsMissingFirstChapterCount)
         val healthyComic = success.comics.first { it.title == "HealthyComic" }
         assertTrue(healthyComic.issues.any { it is ComicScanIssue.MissingFirstChapter })

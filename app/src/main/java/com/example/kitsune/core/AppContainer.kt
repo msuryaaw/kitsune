@@ -1,7 +1,11 @@
 package com.example.kitsune.core
 
 import android.content.Context
+import androidx.room.Room
 
+import com.example.kitsune.data.DefaultLibraryRepository
+import com.example.kitsune.data.KitsuneDatabase
+import com.example.kitsune.data.LibraryRepository
 import com.example.kitsune.scanner.CbzCataloger
 import com.example.kitsune.scanner.ChapterScanner
 import com.example.kitsune.scanner.ComicFolderScanner
@@ -27,6 +31,8 @@ interface AppContainer {
     val chapterScanner: ChapterScanner
     val cbzCataloger: CbzCataloger
     val libraryScanner: LibraryScanner
+    val database: KitsuneDatabase
+    val libraryRepository: LibraryRepository
 }
 
 /**
@@ -61,5 +67,22 @@ class DefaultAppContainer(
 
     override val libraryScanner: LibraryScanner by lazy {
         DefaultLibraryScanner(comicFolderScanner, chapterScanner, cbzCataloger)
+    }
+
+    override val database: KitsuneDatabase by lazy {
+        Room.databaseBuilder(
+            appContext,
+            KitsuneDatabase::class.java,
+            "kitsune_db"
+        ).build()
+    }
+
+    override val libraryRepository: LibraryRepository by lazy {
+        DefaultLibraryRepository(
+            libraryScanner = libraryScanner,
+            comicDao = database.comicDao(),
+            chapterDao = database.chapterDao(),
+            readingProgressDao = database.readingProgressDao()
+        )
     }
 }

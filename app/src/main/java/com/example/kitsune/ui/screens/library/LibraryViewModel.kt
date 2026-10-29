@@ -70,6 +70,14 @@ class LibraryViewModel(
         }
     }
 
+    suspend fun getCoverFile(comicId: Long): com.example.kitsune.data.CoverCacheResult {
+        return libraryRepository.getCoverFile(comicId)
+    }
+
+    suspend fun releaseCoverFile(file: java.io.File) {
+        libraryRepository.releaseCoverFile(file)
+    }
+
     class Factory(
         private val libraryRepository: LibraryRepository,
         private val rootFolderPreferences: RootFolderPreferences,

@@ -1,5 +1,9 @@
 package com.example.kitsune.ui.screens.library
 
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.drawable.BitmapDrawable
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,7 +16,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -35,12 +38,54 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.painter.BitmapPainter
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil.ImageLoader
+import coil.imageLoader
+import coil.request.ImageRequest
+import coil.request.SuccessResult
+import com.example.kitsune.data.CoverCacheResult
 import com.example.kitsune.data.entity.ComicEntity
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
+import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
+
+/**
+ * Thread-safe one-shot releaser ensuring an acquired cover [file] is released exactly once.
+ */
+class OneShotFileReleaser(
+    private val file: File,
+    private val onRelease: (File) -> Unit
+) {
+    private val released = AtomicBoolean(false)
+
+    fun release() {
+        if (released.compareAndSet(false, true)) {
+            onRelease(file)
+        }
+    }
+}
+
+/**
+ * UI State for rendering comic cover images.
+ */
+sealed interface CoverUiState {
+    object Loading : CoverUiState
+    data class Loaded(val imageBitmap: ImageBitmap) : CoverUiState
+    object Unavailable : CoverUiState
+    object Error : CoverUiState
+}
 
 @Composable
 fun LibraryScreen(
@@ -78,6 +123,7 @@ fun LibraryScreen(
                 LibrarySuccessView(
                     comics = state.comics,
                     gridColumns = state.gridColumns,
+                    viewModel = viewModel,
                     onComicClick = onComicClick,
                     onGridColumnsChange = { columns -> viewModel.setGridColumns(columns) },
                 )
@@ -167,6 +213,7 @@ private fun EmptyComicsView(
 private fun LibrarySuccessView(
     comics: List<ComicEntity>,
     gridColumns: Int,
+    viewModel: LibraryViewModel,
     onComicClick: (Long) -> Unit,
     onGridColumnsChange: (Int) -> Unit,
     modifier: Modifier = Modifier,
@@ -190,6 +237,7 @@ private fun LibrarySuccessView(
             ) { comic ->
                 ComicGridItemCard(
                     comic = comic,
+                    viewModel = viewModel,
                     onClick = { onComicClick(comic.id) },
                 )
             }
@@ -228,6 +276,7 @@ private fun GridSelectorRow(
 @Composable
 private fun ComicGridItemCard(
     comic: ComicEntity,
+    viewModel: LibraryViewModel,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -241,35 +290,10 @@ private fun ComicGridItemCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
         Column {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(0.7f),
-                contentAlignment = Alignment.Center,
-            ) {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.surfaceVariant,
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.MenuBook,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-                if (comic.isBookmarked) {
-                    Icon(
-                        imageVector = Icons.Default.Bookmark,
-                        contentDescription = "Bookmarked",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(6.dp),
-                    )
-                }
-            }
+            ComicCoverImage(
+                comic = comic,
+                viewModel = viewModel,
+            )
             Column(modifier = Modifier.padding(8.dp)) {
                 Text(
                     text = comic.title,
@@ -286,6 +310,126 @@ private fun ComicGridItemCard(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun ComicCoverImage(
+    comic: ComicEntity,
+    viewModel: LibraryViewModel,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    val coverState by produceState<CoverUiState>(
+        initialValue = CoverUiState.Loading,
+        key1 = comic.id,
+        key2 = comic.coverEntryPath,
+        key3 = comic.lastScannedAt
+    ) {
+        var acquiredFile: File? = null
+        try {
+            val cacheResult = viewModel.getCoverFile(comic.id)
+            val file = when (cacheResult) {
+                is CoverCacheResult.Hit -> cacheResult.file
+                is CoverCacheResult.Success -> cacheResult.file
+                else -> null
+            }
+
+            if (file == null || !file.isFile || !file.exists()) {
+                value = CoverUiState.Unavailable
+                return@produceState
+            }
+
+            acquiredFile = file
+
+            // Execute Coil request synchronously on IO thread within this coroutine using shared singleton ImageLoader
+            val request = ImageRequest.Builder(context)
+                .data(file)
+                .size(300, 420)
+                .build()
+
+            val imageLoader = context.imageLoader
+            val result = imageLoader.execute(request)
+
+            if (result is SuccessResult) {
+                val drawable = result.drawable
+                val bitmap = when (drawable) {
+                    is BitmapDrawable -> drawable.bitmap
+                    else -> {
+                        val width = drawable.intrinsicWidth.coerceAtLeast(1)
+                        val height = drawable.intrinsicHeight.coerceAtLeast(1)
+                        val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                        val canvas = Canvas(bmp)
+                        drawable.setBounds(0, 0, width, height)
+                        drawable.draw(canvas)
+                        bmp
+                    }
+                }
+                value = CoverUiState.Loaded(bitmap.asImageBitmap())
+            } else {
+                value = CoverUiState.Error
+            }
+        } catch (ce: CancellationException) {
+            throw ce
+        } catch (_: Exception) {
+            value = CoverUiState.Error
+        } finally {
+            acquiredFile?.let { file ->
+                withContext(NonCancellable) {
+                    viewModel.releaseCoverFile(file)
+                }
+            }
+        }
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .aspectRatio(0.7f),
+        contentAlignment = Alignment.Center,
+    ) {
+        when (val state = coverState) {
+            is CoverUiState.Loaded -> {
+                Image(
+                    painter = BitmapPainter(state.imageBitmap),
+                    contentDescription = "Cover untuk ${comic.title}",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+            else -> {
+                CoverPlaceholderSurface()
+            }
+        }
+
+        if (comic.isBookmarked) {
+            Icon(
+                imageVector = Icons.Default.Bookmark,
+                contentDescription = "Bookmarked",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(6.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun CoverPlaceholderSurface(
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.MenuBook,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }

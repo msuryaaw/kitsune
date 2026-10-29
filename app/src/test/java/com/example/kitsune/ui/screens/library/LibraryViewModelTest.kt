@@ -25,6 +25,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -33,6 +34,7 @@ class FakeLibraryRepository : LibraryRepository {
     val comicsByRoot = MutableStateFlow<Map<String, List<ComicEntity>>>(emptyMap())
     var shouldThrowError = false
     var errorMessage = "Database query failed"
+    val releasedFiles = mutableListOf<java.io.File>()
 
     override suspend fun syncLibrary(rootUri: String): LibraryScanResult {
         return LibraryScanResult.RootNotConfigured
@@ -67,7 +69,9 @@ class FakeLibraryRepository : LibraryRepository {
 
     override suspend fun getCoverFile(comicId: Long): CoverCacheResult = CoverCacheResult.Unavailable("Fake")
 
-    override suspend fun releaseCoverFile(file: java.io.File) {}
+    override suspend fun releaseCoverFile(file: java.io.File) {
+        releasedFiles.add(file)
+    }
 }
 
 class FakeSettingsRepository(
@@ -282,5 +286,115 @@ class LibraryViewModelTest {
         assertEquals("Manga B", successB.comics.first().title)
 
         collectJob.cancel()
+    }
+
+    @Test
+    fun getCoverFile_delegatesToRepository() = runTest {
+        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo)
+        val result = viewModel.getCoverFile(1L)
+        assertTrue(result is CoverCacheResult.Unavailable)
+    }
+
+    @Test
+    fun releaseCoverFile_delegatesToRepository() = runTest {
+        val testFile = java.io.File("dummy.jpg")
+        fakeRepo.releasedFiles.clear()
+        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo)
+
+        viewModel.releaseCoverFile(testFile)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue("FakeRepo must record released file", fakeRepo.releasedFiles.contains(testFile))
+    }
+
+    @Test
+    fun oneShotFileReleaser_executesReleaseOnlyOnce() {
+        var releaseCalls = 0
+        val testFile = java.io.File("dummy.jpg")
+        val releaser = OneShotFileReleaser(testFile) {
+            releaseCalls++
+        }
+
+        releaser.release()
+        releaser.release()
+        releaser.release()
+
+        assertEquals("Release callback must execute exactly once regardless of repeated calls", 1, releaseCalls)
+    }
+
+    @Test
+    fun coverLifecycle_singleCoroutineOwnership_activeReleaseAndCancellationOrder() = runTest {
+        val testFile = java.io.File("dummy_ephemeral_1.jpg")
+        fakeRepo.releasedFiles.clear()
+        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo)
+
+        val isExecuting = java.util.concurrent.atomic.AtomicBoolean(false)
+        val releaseExecuted = java.util.concurrent.atomic.AtomicBoolean(false)
+
+        val job = launch {
+            var acquiredFile: java.io.File? = null
+            try {
+                acquiredFile = testFile
+                isExecuting.set(true)
+                kotlinx.coroutines.delay(100)
+            } catch (ce: kotlinx.coroutines.CancellationException) {
+                throw ce
+            } finally {
+                acquiredFile?.let { file ->
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+                        viewModel.releaseCoverFile(file)
+                        releaseExecuted.set(true)
+                    }
+                }
+            }
+        }
+
+        // Mid-execution check
+        testDispatcher.scheduler.advanceTimeBy(50)
+        assertTrue("Request must be active mid-execution", isExecuting.get())
+        assertFalse("Release must NOT run before execution completes", releaseExecuted.get())
+
+        // Complete execution
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertTrue("Release must execute in finally block after completion", releaseExecuted.get())
+        assertTrue("FakeRepo must record released file", fakeRepo.releasedFiles.contains(testFile))
+    }
+
+    @Test
+    fun coverLifecycle_cancellationWhileExecuting_runsReleaseOnNonCancellableAndPropagatesCancellation() = runTest {
+        val testFile = java.io.File("dummy_ephemeral_2.jpg")
+        fakeRepo.releasedFiles.clear()
+        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo)
+
+        val releaseExecutedOnNonCancellable = java.util.concurrent.atomic.AtomicBoolean(false)
+
+        val job = launch {
+            var acquiredFile: java.io.File? = null
+            try {
+                acquiredFile = testFile
+                kotlinx.coroutines.delay(1000)
+            } catch (ce: kotlinx.coroutines.CancellationException) {
+                throw ce
+            } finally {
+                acquiredFile?.let { file ->
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+                        viewModel.releaseCoverFile(file)
+                        releaseExecutedOnNonCancellable.set(true)
+                    }
+                }
+            }
+        }
+
+        testDispatcher.scheduler.advanceTimeBy(100)
+        job.cancel(kotlinx.coroutines.CancellationException("Cancelled mid-execution"))
+
+        try {
+            job.join()
+        } catch (ce: kotlinx.coroutines.CancellationException) {
+            assertEquals("Cancelled mid-execution", ce.message)
+        }
+
+        assertTrue("Release MUST execute on NonCancellable context when coroutine cancelled", releaseExecutedOnNonCancellable.get())
+        assertTrue("FakeRepo must record released file upon cancellation", fakeRepo.releasedFiles.contains(testFile))
     }
 }

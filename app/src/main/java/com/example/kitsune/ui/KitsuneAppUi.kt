@@ -80,7 +80,8 @@ fun KitsuneApp(
                 val libraryViewModel: LibraryViewModel = viewModel(
                     factory = LibraryViewModel.Factory(
                         libraryRepository = appContainer.libraryRepository,
-                        rootFolderPreferences = appContainer.rootFolderPreferences
+                        rootFolderPreferences = appContainer.rootFolderPreferences,
+                        settingsRepository = appContainer.settingsRepository
                     )
                 )
                 LibraryScreen(

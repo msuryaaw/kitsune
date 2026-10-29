@@ -2,9 +2,11 @@ package com.example.kitsune.ui.screens.library
 
 import com.example.kitsune.core.FakeRootFolderPreferences
 import com.example.kitsune.data.LibraryRepository
+import com.example.kitsune.data.SettingsRepository
 import com.example.kitsune.data.entity.ChapterEntity
 import com.example.kitsune.data.entity.ComicEntity
 import com.example.kitsune.data.entity.ReadingProgressEntity
+import com.example.kitsune.data.entity.SettingsEntity
 import com.example.kitsune.scanner.LibraryScanResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -60,12 +62,26 @@ class FakeLibraryRepository : LibraryRepository {
     override suspend fun setBookmarked(comicId: Long, bookmarked: Boolean) {}
 }
 
+class FakeSettingsRepository(
+    initialSettings: SettingsEntity = SettingsEntity()
+) : SettingsRepository {
+    val settingsFlow = MutableStateFlow(initialSettings)
+
+    override fun observeSettings(): Flow<SettingsEntity> = settingsFlow
+
+    override suspend fun setGridColumns(columns: Int) {
+        val sanitized = columns.coerceIn(2, 4)
+        settingsFlow.value = settingsFlow.value.copy(gridColumns = sanitized)
+    }
+}
+
 @OptIn(ExperimentalCoroutinesApi::class)
 class LibraryViewModelTest {
 
     private val testDispatcher = UnconfinedTestDispatcher()
     private lateinit var fakeRepo: FakeLibraryRepository
     private lateinit var fakePrefs: FakeRootFolderPreferences
+    private lateinit var fakeSettingsRepo: FakeSettingsRepository
     private lateinit var viewModel: LibraryViewModel
 
     @Before
@@ -73,6 +89,7 @@ class LibraryViewModelTest {
         Dispatchers.setMain(testDispatcher)
         fakeRepo = FakeLibraryRepository()
         fakePrefs = FakeRootFolderPreferences()
+        fakeSettingsRepo = FakeSettingsRepository()
     }
 
     @After
@@ -82,7 +99,7 @@ class LibraryViewModelTest {
 
     @Test
     fun uiState_initiallyRootNotConfigured_whenNoRootSelected() = runTest {
-        viewModel = LibraryViewModel(fakeRepo, fakePrefs)
+        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo)
         val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
 
         val currentState = viewModel.uiState.value
@@ -99,7 +116,7 @@ class LibraryViewModelTest {
         val rootUri = "content://com.android.externalstorage.documents/tree/primary%3AKitsune"
         fakePrefs.setRootUriString(rootUri)
 
-        viewModel = LibraryViewModel(fakeRepo, fakePrefs)
+        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo)
         val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
 
         val currentState = viewModel.uiState.value
@@ -125,7 +142,7 @@ class LibraryViewModelTest {
         fakeRepo.comicsByRoot.value = mapOf(rootUri to listOf(comic1))
         fakePrefs.setRootUriString(rootUri)
 
-        viewModel = LibraryViewModel(fakeRepo, fakePrefs)
+        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo)
         val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
 
         val currentState = viewModel.uiState.value
@@ -137,6 +154,30 @@ class LibraryViewModelTest {
         assertEquals(rootUri, successState.rootUriString)
         assertEquals(1, successState.comics.size)
         assertEquals("One Piece", successState.comics.first().title)
+        assertEquals(3, successState.gridColumns) // Default 3 columns
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun setGridColumns_updatesSettingsAndEmitsNewGridColumnsInUiState() = runTest {
+        val rootUri = "content://primary%3AKitsune"
+        val comic1 = ComicEntity(id = 1L, rootUriString = rootUri, relativePath = "Comics/A", title = "A", lastScannedAt = 100L)
+        fakeRepo.comicsByRoot.value = mapOf(rootUri to listOf(comic1))
+        fakePrefs.setRootUriString(rootUri)
+
+        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo)
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+
+        assertEquals(3, (viewModel.uiState.value as LibraryUiState.Success).gridColumns)
+
+        // Change columns to 2
+        viewModel.setGridColumns(2)
+        assertEquals(2, (viewModel.uiState.value as LibraryUiState.Success).gridColumns)
+
+        // Change columns to 4
+        viewModel.setGridColumns(4)
+        assertEquals(4, (viewModel.uiState.value as LibraryUiState.Success).gridColumns)
 
         collectJob.cancel()
     }
@@ -155,7 +196,7 @@ class LibraryViewModelTest {
         )
         fakePrefs.setRootUriString(rootUri1)
 
-        viewModel = LibraryViewModel(fakeRepo, fakePrefs)
+        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo)
         val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
 
         // Root 1 active
@@ -179,7 +220,7 @@ class LibraryViewModelTest {
 
     @Test
     fun uiState_initialValueIsLoading() {
-        viewModel = LibraryViewModel(fakeRepo, fakePrefs)
+        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo)
         assertEquals("Initial value before flow observation must be Loading", LibraryUiState.Loading, viewModel.uiState.value)
     }
 
@@ -190,7 +231,7 @@ class LibraryViewModelTest {
         fakeRepo.shouldThrowError = true
         fakeRepo.errorMessage = "Room DB Disk I/O Failure"
 
-        viewModel = LibraryViewModel(fakeRepo, fakePrefs)
+        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo)
         val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
 
         val currentState = viewModel.uiState.value
@@ -213,7 +254,7 @@ class LibraryViewModelTest {
         fakeRepo.shouldThrowError = true
         fakeRepo.errorMessage = "Root A I/O Error"
 
-        viewModel = LibraryViewModel(fakeRepo, fakePrefs)
+        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo)
         val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
 
         // Root A is in Error state

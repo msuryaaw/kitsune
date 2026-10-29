@@ -22,11 +22,12 @@ sealed interface LibraryUiState {
     data class EmptyComics(val rootUriString: String) : LibraryUiState
 
     /**
-     * Collection loaded successfully with one or more comic entities.
+     * Collection loaded successfully with one or more comic entities and grid column preference.
      */
     data class Success(
         val rootUriString: String,
-        val comics: List<ComicEntity>
+        val comics: List<ComicEntity>,
+        val gridColumns: Int = 3
     ) : LibraryUiState
 
     /**

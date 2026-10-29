@@ -2,8 +2,10 @@ package com.example.kitsune.core
 
 import android.content.Context
 
+import com.example.kitsune.scanner.ChapterScanner
 import com.example.kitsune.scanner.ComicFolderScanner
 import com.example.kitsune.scanner.ComicsDirectoryDetector
+import com.example.kitsune.scanner.DefaultChapterScanner
 import com.example.kitsune.scanner.DefaultComicFolderScanner
 import com.example.kitsune.scanner.DefaultComicsDirectoryDetector
 import com.example.kitsune.storage.SafStorageGateway
@@ -18,6 +20,7 @@ interface AppContainer {
     val storageGateway: StorageGateway
     val comicsDirectoryDetector: ComicsDirectoryDetector
     val comicFolderScanner: ComicFolderScanner
+    val chapterScanner: ChapterScanner
 }
 
 /**
@@ -40,5 +43,9 @@ class DefaultAppContainer(
 
     override val comicFolderScanner: ComicFolderScanner by lazy {
         DefaultComicFolderScanner(comicsDirectoryDetector, storageGateway)
+    }
+
+    override val chapterScanner: ChapterScanner by lazy {
+        DefaultChapterScanner(storageGateway)
     }
 }

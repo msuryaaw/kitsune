@@ -70,6 +70,8 @@ class DefaultChapterScanner(
                     }
                 }
 
+                validChapters.sortWith(ChapterNaturalComparator)
+
                 ChapterDiscoveryResult.Success(
                     chapters = validChapters,
                     rejectedFiles = rejectedFiles

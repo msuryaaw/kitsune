@@ -87,5 +87,10 @@ interface LibraryRepository {
      * Releases an active consumer reference for an ephemeral cover file when reading completes.
      */
     suspend fun releaseCoverFile(file: java.io.File)
+
+    /**
+     * Observes the latest scan result produced by [syncLibrary].
+     */
+    fun observeLastScanResult(): Flow<LibraryScanResult?>
 }
 

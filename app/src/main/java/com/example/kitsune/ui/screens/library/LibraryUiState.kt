@@ -7,31 +7,47 @@ import com.example.kitsune.data.entity.ComicEntity
  */
 sealed interface LibraryUiState {
     /**
+     * Initial loading state while setting up reactive stream or scanning.
+     */
+    object Loading : LibraryUiState
+
+    /**
      * Root storage folder has not been selected in settings.
      */
     object RootNotConfigured : LibraryUiState
 
     /**
-     * Initial loading state while setting up reactive stream.
+     * SAF storage access permission is missing, revoked, or root is inaccessible.
      */
-    object Loading : LibraryUiState
+    data class PermissionDenied(val message: String) : LibraryUiState
 
     /**
-     * Root storage folder is configured, but no comics were found/indexed in the collection.
+     * Storage root is accessible, but `Comics` directory does not exist inside it.
      */
-    data class EmptyComics(val rootUriString: String) : LibraryUiState
+    object ComicsDirectoryNotFound : LibraryUiState
 
     /**
-     * Collection loaded successfully with one or more comic entities and grid column preference.
+     * `Comics` directory exists, but contains zero comic subfolders.
+     */
+    object EmptyComicsDirectory : LibraryUiState
+
+    /**
+     * Comic folders exist in `Comics`, but zero folders contain valid chapters.
+     */
+    object NoValidChapters : LibraryUiState
+
+    /**
+     * Collection loaded successfully with one or more comic entities, grid column preference, and optional issues count.
      */
     data class Success(
         val rootUriString: String,
         val comics: List<ComicEntity>,
-        val gridColumns: Int = 3
+        val gridColumns: Int = 3,
+        val issuesCount: Int = 0
     ) : LibraryUiState
 
     /**
-     * Error state when observing the library fails.
+     * Error state when observing or scanning the library fails.
      */
     data class Error(val message: String) : LibraryUiState
 }

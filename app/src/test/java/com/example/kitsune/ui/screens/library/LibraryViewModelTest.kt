@@ -32,12 +32,17 @@ import org.junit.Test
 
 class FakeLibraryRepository : LibraryRepository {
     val comicsByRoot = MutableStateFlow<Map<String, List<ComicEntity>>>(emptyMap())
+    val lastScanResult = MutableStateFlow<LibraryScanResult?>(null)
     var shouldThrowError = false
     var errorMessage = "Database query failed"
     val releasedFiles = mutableListOf<java.io.File>()
+    var syncCalls = 0
+    var syncRootUri: String? = null
 
     override suspend fun syncLibrary(rootUri: String): LibraryScanResult {
-        return LibraryScanResult.RootNotConfigured
+        syncCalls++
+        syncRootUri = rootUri
+        return lastScanResult.value ?: LibraryScanResult.RootNotConfigured
     }
 
     override fun observeComicsByRoot(rootUri: String): Flow<List<ComicEntity>> {
@@ -72,6 +77,16 @@ class FakeLibraryRepository : LibraryRepository {
     override suspend fun releaseCoverFile(file: java.io.File) {
         releasedFiles.add(file)
     }
+
+    override fun observeLastScanResult(): Flow<LibraryScanResult?> = lastScanResult
+}
+
+class FakeComicsDirectoryDetector : com.example.kitsune.scanner.ComicsDirectoryDetector {
+    var detectedState: com.example.kitsune.scanner.ComicsDirectoryState = com.example.kitsune.scanner.ComicsDirectoryState.DirectoryNotFound
+
+    override fun detectComicsDirectory(): com.example.kitsune.scanner.ComicsDirectoryState {
+        return detectedState
+    }
 }
 
 class FakeSettingsRepository(
@@ -94,6 +109,7 @@ class LibraryViewModelTest {
     private lateinit var fakeRepo: FakeLibraryRepository
     private lateinit var fakePrefs: FakeRootFolderPreferences
     private lateinit var fakeSettingsRepo: FakeSettingsRepository
+    private lateinit var fakeDetector: FakeComicsDirectoryDetector
     private lateinit var viewModel: LibraryViewModel
 
     @Before
@@ -102,6 +118,7 @@ class LibraryViewModelTest {
         fakeRepo = FakeLibraryRepository()
         fakePrefs = FakeRootFolderPreferences()
         fakeSettingsRepo = FakeSettingsRepository()
+        fakeDetector = FakeComicsDirectoryDetector()
     }
 
     @After
@@ -111,7 +128,7 @@ class LibraryViewModelTest {
 
     @Test
     fun uiState_initiallyRootNotConfigured_whenNoRootSelected() = runTest {
-        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo)
+        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo, fakeDetector)
         val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
 
         val currentState = viewModel.uiState.value
@@ -124,19 +141,19 @@ class LibraryViewModelTest {
     }
 
     @Test
-    fun uiState_emitsEmptyComics_whenRootConfiguredButCollectionEmpty() = runTest {
+    fun uiState_emitsComicsDirectoryNotFound_whenRootConfiguredButComicsFolderMissing() = runTest {
         val rootUri = "content://com.android.externalstorage.documents/tree/primary%3AKitsune"
         fakePrefs.setRootUriString(rootUri)
+        fakeDetector.detectedState = com.example.kitsune.scanner.ComicsDirectoryState.DirectoryNotFound
 
-        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo)
+        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo, fakeDetector)
         val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
 
         val currentState = viewModel.uiState.value
         assertTrue(
-            "State must be EmptyComics when repo emits empty list",
-            currentState is LibraryUiState.EmptyComics
+            "State must be ComicsDirectoryNotFound when Comics directory is missing",
+            currentState is LibraryUiState.ComicsDirectoryNotFound
         )
-        assertEquals(rootUri, (currentState as LibraryUiState.EmptyComics).rootUriString)
 
         collectJob.cancel()
     }
@@ -154,7 +171,7 @@ class LibraryViewModelTest {
         fakeRepo.comicsByRoot.value = mapOf(rootUri to listOf(comic1))
         fakePrefs.setRootUriString(rootUri)
 
-        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo)
+        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo, fakeDetector)
         val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
 
         val currentState = viewModel.uiState.value
@@ -178,7 +195,7 @@ class LibraryViewModelTest {
         fakeRepo.comicsByRoot.value = mapOf(rootUri to listOf(comic1))
         fakePrefs.setRootUriString(rootUri)
 
-        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo)
+        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo, fakeDetector)
         val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
 
         assertEquals(3, (viewModel.uiState.value as LibraryUiState.Success).gridColumns)
@@ -208,7 +225,7 @@ class LibraryViewModelTest {
         )
         fakePrefs.setRootUriString(rootUri1)
 
-        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo)
+        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo, fakeDetector)
         val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
 
         // Root 1 active
@@ -232,7 +249,7 @@ class LibraryViewModelTest {
 
     @Test
     fun uiState_initialValueIsLoading() {
-        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo)
+        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo, fakeDetector)
         assertEquals("Initial value before flow observation must be Loading", LibraryUiState.Loading, viewModel.uiState.value)
     }
 
@@ -243,7 +260,7 @@ class LibraryViewModelTest {
         fakeRepo.shouldThrowError = true
         fakeRepo.errorMessage = "Room DB Disk I/O Failure"
 
-        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo)
+        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo, fakeDetector)
         val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
 
         val currentState = viewModel.uiState.value
@@ -266,7 +283,7 @@ class LibraryViewModelTest {
         fakeRepo.shouldThrowError = true
         fakeRepo.errorMessage = "Root A I/O Error"
 
-        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo)
+        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo, fakeDetector)
         val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
 
         // Root A is in Error state
@@ -290,7 +307,7 @@ class LibraryViewModelTest {
 
     @Test
     fun getCoverFile_delegatesToRepository() = runTest {
-        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo)
+        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo, fakeDetector)
         val result = viewModel.getCoverFile(1L)
         assertTrue(result is CoverCacheResult.Unavailable)
     }
@@ -299,7 +316,7 @@ class LibraryViewModelTest {
     fun releaseCoverFile_delegatesToRepository() = runTest {
         val testFile = java.io.File("dummy.jpg")
         fakeRepo.releasedFiles.clear()
-        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo)
+        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo, fakeDetector)
 
         viewModel.releaseCoverFile(testFile)
         testDispatcher.scheduler.advanceUntilIdle()
@@ -326,7 +343,7 @@ class LibraryViewModelTest {
     fun coverLifecycle_singleCoroutineOwnership_activeReleaseAndCancellationOrder() = runTest {
         val testFile = java.io.File("dummy_ephemeral_1.jpg")
         fakeRepo.releasedFiles.clear()
-        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo)
+        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo, fakeDetector)
 
         val isExecuting = java.util.concurrent.atomic.AtomicBoolean(false)
         val releaseExecuted = java.util.concurrent.atomic.AtomicBoolean(false)
@@ -364,7 +381,7 @@ class LibraryViewModelTest {
     fun coverLifecycle_cancellationWhileExecuting_runsReleaseOnNonCancellableAndPropagatesCancellation() = runTest {
         val testFile = java.io.File("dummy_ephemeral_2.jpg")
         fakeRepo.releasedFiles.clear()
-        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo)
+        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo, fakeDetector)
 
         val releaseExecutedOnNonCancellable = java.util.concurrent.atomic.AtomicBoolean(false)
 
@@ -396,5 +413,137 @@ class LibraryViewModelTest {
 
         assertTrue("Release MUST execute on NonCancellable context when coroutine cancelled", releaseExecutedOnNonCancellable.get())
         assertTrue("FakeRepo must record released file upon cancellation", fakeRepo.releasedFiles.contains(testFile))
+    }
+
+    @Test
+    fun uiState_emitsPermissionDenied_whenScanReturnsPermissionDenied() = runTest {
+        val rootUri = "content://primary%3AKitsune"
+        fakePrefs.setRootUriString(rootUri)
+        fakeRepo.lastScanResult.value = LibraryScanResult.PermissionDenied("Access revoked")
+
+        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo, fakeDetector)
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+
+        val currentState = viewModel.uiState.value
+        assertTrue("State must be PermissionDenied", currentState is LibraryUiState.PermissionDenied)
+        assertEquals("Access revoked", (currentState as LibraryUiState.PermissionDenied).message)
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun uiState_emitsComicsDirectoryNotFound_whenComicsDirectoryIsMissing() = runTest {
+        val rootUri = "content://primary%3AKitsune"
+        fakePrefs.setRootUriString(rootUri)
+        fakeRepo.lastScanResult.value = LibraryScanResult.ComicsDirectoryNotFound
+
+        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo, fakeDetector)
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+
+        val currentState = viewModel.uiState.value
+        assertTrue("State must be ComicsDirectoryNotFound", currentState is LibraryUiState.ComicsDirectoryNotFound)
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun uiState_emitsEmptyComicsDirectory_whenComicsDirectoryIsEmpty() = runTest {
+        val rootUri = "content://primary%3AKitsune"
+        fakePrefs.setRootUriString(rootUri)
+        fakeRepo.lastScanResult.value = LibraryScanResult.EmptyComicsDirectory
+
+        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo, fakeDetector)
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+
+        val currentState = viewModel.uiState.value
+        assertTrue("State must be EmptyComicsDirectory", currentState is LibraryUiState.EmptyComicsDirectory)
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun uiState_emitsNoValidChapters_whenComicsFolderReadyButZeroValidChaptersIndexed() = runTest {
+        val rootUri = "content://primary%3AKitsune"
+        fakePrefs.setRootUriString(rootUri)
+        fakeRepo.comicsByRoot.value = mapOf(rootUri to emptyList())
+        fakeDetector.detectedState = com.example.kitsune.scanner.ComicsDirectoryState.Ready(
+            entry = com.example.kitsune.storage.StorageEntry("Comics", "Comics", true),
+            childCount = 2
+        )
+
+        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo, fakeDetector)
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+
+        val currentState = viewModel.uiState.value
+        assertTrue("State must be NoValidChapters when comic folders exist but zero valid chapters indexed", currentState is LibraryUiState.NoValidChapters)
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun uiState_includesComicWithChapter2Only_inSuccessState() = runTest {
+        val rootUri = "content://primary%3AKitsune"
+        // Comic has Chapter 2 valid, but coverEntryPath is null because Chapter 1 is missing
+        val comicWithChapter2Only = ComicEntity(
+            id = 5L,
+            rootUriString = rootUri,
+            relativePath = "Comics/Naruto",
+            title = "Naruto",
+            coverEntryPath = null, // Chapter 1 missing
+            lastScannedAt = 1000L
+        )
+        fakeRepo.comicsByRoot.value = mapOf(rootUri to listOf(comicWithChapter2Only))
+        fakePrefs.setRootUriString(rootUri)
+
+        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo, fakeDetector)
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+
+        val currentState = viewModel.uiState.value
+        assertTrue("Comic with Chapter 2 valid MUST appear in Library Success state", currentState is LibraryUiState.Success)
+        val success = currentState as LibraryUiState.Success
+        assertEquals(1, success.comics.size)
+        assertEquals("Naruto", success.comics.first().title)
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun refreshLibrary_triggersLibrarySyncOnActiveRoot() = runTest {
+        val rootUri = "content://primary%3AKitsune"
+        fakePrefs.setRootUriString(rootUri)
+        fakeRepo.syncCalls = 0
+        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo, fakeDetector)
+
+        viewModel.refreshLibrary()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("refreshLibrary must invoke syncLibrary on repository", 1, fakeRepo.syncCalls)
+        assertEquals(rootUri, fakeRepo.syncRootUri)
+    }
+
+    @Test
+    fun uiState_emitsSuccessWithIssuesCount_whenPartialScanHasValidComicsAndIssues() = runTest {
+        val rootUri = "content://primary%3AKitsune"
+        val comic1 = ComicEntity(id = 1L, rootUriString = rootUri, relativePath = "Comics/A", title = "Manga A", lastScannedAt = 100L)
+        fakeRepo.comicsByRoot.value = mapOf(rootUri to listOf(comic1))
+        fakePrefs.setRootUriString(rootUri)
+
+        val scanIssue = com.example.kitsune.scanner.ComicScanIssue.CorruptChapter("Comics/B/Ch1.cbz", "Bad archive")
+        fakeRepo.lastScanResult.value = LibraryScanResult.Success(
+            comics = emptyList(),
+            summary = com.example.kitsune.scanner.ScanSummary(1, 1, 1, 1, 1, 0, 0, 0),
+            issues = listOf(scanIssue)
+        )
+
+        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo, fakeDetector)
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+
+        val currentState = viewModel.uiState.value
+        assertTrue("State must be Success for valid comics even when scan produced partial issues", currentState is LibraryUiState.Success)
+        val success = currentState as LibraryUiState.Success
+        assertEquals(1, success.comics.size)
+        assertEquals(1, success.issuesCount)
+
+        collectJob.cancel()
     }
 }

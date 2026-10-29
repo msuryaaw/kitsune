@@ -81,7 +81,8 @@ fun KitsuneApp(
                     factory = LibraryViewModel.Factory(
                         libraryRepository = appContainer.libraryRepository,
                         rootFolderPreferences = appContainer.rootFolderPreferences,
-                        settingsRepository = appContainer.settingsRepository
+                        settingsRepository = appContainer.settingsRepository,
+                        comicsDirectoryDetector = appContainer.comicsDirectoryDetector
                     )
                 )
                 LibraryScreen(

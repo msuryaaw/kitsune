@@ -15,6 +15,7 @@ import com.example.kitsune.scanner.LibraryScanResult
 import com.example.kitsune.scanner.ScannedComic
 import com.example.kitsune.scanner.ScannedChapter
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -73,6 +74,9 @@ class DefaultLibraryRepository(
      * the underlying scanner pipeline cannot be clobbered or interleaved by simultaneous callers.
      */
     private val syncMutex = Mutex()
+    private val _lastScanResult = MutableStateFlow<LibraryScanResult?>(null)
+
+    override fun observeLastScanResult(): Flow<LibraryScanResult?> = _lastScanResult
 
     // ── Scan and sync ─────────────────────────────────────────────────────────
 
@@ -82,6 +86,7 @@ class DefaultLibraryRepository(
         primeIncrementalIndex(rootUri)
 
         val scanResult = libraryScanner.scanLibrary()
+        _lastScanResult.value = scanResult
 
         if (scanResult is LibraryScanResult.Success) {
             val nowMillis = System.currentTimeMillis()

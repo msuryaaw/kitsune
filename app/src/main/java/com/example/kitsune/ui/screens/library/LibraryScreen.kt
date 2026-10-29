@@ -25,6 +25,9 @@ import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOff
 import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -49,7 +52,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import coil.ImageLoader
 import coil.imageLoader
 import coil.request.ImageRequest
 import coil.request.SuccessResult
@@ -113,8 +115,27 @@ fun LibraryScreen(
                     modifier = Modifier.align(Alignment.Center),
                 )
             }
-            is LibraryUiState.EmptyComics -> {
-                EmptyComicsView(
+            is LibraryUiState.PermissionDenied -> {
+                PermissionDeniedView(
+                    message = state.message,
+                    onNavigateToSettings = onNavigateToSettings,
+                    modifier = Modifier.align(Alignment.Center),
+                )
+            }
+            is LibraryUiState.ComicsDirectoryNotFound -> {
+                ComicsDirectoryNotFoundView(
+                    onNavigateToSettings = onNavigateToSettings,
+                    modifier = Modifier.align(Alignment.Center),
+                )
+            }
+            is LibraryUiState.EmptyComicsDirectory -> {
+                EmptyComicsDirectoryView(
+                    onNavigateToSettings = onNavigateToSettings,
+                    modifier = Modifier.align(Alignment.Center),
+                )
+            }
+            is LibraryUiState.NoValidChapters -> {
+                NoValidChaptersView(
                     onNavigateToSettings = onNavigateToSettings,
                     modifier = Modifier.align(Alignment.Center),
                 )
@@ -123,6 +144,7 @@ fun LibraryScreen(
                 LibrarySuccessView(
                     comics = state.comics,
                     gridColumns = state.gridColumns,
+                    issuesCount = state.issuesCount,
                     viewModel = viewModel,
                     onComicClick = onComicClick,
                     onGridColumnsChange = { columns -> viewModel.setGridColumns(columns) },
@@ -131,6 +153,7 @@ fun LibraryScreen(
             is LibraryUiState.Error -> {
                 LibraryErrorView(
                     message = state.message,
+                    onRetry = { viewModel.refreshLibrary() },
                     modifier = Modifier.align(Alignment.Center),
                 )
             }
@@ -178,7 +201,87 @@ private fun RootNotConfiguredView(
 }
 
 @Composable
-private fun EmptyComicsView(
+private fun PermissionDeniedView(
+    message: String,
+    onNavigateToSettings: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.errorContainer,
+        ),
+    ) {
+        Column(
+            modifier = Modifier.padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Icon(
+                imageVector = Icons.Default.Lock,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onErrorContainer,
+                modifier = Modifier.padding(bottom = 12.dp),
+            )
+            Text(
+                text = "Akses Folder Terputus",
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onErrorContainer,
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Izin akses ke folder 'Kitsune' terputus atau dicabut. $message",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onErrorContainer,
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Button(onClick = onNavigateToSettings) {
+                Text("Pulihkan Akses Folder")
+            }
+        }
+    }
+}
+
+@Composable
+private fun ComicsDirectoryNotFoundView(
+    onNavigateToSettings: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+        ),
+    ) {
+        Column(
+            modifier = Modifier.padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Icon(
+                imageVector = Icons.Default.Folder,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(bottom = 12.dp),
+            )
+            Text(
+                text = "Folder 'Comics' Tidak Ditemukan",
+                style = MaterialTheme.typography.titleLarge,
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Subfolder 'Comics' tidak ditemukan di dalam folder root terpilih. Buat direktori 'Comics' dan tempatkan folder komik di dalamnya.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            OutlinedButton(onClick = onNavigateToSettings) {
+                Text("Periksa Folder Root")
+            }
+        }
+    }
+}
+
+@Composable
+private fun EmptyComicsDirectoryView(
     onNavigateToSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -198,7 +301,7 @@ private fun EmptyComicsView(
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Tidak ada folder komik ditemukan di direktori 'Comics' pada folder root terpilih.",
+            text = "Direktori 'Comics' ditemukan tetapi belum berisi folder komik. Tempatkan folder komik di dalam 'Comics/'.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.outline,
         )
@@ -210,19 +313,82 @@ private fun EmptyComicsView(
 }
 
 @Composable
+private fun NoValidChaptersView(
+    onNavigateToSettings: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+        ),
+    ) {
+        Column(
+            modifier = Modifier.padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.MenuBook,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(bottom = 12.dp),
+            )
+            Text(
+                text = "Tidak Ada Chapter Valid",
+                style = MaterialTheme.typography.titleLarge,
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Folder komik ditemukan, tetapi tidak ada chapter CBZ yang dapat dibaca. Pastikan file berformat 'Chapter <angka>.cbz'.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            OutlinedButton(onClick = onNavigateToSettings) {
+                Text("Periksa Koleksi")
+            }
+        }
+    }
+}
+
+@Composable
 private fun LibrarySuccessView(
     comics: List<ComicEntity>,
     gridColumns: Int,
+    issuesCount: Int,
     viewModel: LibraryViewModel,
     onComicClick: (Long) -> Unit,
     onGridColumnsChange: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxSize()) {
-        GridSelectorRow(
-            currentColumns = gridColumns,
-            onColumnsSelected = onGridColumnsChange,
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (issuesCount > 0) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = "Diagnostik Scan",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(end = 4.dp)
+                    )
+                    Text(
+                        text = "$issuesCount masalah scan",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            } else {
+                Spacer(modifier = Modifier.height(1.dp))
+            }
+            GridSelectorRow(
+                currentColumns = gridColumns,
+                onColumnsSelected = onGridColumnsChange,
+            )
+        }
         Spacer(modifier = Modifier.height(8.dp))
         LazyVerticalGrid(
             columns = GridCells.Fixed(gridColumns.coerceIn(2, 4)),
@@ -252,7 +418,7 @@ private fun GridSelectorRow(
     modifier: Modifier = Modifier,
 ) {
     Row(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier,
         horizontalArrangement = Arrangement.End,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -437,6 +603,7 @@ private fun CoverPlaceholderSurface(
 @Composable
 private fun LibraryErrorView(
     message: String,
+    onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Card(
@@ -446,15 +613,15 @@ private fun LibraryErrorView(
         ),
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Icon(
                 imageVector = Icons.Default.Warning,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onErrorContainer,
+                modifier = Modifier.padding(bottom = 12.dp)
             )
-            Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = "Gagal Memuat Library",
                 style = MaterialTheme.typography.titleMedium,
@@ -466,6 +633,15 @@ private fun LibraryErrorView(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onErrorContainer,
             )
+            Spacer(modifier = Modifier.height(16.dp))
+            Button(onClick = onRetry) {
+                Icon(
+                    imageVector = Icons.Default.Refresh,
+                    contentDescription = null,
+                    modifier = Modifier.padding(end = 4.dp)
+                )
+                Text("Coba Lagi")
+            }
         }
     }
 }

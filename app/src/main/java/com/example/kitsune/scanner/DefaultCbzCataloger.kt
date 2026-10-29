@@ -70,7 +70,10 @@ class DefaultCbzCataloger(
         }
     }
 
-    override fun catalogArchive(cbzRelativePath: String): CbzCatalogResult {
+    override fun catalogArchive(
+        cbzRelativePath: String,
+        fileMetadata: com.example.kitsune.storage.StorageEntry?
+    ): CbzCatalogResult {
         // 1. Validasi status root storage
         when (val rootState = storageGateway.getRootState()) {
             is StorageResult.RootNotConfigured -> return CbzCatalogResult.RootNotConfigured

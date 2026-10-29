@@ -70,7 +70,10 @@ class DefaultLibraryScanner(
 
                     // 3. Catalog setiap chapter yang ditemukan
                     for (discoveredChapter in chapterResult.chapters) {
-                        val catalogResult = cbzCataloger.catalogArchive(discoveredChapter.relativePath)
+                        val catalogResult = cbzCataloger.catalogArchive(
+                            cbzRelativePath = discoveredChapter.relativePath,
+                            fileMetadata = discoveredChapter.entry
+                        )
                         scannedChapters.add(ScannedChapter(discoveredChapter, catalogResult))
 
                         when (catalogResult) {

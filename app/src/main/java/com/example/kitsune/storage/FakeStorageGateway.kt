@@ -45,6 +45,40 @@ class FakeStorageGateway(
         fileContents[norm] = content
     }
 
+    /**
+     * Adds a file with explicit metadata — used by incremental scan tests where precise
+     * [sizeBytes] and [lastModifiedMillis] values are required to form a fingerprint.
+     */
+    fun addFile(
+        relativePath: String,
+        content: ByteArray,
+        sizeBytes: Long,
+        lastModifiedMillis: Long,
+        mimeType: String? = null
+    ) {
+        val norm = StoragePathUtils.normalizeRelativePath(relativePath)
+        val name = norm.substringAfterLast('/')
+        entries[norm] = StorageEntry(
+            name = name,
+            relativePath = norm,
+            isDirectory = false,
+            sizeBytes = sizeBytes,
+            lastModifiedMillis = lastModifiedMillis,
+            mimeType = mimeType
+        )
+        fileContents[norm] = content
+    }
+
+    /**
+     * Updates the metadata (size + last-modified timestamp) of an existing file entry without
+     * changing its content. Used to simulate a file being modified on disk between scans.
+     */
+    fun updateFileMetadata(relativePath: String, sizeBytes: Long, lastModifiedMillis: Long) {
+        val norm = StoragePathUtils.normalizeRelativePath(relativePath)
+        val existing = entries[norm] ?: return
+        entries[norm] = existing.copy(sizeBytes = sizeBytes, lastModifiedMillis = lastModifiedMillis)
+    }
+
     override fun getRootState(): StorageResult<String> {
         if (!rootConfigured) return StorageResult.RootNotConfigured
         if (!rootValidTree) return StorageResult.Error(IllegalArgumentException("Format root URI tidak valid"))

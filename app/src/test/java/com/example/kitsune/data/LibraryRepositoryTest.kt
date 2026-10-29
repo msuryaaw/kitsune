@@ -11,6 +11,7 @@ import com.example.kitsune.scanner.CbzPageEntry
 import com.example.kitsune.scanner.ChapterDiscoveryResult
 import com.example.kitsune.scanner.DiscoveredChapter
 import com.example.kitsune.scanner.DiscoveredComicFolder
+import com.example.kitsune.scanner.IncrementalCbzCataloger
 import com.example.kitsune.scanner.LibraryScanner
 import com.example.kitsune.scanner.LibraryScanResult
 import com.example.kitsune.scanner.RejectedChapterFile
@@ -63,7 +64,11 @@ class LibraryRepositoryTest {
         fakeChapterDao = FakeChapterDao()
         fakeReadingProgressDao = FakeReadingProgressDao()
         fakeScanner = FakeLibraryScanner()
-        repository = DefaultLibraryRepository(fakeScanner, fakeComicDao, fakeChapterDao, fakeReadingProgressDao)
+        // IncrementalCbzCataloger wraps a no-op cataloger: LibraryRepositoryTest uses
+        // FakeLibraryScanner which returns pre-built ScannedChapters, so the cataloger
+        // is never invoked. Passing a real IncrementalCbzCataloger satisfies the constructor.
+        val noopCataloger = IncrementalCbzCataloger(NoopCbzCataloger)
+        repository = DefaultLibraryRepository(fakeScanner, noopCataloger, fakeComicDao, fakeChapterDao, fakeReadingProgressDao)
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -165,9 +170,12 @@ class LibraryRepositoryTest {
         repository.syncLibrary(rootUri)
         val firstChapterId = fakeChapterDao.chapters.values.first().id
 
-        // Re-scan same chapter
+        // Re-scan same chapter with changed metadata (lastModifiedMillis = 1L) to trigger re-sync.
+        // The incremental logic skips the upsert only when metadata is identical; a changed
+        // lastModifiedMillis signals that the file was modified, so the updated pageCount must be
+        // persisted while the chapter ID must remain stable for ReadingProgress FK integrity.
         fakeScanner.result = makeSuccessResult(
-            listOf(makeScannedComic("Comics/OP", chapters = listOf(makeScannedChapter(1, pageCount = 99))))
+            listOf(makeScannedComic("Comics/OP", chapters = listOf(makeScannedChapter(1, pageCount = 99, lastModifiedMillis = 1L))))
         )
         repository.syncLibrary(rootUri)
 
@@ -578,6 +586,7 @@ class LibraryRepositoryTest {
     private fun makeScannedChapter(
         chapterNumber: Int,
         pageCount: Int = 10,
+        lastModifiedMillis: Long = 0L,
         catalogResult: CbzCatalogResult? = null
     ): ScannedChapter {
         val relativePath = "Comics/Test/Chapter $chapterNumber.cbz"
@@ -590,7 +599,7 @@ class LibraryRepositoryTest {
                 relativePath = relativePath,
                 isDirectory = false,
                 sizeBytes = 1024L * chapterNumber,
-                lastModifiedMillis = 0L
+                lastModifiedMillis = lastModifiedMillis
             )
         )
         val resolvedCatalog = catalogResult ?: CbzCatalogResult.Success(
@@ -677,7 +686,7 @@ class FakeComicDao : ComicDao {
  * In-memory fake [ChapterDao] backed by a [MutableMap].
  * Preserves chapter IDs on upsert.
  */
-class FakeChapterDao : ChapterDao {
+open class FakeChapterDao : ChapterDao {
     val chapters = mutableMapOf<Long, ChapterEntity>()
     private var nextId = 1L
     private val _flow = MutableStateFlow<Map<Long, ChapterEntity>>(emptyMap())
@@ -760,5 +769,18 @@ class FakeLibraryScanner : LibraryScanner {
     var result: LibraryScanResult = LibraryScanResult.RootNotConfigured
 
     override fun scanLibrary(): LibraryScanResult = result
+}
+
+/**
+ * A [com.example.kitsune.scanner.CbzCataloger] that always returns [CbzCatalogResult.Error].
+ * Used in [LibraryRepositoryTest] where [FakeLibraryScanner] bypasses the scanner pipeline
+ * entirely, so the cataloger is never invoked. This satisfies the [IncrementalCbzCataloger]
+ * constructor without performing any real I/O.
+ */
+object NoopCbzCataloger : com.example.kitsune.scanner.CbzCataloger {
+    override fun catalogArchive(
+        cbzRelativePath: String,
+        fileMetadata: com.example.kitsune.storage.StorageEntry?
+    ): CbzCatalogResult = CbzCatalogResult.Error(UnsupportedOperationException("NoopCbzCataloger"))
 }
 

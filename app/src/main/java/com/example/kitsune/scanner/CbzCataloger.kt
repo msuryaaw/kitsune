@@ -77,7 +77,16 @@ interface CbzCataloger {
     /**
      * Indexes the CBZ archive located at [cbzRelativePath] without decoding bitmap pixels
      * and without extracting archive files to disk.
+     *
+     * @param cbzRelativePath Relative path of the CBZ archive from the storage root.
+     * @param fileMetadata Optional [StorageEntry] metadata for the archive file. When non-null,
+     *   implementations that support incremental caching may use [StorageEntry.sizeBytes] and
+     *   [StorageEntry.lastModifiedMillis] as a fingerprint to skip re-reading the archive.
+     *   Implementations that do not support caching may safely ignore this parameter.
      */
-    fun catalogArchive(cbzRelativePath: String): CbzCatalogResult
+    fun catalogArchive(
+        cbzRelativePath: String,
+        fileMetadata: com.example.kitsune.storage.StorageEntry? = null
+    ): CbzCatalogResult
 }
 

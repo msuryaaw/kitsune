@@ -15,6 +15,7 @@ import com.example.kitsune.scanner.DefaultChapterScanner
 import com.example.kitsune.scanner.DefaultComicFolderScanner
 import com.example.kitsune.scanner.DefaultComicsDirectoryDetector
 import com.example.kitsune.scanner.DefaultLibraryScanner
+import com.example.kitsune.scanner.IncrementalCbzCataloger
 import com.example.kitsune.scanner.LibraryScanner
 import com.example.kitsune.storage.SafStorageGateway
 import com.example.kitsune.storage.StorageGateway
@@ -30,6 +31,7 @@ interface AppContainer {
     val comicFolderScanner: ComicFolderScanner
     val chapterScanner: ChapterScanner
     val cbzCataloger: CbzCataloger
+    val incrementalCbzCataloger: IncrementalCbzCataloger
     val libraryScanner: LibraryScanner
     val database: KitsuneDatabase
     val libraryRepository: LibraryRepository
@@ -65,8 +67,12 @@ class DefaultAppContainer(
         DefaultCbzCataloger(storageGateway)
     }
 
+    override val incrementalCbzCataloger: IncrementalCbzCataloger by lazy {
+        IncrementalCbzCataloger(cbzCataloger)
+    }
+
     override val libraryScanner: LibraryScanner by lazy {
-        DefaultLibraryScanner(comicFolderScanner, chapterScanner, cbzCataloger)
+        DefaultLibraryScanner(comicFolderScanner, chapterScanner, incrementalCbzCataloger)
     }
 
     override val database: KitsuneDatabase by lazy {
@@ -80,6 +86,7 @@ class DefaultAppContainer(
     override val libraryRepository: LibraryRepository by lazy {
         DefaultLibraryRepository(
             libraryScanner = libraryScanner,
+            incrementalCataloger = incrementalCbzCataloger,
             comicDao = database.comicDao(),
             chapterDao = database.chapterDao(),
             readingProgressDao = database.readingProgressDao()

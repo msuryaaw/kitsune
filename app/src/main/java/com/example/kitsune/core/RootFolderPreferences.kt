@@ -1,5 +1,7 @@
 package com.example.kitsune.core
 
+import kotlinx.coroutines.flow.Flow
+
 /**
  * Storage root folder state representation.
  */
@@ -17,4 +19,5 @@ sealed class RootFolderState {
 interface RootFolderPreferences {
     fun getRootUriString(): String?
     fun setRootUriString(uriString: String?)
+    fun observeRootUriString(): Flow<String?>
 }

@@ -1,5 +1,8 @@
 package com.example.kitsune.core
 
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -7,14 +10,18 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-class FakeRootFolderPreferences : RootFolderPreferences {
-    private var uri: String? = null
+class FakeRootFolderPreferences(
+    initialUri: String? = null
+) : RootFolderPreferences {
+    private val _uri = MutableStateFlow<String?>(initialUri?.trim()?.ifEmpty { null })
 
-    override fun getRootUriString(): String? = uri
+    override fun getRootUriString(): String? = _uri.value
 
     override fun setRootUriString(uriString: String?) {
-        this.uri = uriString?.trim()?.ifEmpty { null }
+        _uri.value = uriString?.trim()?.ifEmpty { null }
     }
+
+    override fun observeRootUriString(): Flow<String?> = _uri.asStateFlow()
 }
 
 class RootFolderPreferencesTest {

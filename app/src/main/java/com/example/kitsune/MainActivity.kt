@@ -17,7 +17,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             KitsuneTheme {
                 KitsuneApp(
-                    rootFolderPreferences = appContainer.rootFolderPreferences
+                    appContainer = appContainer
                 )
             }
         }

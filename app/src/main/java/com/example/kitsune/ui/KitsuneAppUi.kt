@@ -10,6 +10,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -18,15 +19,17 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.example.kitsune.core.RootFolderPreferences
+import com.example.kitsune.core.AppContainer
 import com.example.kitsune.ui.navigation.KitsuneDestinations
 import com.example.kitsune.ui.navigation.TopLevelDestination
 import com.example.kitsune.ui.screens.PlaceholderScreen
 import com.example.kitsune.ui.screens.SettingsScreen
+import com.example.kitsune.ui.screens.library.LibraryScreen
+import com.example.kitsune.ui.screens.library.LibraryViewModel
 
 @Composable
 fun KitsuneApp(
-    rootFolderPreferences: RootFolderPreferences,
+    appContainer: AppContainer,
     navController: NavHostController = rememberNavController()
 ) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -74,7 +77,21 @@ fun KitsuneApp(
             modifier = Modifier.padding(innerPadding)
         ) {
             composable(KitsuneDestinations.LIBRARY_ROUTE) {
-                PlaceholderScreen(title = "Library")
+                val libraryViewModel: LibraryViewModel = viewModel(
+                    factory = LibraryViewModel.Factory(
+                        libraryRepository = appContainer.libraryRepository,
+                        rootFolderPreferences = appContainer.rootFolderPreferences
+                    )
+                )
+                LibraryScreen(
+                    viewModel = libraryViewModel,
+                    onComicClick = { comicId ->
+                        navController.navigate(KitsuneDestinations.comicDetailRoute(comicId))
+                    },
+                    onNavigateToSettings = {
+                        navController.navigate(KitsuneDestinations.SETTINGS_ROUTE)
+                    }
+                )
             }
             composable(KitsuneDestinations.BOOKMARKS_ROUTE) {
                 PlaceholderScreen(title = "Bookmarks")
@@ -83,7 +100,7 @@ fun KitsuneApp(
                 PlaceholderScreen(title = "History")
             }
             composable(KitsuneDestinations.SETTINGS_ROUTE) {
-                SettingsScreen(rootFolderPreferences = rootFolderPreferences)
+                SettingsScreen(rootFolderPreferences = appContainer.rootFolderPreferences)
             }
             composable(
                 route = KitsuneDestinations.COMIC_DETAIL_ROUTE,

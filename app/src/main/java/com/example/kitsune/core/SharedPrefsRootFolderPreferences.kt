@@ -2,6 +2,9 @@ package com.example.kitsune.core
 
 import android.content.Context
 import android.content.SharedPreferences
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
 
 class SharedPrefsRootFolderPreferences(
     context: Context
@@ -26,6 +29,21 @@ class SharedPrefsRootFolderPreferences(
                 remove(KEY_ROOT_URI)
             }
             apply()
+        }
+    }
+
+    override fun observeRootUriString(): Flow<String?> = callbackFlow {
+        trySend(getRootUriString())
+
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == KEY_ROOT_URI) {
+                trySend(getRootUriString())
+            }
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+
+        awaitClose {
+            prefs.unregisterOnSharedPreferenceChangeListener(listener)
         }
     }
 

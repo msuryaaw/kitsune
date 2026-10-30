@@ -22,6 +22,12 @@ interface ComicDao {
     // ── Reactive queries (Flow) ──
 
     /**
+     * Observes a comic by its database ID.
+     */
+    @Query("SELECT * FROM comics WHERE id = :comicId")
+    fun observeComicById(comicId: Long): Flow<ComicEntity?>
+
+    /**
      * Observes all comics under a specific storage root, ordered by title.
      */
     @Query("SELECT * FROM comics WHERE rootUriString = :rootUri ORDER BY title COLLATE NOCASE ASC")

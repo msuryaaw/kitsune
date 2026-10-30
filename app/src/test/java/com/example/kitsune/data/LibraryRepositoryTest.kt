@@ -72,13 +72,14 @@ class LibraryRepositoryTest {
         // FakeLibraryScanner which returns pre-built ScannedChapters, so the cataloger
         // is never invoked. Passing a real IncrementalCbzCataloger satisfies the constructor.
         val noopCataloger = IncrementalCbzCataloger(NoopCbzCataloger)
-        val coverExtractor = CoverExtractor(FakeStorageGateway(), fakeComicDao, fakeChapterDao)
+        val fakeStorage = FakeStorageGateway()
+        val coverExtractor = CoverExtractor(fakeStorage, fakeComicDao, fakeChapterDao)
         val coverCacheManager = CoverCacheManager(
             File(System.getProperty("java.io.tmpdir"), "test_repo_covers"),
             coverExtractor, fakeComicDao, fakeChapterDao
         )
         repository = DefaultLibraryRepository(
-            fakeScanner, noopCataloger, fakeComicDao, fakeChapterDao, fakeReadingProgressDao, coverExtractor, coverCacheManager
+            fakeScanner, noopCataloger, fakeComicDao, fakeChapterDao, fakeReadingProgressDao, coverExtractor, coverCacheManager, fakeStorage
         )
     }
 
@@ -638,6 +639,9 @@ class FakeComicDao : ComicDao {
 
     override fun observeComicsByRoot(rootUri: String): Flow<List<ComicEntity>> =
         _flow.map { it.values.filter { c -> c.rootUriString == rootUri }.sortedBy { c -> c.title.lowercase() } }
+
+    override fun observeComicById(comicId: Long): Flow<ComicEntity?> =
+        _flow.map { it[comicId] }
 
     override fun observeBookmarkedComicsByRoot(rootUri: String): Flow<List<ComicEntity>> =
         _flow.map { it.values.filter { c -> c.rootUriString == rootUri && c.isBookmarked }.sortedBy { c -> c.title.lowercase() } }

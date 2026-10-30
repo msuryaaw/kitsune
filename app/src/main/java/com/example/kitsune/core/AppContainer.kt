@@ -115,7 +115,8 @@ class DefaultAppContainer(
             chapterDao = database.chapterDao(),
             readingProgressDao = database.readingProgressDao(),
             coverExtractor = coverExtractor,
-            coverCacheManager = coverCacheManager
+            coverCacheManager = coverCacheManager,
+            storageGateway = storageGateway
         )
     }
 

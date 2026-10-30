@@ -65,6 +65,7 @@ class DefaultLibraryRepository(
     private val readingProgressDao: ReadingProgressDao,
     private val coverExtractor: CoverExtractor,
     private val coverCacheManager: CoverCacheManager,
+    private val storageGateway: com.example.kitsune.storage.StorageGateway
 ) : LibraryRepository {
 
     /**
@@ -341,6 +342,30 @@ class DefaultLibraryRepository(
 
     override fun observeChaptersByComicId(comicId: Long): Flow<List<ChapterEntity>> =
         chapterDao.observeChaptersByComicId(comicId)
+
+    override fun observeComicById(comicId: Long): Flow<ComicEntity?> =
+        comicDao.observeComicById(comicId)
+
+    override suspend fun verifyChapterAvailable(chapterId: Long): ChapterAvailabilityResult {
+        val chapter = chapterDao.getById(chapterId) ?: return ChapterAvailabilityResult.Missing
+        if (!chapter.isValid) return ChapterAvailabilityResult.Missing
+
+        return when (val rootState = storageGateway.getRootState()) {
+            is com.example.kitsune.storage.StorageResult.RootNotConfigured -> ChapterAvailabilityResult.Missing
+            is com.example.kitsune.storage.StorageResult.PermissionDenied -> ChapterAvailabilityResult.PermissionDenied(rootState.message)
+            is com.example.kitsune.storage.StorageResult.Error -> ChapterAvailabilityResult.Error(rootState.exception)
+            is com.example.kitsune.storage.StorageResult.NotFound -> ChapterAvailabilityResult.Missing
+            is com.example.kitsune.storage.StorageResult.Success -> {
+                when (val entryResult = storageGateway.findEntry(chapter.relativePath)) {
+                    is com.example.kitsune.storage.StorageResult.Success -> ChapterAvailabilityResult.Available
+                    is com.example.kitsune.storage.StorageResult.NotFound -> ChapterAvailabilityResult.Missing
+                    is com.example.kitsune.storage.StorageResult.PermissionDenied -> ChapterAvailabilityResult.PermissionDenied(entryResult.message)
+                    is com.example.kitsune.storage.StorageResult.Error -> ChapterAvailabilityResult.Error(entryResult.exception)
+                    is com.example.kitsune.storage.StorageResult.RootNotConfigured -> ChapterAvailabilityResult.Missing
+                }
+            }
+        }
+    }
 
     // ── One-shot mutations ────────────────────────────────────────────────────
 

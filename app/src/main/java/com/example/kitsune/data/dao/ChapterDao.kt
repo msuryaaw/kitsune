@@ -21,9 +21,9 @@ interface ChapterDao {
     // ── Reactive queries (Flow) ──
 
     /**
-     * Observes all chapters for a given comic, ordered by chapter number ascending.
+     * Observes all chapters for a given comic, ordered by chapter number ascending with deterministic tie-breakers.
      */
-    @Query("SELECT * FROM chapters WHERE comicId = :comicId ORDER BY chapterNumber ASC")
+    @Query("SELECT * FROM chapters WHERE comicId = :comicId ORDER BY chapterNumber ASC, displayName ASC, relativePath ASC")
     fun observeChaptersByComicId(comicId: Long): Flow<List<ChapterEntity>>
 
     // ── One-shot queries (suspend) ──
@@ -43,7 +43,7 @@ interface ChapterDao {
     /**
      * Retrieves all chapters for a given comic, ordered by chapter number ascending (snapshot).
      */
-    @Query("SELECT * FROM chapters WHERE comicId = :comicId ORDER BY chapterNumber ASC")
+    @Query("SELECT * FROM chapters WHERE comicId = :comicId ORDER BY chapterNumber ASC, displayName ASC, relativePath ASC")
     suspend fun getAllByComicId(comicId: Long): List<ChapterEntity>
 
     /**

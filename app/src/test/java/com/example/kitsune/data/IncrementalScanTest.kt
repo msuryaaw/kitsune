@@ -119,7 +119,8 @@ class IncrementalScanTest {
             chapterDao = fakeChapterDao,
             readingProgressDao = fakeReadingProgressDao,
             coverExtractor = coverExtractor,
-            coverCacheManager = coverCacheManager
+            coverCacheManager = coverCacheManager,
+            storageGateway = fakeStorage
         )
     }
 
@@ -541,7 +542,8 @@ class IncrementalScanTest {
 
     @Test
     fun buildSynthesizedSuccess_withCoverPath_setsFirstPageEntry() {
-        val ext = CoverExtractor(FakeStorageGateway(), FakeComicDao(), FakeChapterDao())
+        val storage = FakeStorageGateway()
+        val ext = CoverExtractor(storage, FakeComicDao(), FakeChapterDao())
         val cache = CoverCacheManager(java.io.File(System.getProperty("java.io.tmpdir"), "stub_covers"), ext, FakeComicDao(), FakeChapterDao())
         val repo = DefaultLibraryRepository(
             libraryScanner = FakeLibraryScanner(),
@@ -550,7 +552,8 @@ class IncrementalScanTest {
             chapterDao = FakeChapterDao(),
             readingProgressDao = FakeReadingProgressDao(),
             coverExtractor = ext,
-            coverCacheManager = cache
+            coverCacheManager = cache,
+            storageGateway = storage
         )
         val result = repo.buildSynthesizedSuccess("path.cbz", pageCount = 3, coverEntryPath = "my_cover.jpg")
 
@@ -561,7 +564,8 @@ class IncrementalScanTest {
 
     @Test
     fun buildSynthesizedSuccess_noCoverPath_usesStubs() {
-        val ext = CoverExtractor(FakeStorageGateway(), FakeComicDao(), FakeChapterDao())
+        val storage = FakeStorageGateway()
+        val ext = CoverExtractor(storage, FakeComicDao(), FakeChapterDao())
         val cache = CoverCacheManager(java.io.File(System.getProperty("java.io.tmpdir"), "stub_covers"), ext, FakeComicDao(), FakeChapterDao())
         val repo = DefaultLibraryRepository(
             libraryScanner = FakeLibraryScanner(),
@@ -570,7 +574,8 @@ class IncrementalScanTest {
             chapterDao = FakeChapterDao(),
             readingProgressDao = FakeReadingProgressDao(),
             coverExtractor = ext,
-            coverCacheManager = cache
+            coverCacheManager = cache,
+            storageGateway = storage
         )
         val result = repo.buildSynthesizedSuccess("path.cbz", pageCount = 2, coverEntryPath = null)
 
@@ -581,7 +586,8 @@ class IncrementalScanTest {
 
     @Test
     fun buildSynthesizedSuccess_zeroPageCount_returnsEmptyPages() {
-        val ext = CoverExtractor(FakeStorageGateway(), FakeComicDao(), FakeChapterDao())
+        val storage = FakeStorageGateway()
+        val ext = CoverExtractor(storage, FakeComicDao(), FakeChapterDao())
         val cache = CoverCacheManager(java.io.File(System.getProperty("java.io.tmpdir"), "stub_covers"), ext, FakeComicDao(), FakeChapterDao())
         val repo = DefaultLibraryRepository(
             libraryScanner = FakeLibraryScanner(),
@@ -590,7 +596,8 @@ class IncrementalScanTest {
             chapterDao = FakeChapterDao(),
             readingProgressDao = FakeReadingProgressDao(),
             coverExtractor = ext,
-            coverCacheManager = cache
+            coverCacheManager = cache,
+            storageGateway = storage
         )
         val result = repo.buildSynthesizedSuccess("path.cbz", pageCount = 0, coverEntryPath = null)
         assertEquals(0, result.pages.size)

@@ -214,6 +214,49 @@ class KitsuneDatabaseTest {
     }
 
     @Test
+    fun chapterDao_queriesReturnChaptersInNaturalOrderWithTieBreakers() = runTest {
+        val comicId = comicDao.insert(makeComic(relativePath = "Comics/OP", title = "OP"))
+        chapterDao.insert(makeChapter(comicId, "Comics/OP/Chapter 10.cbz", 10, "Chapter 10.cbz"))
+        chapterDao.insert(makeChapter(comicId, "Comics/OP/Chapter 1.cbz", 1, "Chapter 1.cbz"))
+        chapterDao.insert(makeChapter(comicId, "Comics/OP/Chapter 2.cbz", 2, "Chapter 2.cbz"))
+        chapterDao.insert(makeChapter(comicId, "Comics/OP/Chapter 3.cbz", 3, "Chapter 3.cbz"))
+        chapterDao.insert(makeChapter(comicId, "Comics/OP/Chapter 2_extra.cbz", 2, "Chapter 2 Extra.cbz"))
+
+        val chapters = chapterDao.observeChaptersByComicId(comicId).first()
+
+        assertEquals(5, chapters.size)
+        assertEquals(1, chapters[0].chapterNumber)
+        assertEquals("Chapter 1.cbz", chapters[0].displayName)
+
+        assertEquals(2, chapters[1].chapterNumber)
+        assertEquals("Chapter 2 Extra.cbz", chapters[1].displayName)
+
+        assertEquals(2, chapters[2].chapterNumber)
+        assertEquals("Chapter 2.cbz", chapters[2].displayName)
+
+        assertEquals(3, chapters[3].chapterNumber)
+        assertEquals(10, chapters[4].chapterNumber)
+    }
+
+    @Test
+    fun chapterDao_queriesDoNotMixChaptersAcrossComics() = runTest {
+        val comic1Id = comicDao.insert(makeComic(rootUri, "Comics/Comic1", "Comic 1"))
+        val comic2Id = comicDao.insert(makeComic(rootUri, "Comics/Comic2", "Comic 2"))
+
+        chapterDao.insert(makeChapter(comic1Id, "Comics/Comic1/Chapter 1.cbz", 1, "Comic 1 Ch 1"))
+        chapterDao.insert(makeChapter(comic2Id, "Comics/Comic2/Chapter 1.cbz", 1, "Comic 2 Ch 1"))
+
+        val chaptersComic1 = chapterDao.observeChaptersByComicId(comic1Id).first()
+        val chaptersComic2 = chapterDao.observeChaptersByComicId(comic2Id).first()
+
+        assertEquals(1, chaptersComic1.size)
+        assertEquals("Comic 1 Ch 1", chaptersComic1[0].displayName)
+
+        assertEquals(1, chaptersComic2.size)
+        assertEquals("Comic 2 Ch 1", chaptersComic2[0].displayName)
+    }
+
+    @Test
     fun insertChapter_withNonExistentComicId_foreignKey_throwsException() = runTest {
         try {
             chapterDao.insert(makeChapter(99999L, "Comics/X/Chapter 1.cbz", 1, "Chapter 1.cbz"))

@@ -60,7 +60,7 @@ class ReconciliationTest {
         val cacheDir = java.io.File(System.getProperty("java.io.tmpdir"), "test_recon_covers")
         val coverCacheManager = CoverCacheManager(cacheDir, coverExtractor, fakeComicDao, fakeChapterDao)
         repository = DefaultLibraryRepository(
-            fakeScanner, noopCataloger, fakeComicDao, fakeChapterDao, fakeReadingProgressDao, coverExtractor, coverCacheManager
+            fakeScanner, noopCataloger, fakeComicDao, fakeChapterDao, fakeReadingProgressDao, coverExtractor, coverCacheManager, fakeStorage
         )
     }
 

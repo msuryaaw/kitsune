@@ -1,6 +1,7 @@
 package com.example.kitsune.ui.screens.library
 
 import com.example.kitsune.core.FakeRootFolderPreferences
+import com.example.kitsune.data.ChapterAvailabilityResult
 import com.example.kitsune.data.CoverCacheResult
 import com.example.kitsune.data.CoverResult
 import com.example.kitsune.data.LibraryRepository
@@ -77,6 +78,10 @@ class FakeLibraryRepository : LibraryRepository {
     override suspend fun releaseCoverFile(file: java.io.File) {
         releasedFiles.add(file)
     }
+
+    override fun observeComicById(comicId: Long): Flow<ComicEntity?> = flowOf(null)
+
+    override suspend fun verifyChapterAvailable(chapterId: Long): ChapterAvailabilityResult = ChapterAvailabilityResult.Available
 
     override fun observeLastScanResult(): Flow<LibraryScanResult?> = lastScanResult
 }

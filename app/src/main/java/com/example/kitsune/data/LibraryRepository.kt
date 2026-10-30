@@ -89,6 +89,16 @@ interface LibraryRepository {
     suspend fun releaseCoverFile(file: java.io.File)
 
     /**
+     * Observes a specific comic by its ID.
+     */
+    fun observeComicById(comicId: Long): Flow<ComicEntity?>
+
+    /**
+     * Verifies whether a chapter file exists on disk and is accessible via storage gateway.
+     */
+    suspend fun verifyChapterAvailable(chapterId: Long): ChapterAvailabilityResult
+
+    /**
      * Observes the latest scan result produced by [syncLibrary].
      */
     fun observeLastScanResult(): Flow<LibraryScanResult?>

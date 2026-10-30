@@ -111,7 +111,19 @@ fun KitsuneApp(
                 )
             ) { backStackEntry ->
                 val comicId = backStackEntry.arguments?.getLong("comicId") ?: 0L
-                PlaceholderScreen(title = "Comic Detail (ID: $comicId)")
+                val detailViewModel: com.example.kitsune.ui.screens.detail.ComicDetailViewModel = viewModel(
+                    factory = com.example.kitsune.ui.screens.detail.ComicDetailViewModel.Factory(
+                        comicId = comicId,
+                        libraryRepository = appContainer.libraryRepository
+                    )
+                )
+                com.example.kitsune.ui.screens.detail.ComicDetailScreen(
+                    viewModel = detailViewModel,
+                    onBackClick = { navController.popBackStack() },
+                    onChapterClick = { chapterId ->
+                        navController.navigate(KitsuneDestinations.readerRoute(chapterId))
+                    }
+                )
             }
             composable(
                 route = KitsuneDestinations.READER_ROUTE,

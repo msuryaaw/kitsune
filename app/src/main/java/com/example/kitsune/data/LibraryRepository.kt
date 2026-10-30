@@ -102,5 +102,10 @@ interface LibraryRepository {
      * Observes the latest scan result produced by [syncLibrary].
      */
     fun observeLastScanResult(): Flow<LibraryScanResult?>
+
+    /**
+     * Opens/spools the CBZ archive for [chapterId] into a private seekable cache handle.
+     */
+    suspend fun openCbzArchive(chapterId: Long): com.example.kitsune.reader.CbzArchiveResult
 }
 

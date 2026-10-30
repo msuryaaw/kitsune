@@ -59,8 +59,13 @@ class ReconciliationTest {
         val coverExtractor = CoverExtractor(fakeStorage, fakeComicDao, fakeChapterDao)
         val cacheDir = java.io.File(System.getProperty("java.io.tmpdir"), "test_recon_covers")
         val coverCacheManager = CoverCacheManager(cacheDir, coverExtractor, fakeComicDao, fakeChapterDao)
+        val cbzProvider = com.example.kitsune.reader.DefaultCbzArchiveProvider(
+            spoolDir = java.io.File(System.getProperty("java.io.tmpdir"), "test_recon_spool"),
+            storageGateway = fakeStorage,
+            chapterDao = fakeChapterDao
+        )
         repository = DefaultLibraryRepository(
-            fakeScanner, noopCataloger, fakeComicDao, fakeChapterDao, fakeReadingProgressDao, coverExtractor, coverCacheManager, fakeStorage
+            fakeScanner, noopCataloger, fakeComicDao, fakeChapterDao, fakeReadingProgressDao, coverExtractor, coverCacheManager, fakeStorage, cbzProvider
         )
     }
 

@@ -78,8 +78,13 @@ class LibraryRepositoryTest {
             File(System.getProperty("java.io.tmpdir"), "test_repo_covers"),
             coverExtractor, fakeComicDao, fakeChapterDao
         )
+        val cbzProvider = com.example.kitsune.reader.DefaultCbzArchiveProvider(
+            spoolDir = File(System.getProperty("java.io.tmpdir"), "test_repo_spool"),
+            storageGateway = fakeStorage,
+            chapterDao = fakeChapterDao
+        )
         repository = DefaultLibraryRepository(
-            fakeScanner, noopCataloger, fakeComicDao, fakeChapterDao, fakeReadingProgressDao, coverExtractor, coverCacheManager, fakeStorage
+            fakeScanner, noopCataloger, fakeComicDao, fakeChapterDao, fakeReadingProgressDao, coverExtractor, coverCacheManager, fakeStorage, cbzProvider
         )
     }
 

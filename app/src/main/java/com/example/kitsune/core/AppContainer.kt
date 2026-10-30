@@ -40,6 +40,7 @@ interface AppContainer {
     val database: KitsuneDatabase
     val coverExtractor: CoverExtractor
     val coverCacheManager: CoverCacheManager
+    val cbzArchiveProvider: com.example.kitsune.reader.CbzArchiveProvider
     val libraryRepository: LibraryRepository
     val settingsRepository: SettingsRepository
 }
@@ -107,6 +108,14 @@ class DefaultAppContainer(
         )
     }
 
+    override val cbzArchiveProvider: com.example.kitsune.reader.CbzArchiveProvider by lazy {
+        com.example.kitsune.reader.DefaultCbzArchiveProvider(
+            spoolDir = File(appContext.cacheDir, "reader_spool"),
+            storageGateway = storageGateway,
+            chapterDao = database.chapterDao()
+        )
+    }
+
     override val libraryRepository: LibraryRepository by lazy {
         DefaultLibraryRepository(
             libraryScanner = libraryScanner,
@@ -116,7 +125,8 @@ class DefaultAppContainer(
             readingProgressDao = database.readingProgressDao(),
             coverExtractor = coverExtractor,
             coverCacheManager = coverCacheManager,
-            storageGateway = storageGateway
+            storageGateway = storageGateway,
+            cbzArchiveProvider = cbzArchiveProvider
         )
     }
 

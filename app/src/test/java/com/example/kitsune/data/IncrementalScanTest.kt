@@ -112,6 +112,11 @@ class IncrementalScanTest {
         val coverExtractor = CoverExtractor(fakeStorage, fakeComicDao, fakeChapterDao)
         val coverCacheManager = CoverCacheManager(java.io.File(System.getProperty("java.io.tmpdir"), "inc_covers"), coverExtractor, fakeComicDao, fakeChapterDao)
 
+        val cbzProvider = com.example.kitsune.reader.DefaultCbzArchiveProvider(
+            spoolDir = java.io.File(System.getProperty("java.io.tmpdir"), "inc_spool"),
+            storageGateway = fakeStorage,
+            chapterDao = fakeChapterDao
+        )
         repository = DefaultLibraryRepository(
             libraryScanner = realScanner,
             incrementalCataloger = incrementalForIntegration,
@@ -120,7 +125,8 @@ class IncrementalScanTest {
             readingProgressDao = fakeReadingProgressDao,
             coverExtractor = coverExtractor,
             coverCacheManager = coverCacheManager,
-            storageGateway = fakeStorage
+            storageGateway = fakeStorage,
+            cbzArchiveProvider = cbzProvider
         )
     }
 
@@ -545,6 +551,7 @@ class IncrementalScanTest {
         val storage = FakeStorageGateway()
         val ext = CoverExtractor(storage, FakeComicDao(), FakeChapterDao())
         val cache = CoverCacheManager(java.io.File(System.getProperty("java.io.tmpdir"), "stub_covers"), ext, FakeComicDao(), FakeChapterDao())
+        val cbzProvider = com.example.kitsune.reader.DefaultCbzArchiveProvider(java.io.File(System.getProperty("java.io.tmpdir"), "stub_spool"), storage, FakeChapterDao())
         val repo = DefaultLibraryRepository(
             libraryScanner = FakeLibraryScanner(),
             incrementalCataloger = IncrementalCbzCataloger(NoopCbzCataloger),
@@ -553,7 +560,8 @@ class IncrementalScanTest {
             readingProgressDao = FakeReadingProgressDao(),
             coverExtractor = ext,
             coverCacheManager = cache,
-            storageGateway = storage
+            storageGateway = storage,
+            cbzArchiveProvider = cbzProvider
         )
         val result = repo.buildSynthesizedSuccess("path.cbz", pageCount = 3, coverEntryPath = "my_cover.jpg")
 
@@ -567,6 +575,7 @@ class IncrementalScanTest {
         val storage = FakeStorageGateway()
         val ext = CoverExtractor(storage, FakeComicDao(), FakeChapterDao())
         val cache = CoverCacheManager(java.io.File(System.getProperty("java.io.tmpdir"), "stub_covers"), ext, FakeComicDao(), FakeChapterDao())
+        val cbzProvider = com.example.kitsune.reader.DefaultCbzArchiveProvider(java.io.File(System.getProperty("java.io.tmpdir"), "stub_spool"), storage, FakeChapterDao())
         val repo = DefaultLibraryRepository(
             libraryScanner = FakeLibraryScanner(),
             incrementalCataloger = IncrementalCbzCataloger(NoopCbzCataloger),
@@ -575,7 +584,8 @@ class IncrementalScanTest {
             readingProgressDao = FakeReadingProgressDao(),
             coverExtractor = ext,
             coverCacheManager = cache,
-            storageGateway = storage
+            storageGateway = storage,
+            cbzArchiveProvider = cbzProvider
         )
         val result = repo.buildSynthesizedSuccess("path.cbz", pageCount = 2, coverEntryPath = null)
 
@@ -589,6 +599,7 @@ class IncrementalScanTest {
         val storage = FakeStorageGateway()
         val ext = CoverExtractor(storage, FakeComicDao(), FakeChapterDao())
         val cache = CoverCacheManager(java.io.File(System.getProperty("java.io.tmpdir"), "stub_covers"), ext, FakeComicDao(), FakeChapterDao())
+        val cbzProvider = com.example.kitsune.reader.DefaultCbzArchiveProvider(java.io.File(System.getProperty("java.io.tmpdir"), "stub_spool"), storage, FakeChapterDao())
         val repo = DefaultLibraryRepository(
             libraryScanner = FakeLibraryScanner(),
             incrementalCataloger = IncrementalCbzCataloger(NoopCbzCataloger),
@@ -597,7 +608,8 @@ class IncrementalScanTest {
             readingProgressDao = FakeReadingProgressDao(),
             coverExtractor = ext,
             coverCacheManager = cache,
-            storageGateway = storage
+            storageGateway = storage,
+            cbzArchiveProvider = cbzProvider
         )
         val result = repo.buildSynthesizedSuccess("path.cbz", pageCount = 0, coverEntryPath = null)
         assertEquals(0, result.pages.size)

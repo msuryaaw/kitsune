@@ -65,7 +65,8 @@ class DefaultLibraryRepository(
     private val readingProgressDao: ReadingProgressDao,
     private val coverExtractor: CoverExtractor,
     private val coverCacheManager: CoverCacheManager,
-    private val storageGateway: com.example.kitsune.storage.StorageGateway
+    private val storageGateway: com.example.kitsune.storage.StorageGateway,
+    private val cbzArchiveProvider: com.example.kitsune.reader.CbzArchiveProvider
 ) : LibraryRepository {
 
     /**
@@ -389,4 +390,7 @@ class DefaultLibraryRepository(
     override suspend fun releaseCoverFile(file: java.io.File) {
         coverCacheManager.releaseCoverFile(file)
     }
+
+    override suspend fun openCbzArchive(chapterId: Long): com.example.kitsune.reader.CbzArchiveResult =
+        cbzArchiveProvider.openArchive(chapterId)
 }

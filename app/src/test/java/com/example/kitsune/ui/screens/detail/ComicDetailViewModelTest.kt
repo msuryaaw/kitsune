@@ -71,6 +71,9 @@ class FakeComicDetailLibraryRepository : LibraryRepository {
     }
 
     override fun observeLastScanResult(): Flow<LibraryScanResult?> = flowOf(null)
+
+    override suspend fun openCbzArchive(chapterId: Long): com.example.kitsune.reader.CbzArchiveResult =
+        com.example.kitsune.reader.CbzArchiveResult.ChapterMissing
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)

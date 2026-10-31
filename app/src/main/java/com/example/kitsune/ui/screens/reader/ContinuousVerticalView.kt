@@ -114,12 +114,15 @@ private fun ContinuousPageItem(
             .padding(vertical = 4.dp),
         contentAlignment = Alignment.Center
     ) {
+        val retryTrigger = androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(0) }
+
         val renderState by produceState<PageRenderState>(
             initialValue = PageRenderState.Loading,
             page.pageIndex,
             targetWidthPx,
             targetHeightPx,
-            isVisible
+            isVisible,
+            retryTrigger.intValue
         ) {
             if (!isVisible) {
                 value = PageRenderState.Loading
@@ -132,7 +135,7 @@ private fun ContinuousPageItem(
                     value = PageRenderState.Loaded(decodeResult.bitmap.asImageBitmap())
                 }
                 is PageDecodeResult.ImageCorrupt -> {
-                    value = PageRenderState.Corrupt("Gagal membaca halaman ${page.pageNumber}: ${decodeResult.message}")
+                    value = PageRenderState.Corrupt("Header gambar tidak valid atau corrupt: ${decodeResult.message}")
                 }
                 is PageDecodeResult.PageNotFound -> {
                     value = PageRenderState.Error("Halaman ${page.pageNumber} tidak ditemukan")
@@ -159,10 +162,16 @@ private fun ContinuousPageItem(
                 )
             }
             is PageRenderState.Corrupt -> {
-                ContinuousErrorCard(message = state.message)
+                ContinuousErrorCard(
+                    message = state.message,
+                    onRetry = { retryTrigger.intValue++ }
+                )
             }
             is PageRenderState.Error -> {
-                ContinuousErrorCard(message = state.message)
+                ContinuousErrorCard(
+                    message = state.message,
+                    onRetry = { retryTrigger.intValue++ }
+                )
             }
         }
     }
@@ -171,6 +180,7 @@ private fun ContinuousPageItem(
 @Composable
 private fun ContinuousErrorCard(
     message: String,
+    onRetry: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -196,6 +206,10 @@ private fun ContinuousErrorCard(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onErrorContainer
             )
+            Spacer(modifier = Modifier.height(12.dp))
+            androidx.compose.material3.Button(onClick = onRetry) {
+                Text("Coba Lagi")
+            }
         }
     }
 }

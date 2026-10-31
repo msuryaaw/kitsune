@@ -143,7 +143,10 @@ fun KitsuneApp(
                 )
                 com.example.kitsune.ui.screens.reader.ReaderScreen(
                     viewModel = readerViewModel,
-                    onBackClick = { navController.popBackStack() }
+                    onBackClick = { navController.popBackStack() },
+                    onSettingsClick = {
+                        navController.navigate(KitsuneDestinations.SETTINGS_ROUTE)
+                    }
                 )
             }
         }

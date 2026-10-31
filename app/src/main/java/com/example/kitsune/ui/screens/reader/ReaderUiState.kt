@@ -27,5 +27,19 @@ sealed interface ReaderUiState {
     /**
      * Error state when chapter cannot be opened or indexed.
      */
-    data class Error(val message: String) : ReaderUiState
+    data class Error(
+        val message: String,
+        val errorType: ReaderErrorType = ReaderErrorType.GENERAL
+    ) : ReaderUiState
+}
+
+enum class ReaderErrorType {
+    CORRUPT_ARCHIVE,
+    UNSUPPORTED_ARCHIVE,
+    NO_IMAGES,
+    PERMISSION_DENIED,
+    ROOT_NOT_CONFIGURED,
+    CHAPTER_MISSING,
+    STORAGE_ERROR,
+    GENERAL
 }

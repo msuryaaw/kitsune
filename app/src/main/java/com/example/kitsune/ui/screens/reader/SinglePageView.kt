@@ -49,12 +49,14 @@ fun SinglePageView(
         val density = LocalDensity.current
         val targetWidthPx = with(density) { maxWidth.roundToPx() }.coerceIn(1, 2048)
         val targetHeightPx = with(density) { maxHeight.roundToPx() }.coerceIn(1, 2048)
+        val retryTrigger = androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(0) }
 
         val renderState by produceState<PageRenderState>(
             initialValue = PageRenderState.Loading,
-            key1 = currentPageIndex,
-            key2 = targetWidthPx,
-            key3 = targetHeightPx
+            currentPageIndex,
+            targetWidthPx,
+            targetHeightPx,
+            retryTrigger.intValue
         ) {
             value = PageRenderState.Loading
             when (val decodeResult = viewModel.decodePage(currentPageIndex, targetWidthPx, targetHeightPx)) {
@@ -62,7 +64,7 @@ fun SinglePageView(
                     value = PageRenderState.Loaded(decodeResult.bitmap.asImageBitmap())
                 }
                 is PageDecodeResult.ImageCorrupt -> {
-                    value = PageRenderState.Corrupt("Gagal membaca halaman ${currentPageIndex + 1}: ${decodeResult.message}")
+                    value = PageRenderState.Corrupt("Header gambar tidak valid atau corrupt: ${decodeResult.message}")
                 }
                 is PageDecodeResult.PageNotFound -> {
                     value = PageRenderState.Error("Halaman ${currentPageIndex + 1} tidak ditemukan")
@@ -89,10 +91,18 @@ fun SinglePageView(
                 )
             }
             is PageRenderState.Corrupt -> {
-                PageErrorCard(message = state.message)
+                PageErrorCard(
+                    message = state.message,
+                    onRetry = { retryTrigger.intValue++ },
+                    onSkip = { viewModel.goToNextPage() }
+                )
             }
             is PageRenderState.Error -> {
-                PageErrorCard(message = state.message)
+                PageErrorCard(
+                    message = state.message,
+                    onRetry = { retryTrigger.intValue++ },
+                    onSkip = { viewModel.goToNextPage() }
+                )
             }
         }
 
@@ -165,6 +175,8 @@ sealed interface PageRenderState {
 @Composable
 private fun PageErrorCard(
     message: String,
+    onRetry: () -> Unit,
+    onSkip: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -188,6 +200,15 @@ private fun PageErrorCard(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onErrorContainer
             )
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                androidx.compose.material3.Button(onClick = onRetry) {
+                    Text("Coba Lagi")
+                }
+                androidx.compose.material3.OutlinedButton(onClick = onSkip) {
+                    Text("Halaman Berikutnya")
+                }
+            }
         }
     }
 }

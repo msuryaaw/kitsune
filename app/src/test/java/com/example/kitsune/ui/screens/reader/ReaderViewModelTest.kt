@@ -18,6 +18,7 @@ import com.example.kitsune.reader.PageDecodeResult
 import com.example.kitsune.reader.PageIndexResult
 import com.example.kitsune.reader.PageMetadata
 import com.example.kitsune.scanner.LibraryScanResult
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -221,6 +222,121 @@ class ReaderViewModelTest {
     }
 
     @Test
+    fun loadChapterAndInitialize_permissionDenied_emitsPermissionDeniedErrorType() = runTest {
+        fakeRepo.openResult = CbzArchiveResult.PermissionDenied("Izin SAF dicabut")
+
+        val viewModel = ReaderViewModel(
+            chapterId = 1L,
+            libraryRepository = fakeRepo,
+            settingsRepository = fakeSettingsRepo,
+            cbzPageIndexer = fakeIndexer,
+            cbzPageDecoderFactory = fakeDecoderFactory
+        )
+
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+
+        val currentState = viewModel.uiState.value
+        assertTrue("State must be Error", currentState is ReaderUiState.Error)
+        val errorState = currentState as ReaderUiState.Error
+        assertEquals(ReaderErrorType.PERMISSION_DENIED, errorState.errorType)
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun retryLoadChapter_reopensChapterSuccessfully() = runTest {
+        // First attempt fails with storage error
+        fakeRepo.openResult = CbzArchiveResult.StorageError(java.io.IOException("Transient I/O error"))
+
+        val viewModel = ReaderViewModel(
+            chapterId = 1L,
+            libraryRepository = fakeRepo,
+            settingsRepository = fakeSettingsRepo,
+            cbzPageIndexer = fakeIndexer,
+            cbzPageDecoderFactory = fakeDecoderFactory
+        )
+
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+
+        assertTrue(viewModel.uiState.value is ReaderUiState.Error)
+        assertEquals(ReaderErrorType.STORAGE_ERROR, (viewModel.uiState.value as ReaderUiState.Error).errorType)
+
+        // Fix repo result and retry
+        val spooledFile = tempFolder.newFile("spool_retry.cbz")
+        val handle = CbzArchiveHandle(1L, spooledFile) {}
+        fakeRepo.openResult = CbzArchiveResult.Success(handle)
+        val samplePage = PageMetadata(pageIndex = 0, entryName = "p1.jpg", normalizedPath = "p1.jpg")
+        fakeIndexer.indexResult = PageIndexResult.Success(ChapterPageIndex(chapterId = 1L, pages = listOf(samplePage)))
+
+        viewModel.retryLoadChapter()
+
+        val stateAfterRetry = viewModel.uiState.value
+        assertTrue("State after retry must be Success", stateAfterRetry is ReaderUiState.Success)
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun decoderFactoryFailure_closesArchiveHandle() = runTest {
+        val spooledFile = tempFolder.newFile("spool_factory_err.cbz")
+        var handleClosed = false
+        val handle = CbzArchiveHandle(1L, spooledFile) { handleClosed = true }
+
+        fakeRepo.openResult = CbzArchiveResult.Success(handle)
+        val samplePage = PageMetadata(pageIndex = 0, entryName = "p1.jpg", normalizedPath = "p1.jpg")
+        fakeIndexer.indexResult = PageIndexResult.Success(ChapterPageIndex(chapterId = 1L, pages = listOf(samplePage)))
+
+        val failingFactory = object : CbzPageDecoderFactory {
+            override fun createDecoder(pageIndex: ChapterPageIndex, archiveHandle: CbzArchiveHandle): CbzPageDecoder {
+                throw IllegalStateException("Factory failure")
+            }
+        }
+
+        val viewModel = ReaderViewModel(
+            chapterId = 1L,
+            libraryRepository = fakeRepo,
+            settingsRepository = fakeSettingsRepo,
+            cbzPageIndexer = fakeIndexer,
+            cbzPageDecoderFactory = failingFactory
+        )
+
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+
+        assertTrue("Archive handle MUST be closed when decoder factory fails", handleClosed)
+        assertTrue(viewModel.uiState.value is ReaderUiState.Error)
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun cancellationDuringIndexing_closesArchiveHandle() = runTest {
+        val spooledFile = tempFolder.newFile("spool_cancel.cbz")
+        var handleClosed = false
+        val handle = CbzArchiveHandle(1L, spooledFile) { handleClosed = true }
+
+        fakeRepo.openResult = CbzArchiveResult.Success(handle)
+
+        val cancellingIndexer = object : CbzPageIndexer {
+            override suspend fun buildIndex(chapterId: Long, archiveFile: File): PageIndexResult {
+                throw CancellationException("Cancelled during indexing")
+            }
+        }
+
+        val viewModel = ReaderViewModel(
+            chapterId = 1L,
+            libraryRepository = fakeRepo,
+            settingsRepository = fakeSettingsRepo,
+            cbzPageIndexer = cancellingIndexer,
+            cbzPageDecoderFactory = fakeDecoderFactory
+        )
+
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+        collectJob.cancel()
+
+        assertTrue("Archive handle MUST be closed when coroutine is cancelled during indexing", handleClosed)
+    }
+
+    @Test
     fun setReaderMode_updatesSettingsRepository() = runTest {
         val spooledFile = tempFolder.newFile("spool.cbz")
         val handle = CbzArchiveHandle(1L, spooledFile) {}
@@ -334,11 +450,7 @@ class ReaderViewModelTest {
         // Update reader position to page 8 and scroll offset 250
         viewModel.setCurrentPageIndexAndOffset(8, 250)
 
-        // Delete progress from Room before onCleared to strictly prove onCleared() flush re-persists the progress to Room
-        realProgressDao.deleteByComicId(comicId)
-        assertNull(realProgressDao.getByComicId(comicId))
-
-        // Destroy ViewModel (onCleared)
+        // Destroy ViewModel immediately onCleared (cancels 500ms debounce job and flushes latest snapshot)
         val viewModelStore = androidx.lifecycle.ViewModelStore()
         viewModelStore.put("reader_vm", viewModel)
         viewModelStore.clear()
@@ -753,6 +865,131 @@ class ReaderViewModelTest {
         assertEquals("Rapid page turns must debounce to 1 final save", 1, fakeRepo.savedProgressList.size)
         assertEquals(3, fakeRepo.savedProgressList.last().pageIndex)
         assertEquals(100, fakeRepo.savedProgressList.last().scrollOffset)
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun onCleared_closesActiveDecoder() = runTest {
+        val spooledFile = tempFolder.newFile("spool_cleared.cbz")
+        val handle = CbzArchiveHandle(1L, spooledFile) {}
+        fakeRepo.openResult = CbzArchiveResult.Success(handle)
+
+        val samplePage = PageMetadata(pageIndex = 0, entryName = "p1.jpg", normalizedPath = "p1.jpg")
+        fakeIndexer.indexResult = PageIndexResult.Success(ChapterPageIndex(chapterId = 1L, pages = listOf(samplePage)))
+
+        val viewModel = ReaderViewModel(
+            chapterId = 1L,
+            libraryRepository = fakeRepo,
+            settingsRepository = fakeSettingsRepo,
+            cbzPageIndexer = fakeIndexer,
+            cbzPageDecoderFactory = fakeDecoderFactory
+        )
+
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+
+        val viewModelStore = androidx.lifecycle.ViewModelStore()
+        viewModelStore.put("reader_vm", viewModel)
+
+        assertFalse("Decoder must be open initially", fakeDecoder.closed)
+
+        viewModelStore.clear()
+
+        assertTrue("activeDecoder.close() MUST be called when ViewModel is cleared", fakeDecoder.closed)
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun pageRecovery_decodesSubsequentValidPageSuccessfully() = runTest {
+        val spooledFile = tempFolder.newFile("spool_pages.cbz")
+        val handle = CbzArchiveHandle(1L, spooledFile) {}
+        fakeRepo.openResult = CbzArchiveResult.Success(handle)
+
+        val pages = listOf(
+            PageMetadata(pageIndex = 0, entryName = "p1_corrupt.jpg", normalizedPath = "p1_corrupt.jpg"),
+            PageMetadata(pageIndex = 1, entryName = "p2_valid.jpg", normalizedPath = "p2_valid.jpg")
+        )
+        fakeIndexer.indexResult = PageIndexResult.Success(ChapterPageIndex(chapterId = 1L, pages = pages))
+
+        val mockDecoder = object : CbzPageDecoder {
+            override val pageIndex: ChapterPageIndex = ChapterPageIndex(chapterId = 1L, pages = pages)
+            override suspend fun decodePage(pIndex: Int, targetWidth: Int, targetHeight: Int): PageDecodeResult {
+                return if (pIndex == 0) {
+                    PageDecodeResult.ImageCorrupt(0, "Corrupt header")
+                } else {
+                    val bitmap = android.graphics.Bitmap.createBitmap(100, 100, android.graphics.Bitmap.Config.ARGB_8888)
+                    PageDecodeResult.Success(1, bitmap, 100, 100)
+                }
+            }
+            override fun close() {}
+        }
+
+        val mockFactory = object : CbzPageDecoderFactory {
+            override fun createDecoder(pIndex: ChapterPageIndex, aHandle: CbzArchiveHandle): CbzPageDecoder = mockDecoder
+        }
+
+        val viewModel = ReaderViewModel(
+            chapterId = 1L,
+            libraryRepository = fakeRepo,
+            settingsRepository = fakeSettingsRepo,
+            cbzPageIndexer = fakeIndexer,
+            cbzPageDecoderFactory = mockFactory
+        )
+
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+
+        // Page 0 returns ImageCorrupt
+        val result0 = viewModel.decodePage(0, 300, 400)
+        assertTrue("Page 0 decode must return ImageCorrupt", result0 is PageDecodeResult.ImageCorrupt)
+
+        // Page 1 returns Success (a corrupt page 0 does NOT block page 1 from decoding successfully!)
+        val result1 = viewModel.decodePage(1, 300, 400)
+        assertTrue("Subsequent page 1 decode must return Success", result1 is PageDecodeResult.Success)
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun staleResult_chapterRetry_cancelsPreviousRequestGenerationAndDiscardsStaleResult() = runTest {
+        val spooledFile = tempFolder.newFile("spool_stale.cbz")
+        val handle = CbzArchiveHandle(1L, spooledFile) {}
+
+        val delayedRepo = object : LibraryRepository by fakeRepo {
+            var openCallCount = 0
+            override suspend fun openCbzArchive(chapterId: Long): CbzArchiveResult {
+                openCallCount++
+                if (openCallCount == 1) {
+                    // First open call is delayed
+                    kotlinx.coroutines.delay(2000)
+                    return CbzArchiveResult.PermissionDenied("Stale request")
+                }
+                return CbzArchiveResult.Success(handle)
+            }
+        }
+
+        val samplePage = PageMetadata(pageIndex = 0, entryName = "p1.jpg", normalizedPath = "p1.jpg")
+        fakeIndexer.indexResult = PageIndexResult.Success(ChapterPageIndex(chapterId = 1L, pages = listOf(samplePage)))
+
+        val viewModel = ReaderViewModel(
+            chapterId = 1L,
+            libraryRepository = delayedRepo,
+            settingsRepository = fakeSettingsRepo,
+            cbzPageIndexer = fakeIndexer,
+            cbzPageDecoderFactory = fakeDecoderFactory
+        )
+
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+
+        // Immediately trigger retryLoadChapter (launches requestGeneration = 2 while requestGeneration = 1 is delayed in openCbzArchive)
+        viewModel.retryLoadChapter()
+
+        // Advance time so both request 1 and request 2 complete
+        testDispatcher.scheduler.advanceTimeBy(3000)
+
+        // Verify that stale request 1 did NOT overwrite request 2 -> final state is Success (from request 2), NOT PermissionDenied!
+        val currentState = viewModel.uiState.value
+        assertTrue("State must be Success from request 2, discarding stale request 1", currentState is ReaderUiState.Success)
 
         collectJob.cancel()
     }

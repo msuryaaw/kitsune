@@ -42,25 +42,38 @@ class ReaderViewModel(
     private val timestampGenerator = MonotonicTimestampGenerator()
     private val latestProgressSnapshot = AtomicReference<ReadingProgressEntity?>(null)
     private var progressSaveJob: Job? = null
+    private var requestGeneration = 0
 
     init {
         loadChapterAndInitialize()
     }
 
     private fun loadChapterAndInitialize() {
+        val currentGen = ++requestGeneration
         viewModelScope.launch {
             _uiState.value = ReaderUiState.Loading
             var tempHandle: CbzArchiveHandle? = null
 
             try {
                 val chapter = libraryRepository.getChapterById(chapterId)
+                if (currentGen != requestGeneration) return@launch
                 activeChapter = chapter
 
                 when (val openResult = libraryRepository.openCbzArchive(chapterId)) {
                     is CbzArchiveResult.Success -> {
                         tempHandle = openResult.handle
+                        if (currentGen != requestGeneration) {
+                            tempHandle.close()
+                            return@launch
+                        }
+
                         when (val indexResult = cbzPageIndexer.buildIndex(chapterId, tempHandle.file)) {
                             is PageIndexResult.Success -> {
+                                if (currentGen != requestGeneration) {
+                                    tempHandle.close()
+                                    return@launch
+                                }
+
                                 val decoder = cbzPageDecoderFactory.createDecoder(indexResult.pageIndex, tempHandle)
                                 activeDecoder = decoder
                                 tempHandle = null // Transfer of ownership complete!
@@ -82,6 +95,7 @@ class ReaderViewModel(
 
                                 // Observe settings for readerMode & readingDirection
                                 settingsRepository.observeSettings().collect { settings ->
+                                    if (currentGen != requestGeneration) return@collect
                                     val currentState = _uiState.value
                                     val currentPos = if (currentState is ReaderUiState.Success) currentState.currentPageIndex else initialPageIndex
                                     val currentOffset = if (currentState is ReaderUiState.Success) currentState.scrollOffset else initialScrollOffset
@@ -97,43 +111,74 @@ class ReaderViewModel(
                                 }
                             }
                             is PageIndexResult.NoImagesFound -> {
-                                _uiState.value = ReaderUiState.Error("Tidak ada halaman gambar ditemukan dalam chapter")
+                                if (currentGen == requestGeneration) {
+                                    _uiState.value = ReaderUiState.Error("Tidak ada halaman gambar ditemukan dalam chapter", ReaderErrorType.NO_IMAGES)
+                                }
                             }
                             is PageIndexResult.CorruptArchive -> {
-                                _uiState.value = ReaderUiState.Error("Arsip chapter rusak: ${indexResult.message}")
+                                if (currentGen == requestGeneration) {
+                                    _uiState.value = ReaderUiState.Error("Arsip chapter rusak: ${indexResult.message}", ReaderErrorType.CORRUPT_ARCHIVE)
+                                }
                             }
                             is PageIndexResult.LimitExceeded -> {
-                                _uiState.value = ReaderUiState.Error("Batas keamanan arsip terlampaui: ${indexResult.reason}")
+                                if (currentGen == requestGeneration) {
+                                    _uiState.value = ReaderUiState.Error("Batas keamanan arsip terlampaui: ${indexResult.reason}", ReaderErrorType.UNSUPPORTED_ARCHIVE)
+                                }
                             }
                             is PageIndexResult.StorageError -> {
-                                _uiState.value = ReaderUiState.Error("Gagal membaca indeks chapter: ${indexResult.exception.localizedMessage}")
+                                if (currentGen == requestGeneration) {
+                                    _uiState.value = ReaderUiState.Error("Gagal membaca indeks chapter: ${indexResult.exception.localizedMessage}", ReaderErrorType.STORAGE_ERROR)
+                                }
                             }
                         }
                     }
                     is CbzArchiveResult.ChapterMissing -> {
-                        _uiState.value = ReaderUiState.Error("File chapter tidak ditemukan di penyimpanan")
+                        if (currentGen == requestGeneration) {
+                            _uiState.value = ReaderUiState.Error("File chapter tidak ditemukan di penyimpanan", ReaderErrorType.CHAPTER_MISSING)
+                        }
                     }
                     is CbzArchiveResult.PermissionDenied -> {
-                        _uiState.value = ReaderUiState.Error("Izin akses penyimpanan terputus: ${openResult.message}")
+                        if (currentGen == requestGeneration) {
+                            val errorType = if (openResult.message.contains("Root", ignoreCase = true) || openResult.message.contains("dikonfigurasi", ignoreCase = true)) {
+                                ReaderErrorType.ROOT_NOT_CONFIGURED
+                            } else {
+                                ReaderErrorType.PERMISSION_DENIED
+                            }
+                            _uiState.value = ReaderUiState.Error("Izin akses penyimpanan terputus: ${openResult.message}", errorType)
+                        }
                     }
                     is CbzArchiveResult.ArchiveTooLarge -> {
-                        _uiState.value = ReaderUiState.Error("Ukuran arsip melebihi batas 500 MB")
+                        if (currentGen == requestGeneration) {
+                            _uiState.value = ReaderUiState.Error("Ukuran arsip melebihi batas 500 MB", ReaderErrorType.UNSUPPORTED_ARCHIVE)
+                        }
                     }
                     is CbzArchiveResult.SpoolBudgetExceeded -> {
-                        _uiState.value = ReaderUiState.Error("Kapasitas cache reader penuh (1.5 GB)")
+                        if (currentGen == requestGeneration) {
+                            _uiState.value = ReaderUiState.Error("Kapasitas cache reader penuh (1.5 GB)", ReaderErrorType.STORAGE_ERROR)
+                        }
                     }
                     is CbzArchiveResult.StorageError -> {
-                        _uiState.value = ReaderUiState.Error("Gagal membuka arsip chapter: ${openResult.exception.localizedMessage}")
+                        if (currentGen == requestGeneration) {
+                            _uiState.value = ReaderUiState.Error("Gagal membuka arsip chapter: ${openResult.exception.localizedMessage}", ReaderErrorType.STORAGE_ERROR)
+                        }
                     }
                 }
             } catch (ce: CancellationException) {
                 throw ce
             } catch (e: Exception) {
-                _uiState.value = ReaderUiState.Error("Gagal mempersiapkan reader: ${e.localizedMessage}")
+                if (currentGen == requestGeneration) {
+                    _uiState.value = ReaderUiState.Error("Gagal mempersiapkan reader: ${e.localizedMessage}")
+                }
             } finally {
                 tempHandle?.close()
             }
         }
+    }
+
+    fun retryLoadChapter() {
+        activeDecoder?.close()
+        activeDecoder = null
+        loadChapterAndInitialize()
     }
 
     suspend fun decodePage(pageIndex: Int, targetWidth: Int, targetHeight: Int): PageDecodeResult {

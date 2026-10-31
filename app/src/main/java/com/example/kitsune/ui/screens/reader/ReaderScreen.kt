@@ -37,6 +37,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 fun ReaderScreen(
     viewModel: ReaderViewModel,
     onBackClick: () -> Unit,
+    onSettingsClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -113,8 +114,10 @@ fun ReaderScreen(
                 }
                 is ReaderUiState.Error -> {
                     ReaderErrorView(
-                        message = state.message,
+                        errorState = state,
                         onBackClick = onBackClick,
+                        onRetryClick = { viewModel.retryLoadChapter() },
+                        onSettingsClick = onSettingsClick ?: onBackClick,
                         modifier = Modifier.align(Alignment.Center)
                     )
                 }
@@ -178,8 +181,10 @@ private fun ReaderModeToggleSelector(
 
 @Composable
 private fun ReaderErrorView(
-    message: String,
+    errorState: ReaderUiState.Error,
     onBackClick: () -> Unit,
+    onRetryClick: () -> Unit,
+    onSettingsClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -201,19 +206,42 @@ private fun ReaderErrorView(
                 modifier = Modifier.padding(bottom = 12.dp)
             )
             Text(
-                text = "Gagal Membuka Reader",
+                text = when (errorState.errorType) {
+                    ReaderErrorType.PERMISSION_DENIED -> "Izin Akses Terputus"
+                    ReaderErrorType.ROOT_NOT_CONFIGURED -> "Root SAF Belum Dipilih"
+                    ReaderErrorType.CORRUPT_ARCHIVE -> "Arsip CBZ Rusak"
+                    ReaderErrorType.UNSUPPORTED_ARCHIVE -> "Format Tidak Didukung / Melebihi Batas"
+                    ReaderErrorType.NO_IMAGES -> "Tidak Ada Gambar"
+                    ReaderErrorType.CHAPTER_MISSING -> "Chapter Tidak Ditemukan"
+                    else -> "Gagal Membuka Reader"
+                },
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onErrorContainer
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = message,
+                text = errorState.message,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onErrorContainer
             )
             Spacer(modifier = Modifier.height(16.dp))
-            Button(onClick = onBackClick) {
-                Text("Kembali")
+            Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
+                when (errorState.errorType) {
+                    ReaderErrorType.PERMISSION_DENIED, ReaderErrorType.ROOT_NOT_CONFIGURED -> {
+                        Button(onClick = onSettingsClick) {
+                            Text("Atur Root SAF")
+                        }
+                    }
+                    ReaderErrorType.STORAGE_ERROR -> {
+                        Button(onClick = onRetryClick) {
+                            Text("Coba Lagi")
+                        }
+                    }
+                    else -> {}
+                }
+                Button(onClick = onBackClick) {
+                    Text("Kembali")
+                }
             }
         }
     }

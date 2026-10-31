@@ -37,13 +37,23 @@ sealed interface LibraryUiState {
     object NoValidChapters : LibraryUiState
 
     /**
-     * Collection loaded successfully with one or more comic entities, grid column preference, and optional issues count.
+     * Collection loaded successfully with matching comic entities, grid column preference, search query, and optional issues count.
      */
     data class Success(
         val rootUriString: String,
         val comics: List<ComicEntity>,
         val gridColumns: Int = 3,
-        val issuesCount: Int = 0
+        val issuesCount: Int = 0,
+        val searchQuery: String = ""
+    ) : LibraryUiState
+
+    /**
+     * Search query did not match any comic titles in the collection.
+     */
+    data class SearchNoResults(
+        val rootUriString: String,
+        val searchQuery: String,
+        val gridColumns: Int = 3
     ) : LibraryUiState
 
     /**

@@ -30,6 +30,9 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import org.robolectric.annotation.Config
 
 class FakeLibraryRepository : LibraryRepository {
     val comicsByRoot = MutableStateFlow<Map<String, List<ComicEntity>>>(emptyMap())
@@ -145,6 +148,8 @@ class FakeSettingsRepository(
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
+@RunWith(AndroidJUnit4::class)
+@Config(sdk = [34])
 class LibraryViewModelTest {
 
     private val testDispatcher = UnconfinedTestDispatcher()
@@ -616,5 +621,239 @@ class LibraryViewModelTest {
         assertEquals(1, success.issuesCount)
 
         collectJob.cancel()
+    }
+
+    @Test
+    fun searchQuery_filtersComicsCaseInsensitiveAndTrimsWhitespace() = runTest {
+        val rootUri = "content://primary%3AKitsune"
+        val comic1 = ComicEntity(id = 1L, rootUriString = rootUri, relativePath = "Comics/OnePiece", title = "One Piece", lastScannedAt = 100L)
+        val comic2 = ComicEntity(id = 2L, rootUriString = rootUri, relativePath = "Comics/Naruto", title = "Naruto", lastScannedAt = 100L)
+        fakeRepo.comicsByRoot.value = mapOf(rootUri to listOf(comic1, comic2))
+        fakePrefs.setRootUriString(rootUri)
+
+        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo, fakeDetector)
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+
+        // Initial full collection (2 comics)
+        val initialState = viewModel.uiState.value as LibraryUiState.Success
+        assertEquals(2, initialState.comics.size)
+
+        // Search "  piece  " -> case-insensitive & trimmed whitespace -> matches "One Piece"
+        viewModel.onSearchQueryChanged("  piece  ")
+
+        val searchState = viewModel.uiState.value as LibraryUiState.Success
+        assertEquals(1, searchState.comics.size)
+        assertEquals("One Piece", searchState.comics.first().title)
+        assertEquals("  piece  ", searchState.searchQuery)
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun searchQuery_nonMatchingQuery_emitsSearchNoResultsState() = runTest {
+        val rootUri = "content://primary%3AKitsune"
+        val comic1 = ComicEntity(id = 1L, rootUriString = rootUri, relativePath = "Comics/OnePiece", title = "One Piece", lastScannedAt = 100L)
+        fakeRepo.comicsByRoot.value = mapOf(rootUri to listOf(comic1))
+        fakePrefs.setRootUriString(rootUri)
+
+        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo, fakeDetector)
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+
+        // Search non-matching query
+        viewModel.onSearchQueryChanged("Bleach")
+
+        val searchState = viewModel.uiState.value
+        assertTrue("Non-matching query MUST emit SearchNoResults state", searchState is LibraryUiState.SearchNoResults)
+        val noResults = searchState as LibraryUiState.SearchNoResults
+        assertEquals("Bleach", noResults.searchQuery)
+
+        // Clear search query -> restores full collection
+        viewModel.onSearchQueryChanged("")
+
+        val restoredState = viewModel.uiState.value
+        assertTrue("Clearing query MUST restore Success state with full collection", restoredState is LibraryUiState.Success)
+        assertEquals(1, (restoredState as LibraryUiState.Success).comics.size)
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun searchQuery_liveObservation_updatesResultWhenCollectionDataChangesUnderUnchangedQuery() = runTest {
+        val rootUri = "content://primary%3AKitsune"
+        val comic1 = ComicEntity(id = 1L, rootUriString = rootUri, relativePath = "Comics/OnePiece1", title = "One Piece 1", lastScannedAt = 100L)
+        fakeRepo.comicsByRoot.value = mapOf(rootUri to listOf(comic1))
+        fakePrefs.setRootUriString(rootUri)
+
+        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo, fakeDetector)
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+
+        // Set search query "Piece"
+        viewModel.onSearchQueryChanged("Piece")
+
+        val initialSearch = viewModel.uiState.value as LibraryUiState.Success
+        assertEquals(1, initialSearch.comics.size)
+        assertEquals("One Piece 1", initialSearch.comics.first().title)
+
+        // Add a second matching comic "One Piece 2" while query "Piece" remains UNCHANGED
+        val comic2 = ComicEntity(id = 2L, rootUriString = rootUri, relativePath = "Comics/OnePiece2", title = "One Piece 2", lastScannedAt = 100L)
+        fakeRepo.comicsByRoot.value = mapOf(rootUri to listOf(comic1, comic2))
+
+        val updatedSearch = viewModel.uiState.value as LibraryUiState.Success
+        assertEquals("UI state MUST dynamically update under unchanged search query when new matching comic added", 2, updatedSearch.comics.size)
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun searchQuery_specialCharacters_handledLiterally() = runTest {
+        val rootUri = "content://primary%3AKitsune"
+        val comicSpecial = ComicEntity(id = 1L, rootUriString = rootUri, relativePath = "Comics/Special", title = "Comic 100% Vol_1\\Test", lastScannedAt = 100L)
+        fakeRepo.comicsByRoot.value = mapOf(rootUri to listOf(comicSpecial))
+        fakePrefs.setRootUriString(rootUri)
+
+        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo, fakeDetector)
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+
+        // Raw input "%"
+        viewModel.onSearchQueryChanged("%")
+        assertTrue(viewModel.uiState.value is LibraryUiState.Success)
+        assertEquals("Comic 100% Vol_1\\Test", (viewModel.uiState.value as LibraryUiState.Success).comics.first().title)
+
+        // Raw input "_"
+        viewModel.onSearchQueryChanged("_")
+        assertTrue(viewModel.uiState.value is LibraryUiState.Success)
+
+        // Raw input "\"
+        viewModel.onSearchQueryChanged("\\")
+        assertTrue(viewModel.uiState.value is LibraryUiState.Success)
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun searchQuery_rootSwitching_updatesResultsForNewRootUnderSameQuery() = runTest {
+        val rootA = "content://primary%3ARootA"
+        val rootB = "content://primary%3ARootB"
+
+        val comicA = ComicEntity(id = 1L, rootUriString = rootA, relativePath = "Comics/MangaA", title = "Manga A", lastScannedAt = 100L)
+        val comicB = ComicEntity(id = 2L, rootUriString = rootB, relativePath = "Comics/MangaB", title = "Manga B", lastScannedAt = 100L)
+
+        fakeRepo.comicsByRoot.value = mapOf(
+            rootA to listOf(comicA),
+            rootB to listOf(comicB)
+        )
+
+        fakePrefs.setRootUriString(rootA)
+        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo, fakeDetector)
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+
+        // Set search query "Manga"
+        viewModel.onSearchQueryChanged("Manga")
+        assertEquals("Manga A", (viewModel.uiState.value as LibraryUiState.Success).comics.first().title)
+
+        // Switch to Root B under SAME active search query
+        fakePrefs.setRootUriString(rootB)
+
+        val stateRootB = viewModel.uiState.value as LibraryUiState.Success
+        assertEquals(rootB, stateRootB.rootUriString)
+        assertEquals("Manga B", stateRootB.comics.first().title)
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun searchQuery_permissionDenied_preservesPermissionDeniedState() = runTest {
+        val rootUri = "content://primary%3AKitsune"
+        fakePrefs.setRootUriString(rootUri)
+
+        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo, fakeDetector)
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+
+        viewModel.onSearchQueryChanged("Piece")
+
+        // Revoke permission during active search
+        fakeRepo.lastScanResult.value = LibraryScanResult.PermissionDenied("Access revoked")
+
+        val state = viewModel.uiState.value
+        assertTrue("PermissionDenied state MUST be preserved during active search", state is LibraryUiState.PermissionDenied)
+        assertEquals("Access revoked", (state as LibraryUiState.PermissionDenied).message)
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun searchLibrary_endToEnd_rawQueryMatchingLiteralSpecialChars_realRoomDatabase() = runTest {
+        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        val db = androidx.room.Room.inMemoryDatabaseBuilder(context, com.example.kitsune.data.KitsuneDatabase::class.java)
+            .allowMainThreadQueries()
+            .build()
+
+        val realComicDao = db.comicDao()
+        val realChapterDao = db.chapterDao()
+        val realProgressDao = db.readingProgressDao()
+
+        val rootUri = "content://primary%3ARoot"
+        fakePrefs.setRootUriString(rootUri)
+
+        // Target & Comparison pairs inserted into real Room database
+        realComicDao.insert(ComicEntity(rootUriString = rootUri, relativePath = "Comics/P1", title = "Comic 100% Edition"))
+        realComicDao.insert(ComicEntity(rootUriString = rootUri, relativePath = "Comics/P2", title = "Comic 1000 Edition"))
+
+        realComicDao.insert(ComicEntity(rootUriString = rootUri, relativePath = "Comics/U1", title = "Comic Vol_1"))
+        realComicDao.insert(ComicEntity(rootUriString = rootUri, relativePath = "Comics/U2", title = "Comic VolA1"))
+
+        realComicDao.insert(ComicEntity(rootUriString = rootUri, relativePath = "Comics/B1", title = "Folder\\Series"))
+        realComicDao.insert(ComicEntity(rootUriString = rootUri, relativePath = "Comics/B2", title = "FolderXSeries"))
+
+        val realRepo = com.example.kitsune.data.DefaultLibraryRepository(
+            com.example.kitsune.data.FakeLibraryScanner(),
+            com.example.kitsune.scanner.IncrementalCbzCataloger(com.example.kitsune.data.NoopCbzCataloger),
+            realComicDao, realChapterDao, realProgressDao,
+            com.example.kitsune.data.CoverExtractor(com.example.kitsune.storage.FakeStorageGateway(), realComicDao, realChapterDao),
+            com.example.kitsune.data.CoverCacheManager(java.io.File(System.getProperty("java.io.tmpdir"), "real_search_covers"), com.example.kitsune.data.CoverExtractor(com.example.kitsune.storage.FakeStorageGateway(), realComicDao, realChapterDao), realComicDao, realChapterDao),
+            com.example.kitsune.storage.FakeStorageGateway(),
+            com.example.kitsune.reader.DefaultCbzArchiveProvider(java.io.File(System.getProperty("java.io.tmpdir"), "real_search_spool"), com.example.kitsune.storage.FakeStorageGateway(), realChapterDao),
+            db
+        )
+
+        viewModel = LibraryViewModel(realRepo, fakePrefs, fakeSettingsRepo, fakeDetector)
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+
+        // Allow Room background query executor to initialize observeComicsByRoot
+        for (step in 1..50) {
+            testDispatcher.scheduler.advanceTimeBy(50)
+            if (viewModel.uiState.value is LibraryUiState.Success) break
+            Thread.sleep(10)
+        }
+
+        // Test 1: Raw user input "100%" -> matches "Comic 100% Edition", "Comic 1000 Edition" MUST NOT match
+        viewModel.onSearchQueryChanged("100%")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val percentState = viewModel.uiState.value as LibraryUiState.Success
+        assertEquals(1, percentState.comics.size)
+        assertEquals("Comic 100% Edition", percentState.comics.first().title)
+        assertFalse(percentState.comics.any { it.title == "Comic 1000 Edition" })
+
+        // Test 2: Raw user input "Vol_1" -> matches "Comic Vol_1", "Comic VolA1" MUST NOT match
+        viewModel.onSearchQueryChanged("Vol_1")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val underscoreState = viewModel.uiState.value as LibraryUiState.Success
+        assertEquals(1, underscoreState.comics.size)
+        assertEquals("Comic Vol_1", underscoreState.comics.first().title)
+        assertFalse(underscoreState.comics.any { it.title == "Comic VolA1" })
+
+        // Test 3: Raw user input "Folder\Series" -> matches "Folder\Series", "FolderXSeries" MUST NOT match
+        viewModel.onSearchQueryChanged("Folder\\Series")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val backslashState = viewModel.uiState.value as LibraryUiState.Success
+        assertEquals(1, backslashState.comics.size)
+        assertEquals("Folder\\Series", backslashState.comics.first().title)
+        assertFalse(backslashState.comics.any { it.title == "FolderXSeries" })
+
+        collectJob.cancel()
+        db.close()
     }
 }

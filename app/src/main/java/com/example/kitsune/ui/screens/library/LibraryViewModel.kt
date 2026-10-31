@@ -29,6 +29,7 @@ class LibraryViewModel(
 ) : ViewModel() {
 
     private val isRefreshing = MutableStateFlow(false)
+    val searchQuery = MutableStateFlow("")
 
     val uiState: StateFlow<LibraryUiState> = rootFolderPreferences
         .observeRootUriString()
@@ -40,18 +41,35 @@ class LibraryViewModel(
                     libraryRepository.observeComicsByRoot(rootUri),
                     settingsRepository.observeSettings(),
                     libraryRepository.observeLastScanResult(),
-                    isRefreshing
-                ) { comics, settings, scanResult, refreshing ->
+                    isRefreshing,
+                    searchQuery
+                ) { comics, settings, scanResult, refreshing, query ->
                     if (refreshing) {
                         LibraryUiState.Loading
                     } else if (comics.isNotEmpty()) {
-                        val issuesCount = (scanResult as? LibraryScanResult.Success)?.issues?.size ?: 0
-                        LibraryUiState.Success(
-                            rootUriString = rootUri,
-                            comics = comics,
-                            gridColumns = settings.gridColumns.coerceIn(2, 4),
-                            issuesCount = issuesCount
-                        )
+                        val trimmedQuery = query.trim()
+                        val filteredComics = if (trimmedQuery.isBlank()) {
+                            comics
+                        } else {
+                            comics.filter { it.title.contains(trimmedQuery, ignoreCase = true) }
+                        }
+
+                        if (filteredComics.isNotEmpty()) {
+                            val issuesCount = (scanResult as? LibraryScanResult.Success)?.issues?.size ?: 0
+                            LibraryUiState.Success(
+                                rootUriString = rootUri,
+                                comics = filteredComics,
+                                gridColumns = settings.gridColumns.coerceIn(2, 4),
+                                issuesCount = issuesCount,
+                                searchQuery = query
+                            )
+                        } else {
+                            LibraryUiState.SearchNoResults(
+                                rootUriString = rootUri,
+                                searchQuery = query,
+                                gridColumns = settings.gridColumns.coerceIn(2, 4)
+                            )
+                        }
                     } else {
                         mapEmptyComicsState(rootUri, scanResult)
                     }
@@ -111,6 +129,10 @@ class LibraryViewModel(
                 }
             }
         }
+    }
+
+    fun onSearchQueryChanged(query: String) {
+        searchQuery.value = query
     }
 
     fun setGridColumns(columns: Int) {

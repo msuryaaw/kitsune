@@ -915,6 +915,16 @@ class FakeComicDao : ComicDao {
     override fun observeRecentlyReadWithProgressByRoot(rootUri: String): Flow<List<com.example.kitsune.data.model.ComicWithProgress>> =
         flowOf(emptyList())
 
+    override fun searchComicsByRoot(rootUri: String, query: String): Flow<List<ComicEntity>> =
+        _flow.map { map ->
+            map.values.filter { c ->
+                c.rootUriString == rootUri && c.title.contains(query.trim(), ignoreCase = true)
+            }.sortedBy { c -> c.title.lowercase() }
+        }
+
+    override fun searchComicsByRootEscaped(rootUri: String, rawQuery: String): Flow<List<ComicEntity>> =
+        searchComicsByRoot(rootUri, rawQuery)
+
     override suspend fun getById(comicId: Long): ComicEntity? = comics[comicId]
 
     override suspend fun getByRootAndPath(rootUri: String, relativePath: String): ComicEntity? =

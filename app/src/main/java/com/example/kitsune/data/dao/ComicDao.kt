@@ -54,6 +54,26 @@ interface ComicDao {
     @Query("SELECT * FROM comics WHERE rootUriString = :rootUri AND lastReadAt IS NOT NULL ORDER BY lastReadAt DESC, title COLLATE NOCASE ASC")
     fun observeRecentlyReadWithProgressByRoot(rootUri: String): Flow<List<com.example.kitsune.data.model.ComicWithProgress>>
 
+    /**
+     * Searches comics under [rootUri] by title matching [query] (case-insensitive, partial matching).
+     * Special characters `%`, `_`, `\` in query must be escaped before passing to match literally.
+     */
+    @Query("""
+        SELECT * FROM comics
+        WHERE rootUriString = :rootUri
+          AND title LIKE '%' || :query || '%' ESCAPE '\'
+        ORDER BY title COLLATE NOCASE ASC
+    """)
+    fun searchComicsByRoot(rootUri: String, query: String): Flow<List<ComicEntity>>
+
+    /**
+     * Helper to search comics by escaping raw input characters `%`, `_`, `\` for SQL LIKE queries.
+     */
+    fun searchComicsByRootEscaped(rootUri: String, rawQuery: String): Flow<List<ComicEntity>> {
+        val escaped = rawQuery.trim().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        return searchComicsByRoot(rootUri, escaped)
+    }
+
     // ── One-shot queries (suspend) ──
 
     /**

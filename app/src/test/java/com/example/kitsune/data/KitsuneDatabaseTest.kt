@@ -794,6 +794,96 @@ class KitsuneDatabaseTest {
         collectJob.cancel()
     }
 
+    @Test
+    fun comicDao_searchComicsByRoot_caseInsensitivePartialMatchingAndSpecialCharEscaping() = runTest {
+        val root1 = "content://primary%3ARoot1"
+        val root2 = "content://primary%3ARoot2"
+
+        comicDao.insert(makeComic(root1, "Comics/OP", "One Piece"))
+        comicDao.insert(makeComic(root1, "Comics/Naruto", "Naruto Shippuden"))
+        comicDao.insert(makeComic(root1, "Comics/SpecialPercent", "Comic 100% Vol_1"))
+        comicDao.insert(makeComic(root1, "Comics/SimilarPercent", "Comic 1000 Vol_1"))
+        comicDao.insert(makeComic(root1, "Comics/SpecialUnderscore", "Vol_1"))
+        comicDao.insert(makeComic(root1, "Comics/SimilarUnderscore", "VolA1"))
+        comicDao.insert(makeComic(root1, "Comics/Backslash", "Folder\\Series"))
+        comicDao.insert(makeComic(root2, "Comics/OP_Other", "One Piece Other Root"))
+
+        // Case-insensitive partial match: "piece" matches "One Piece"
+        val searchPiece = comicDao.searchComicsByRootEscaped(root1, "piece").first()
+        assertEquals(1, searchPiece.size)
+        assertEquals("One Piece", searchPiece[0].title)
+
+        // Special Char 1: Literal "%" match (must match "Comic 100% Vol_1", NOT "Comic 1000 Vol_1")
+        val searchPercent = comicDao.searchComicsByRootEscaped(root1, "100%").first()
+        assertEquals(1, searchPercent.size)
+        assertEquals("Comic 100% Vol_1", searchPercent[0].title)
+
+        // Special Char 2: Literal "_" match (must match "Vol_1", NOT "VolA1")
+        val searchUnderscore = comicDao.searchComicsByRootEscaped(root1, "Vol_1").first()
+        val searchExactUnderscore = searchUnderscore.filter { it.title == "Vol_1" }
+        assertEquals(1, searchExactUnderscore.size)
+
+        // Special Char 3: Literal "\" match (must match "Folder\Series")
+        val searchBackslash = comicDao.searchComicsByRootEscaped(root1, "Folder\\Series").first()
+        assertEquals(1, searchBackslash.size)
+        assertEquals("Folder\\Series", searchBackslash[0].title)
+
+        // Non-matching query
+        val searchNonMatching = comicDao.searchComicsByRootEscaped(root1, "DragonBall").first()
+        assertTrue(searchNonMatching.isEmpty())
+    }
+
+    @Test
+    fun comicDao_searchComicsByRoot_liveObservationUnderUnchangedActiveQuery() = runTest {
+        val root1 = "content://primary%3ARoot1"
+
+        val id1 = comicDao.insert(makeComic(root1, "Comics/OP1", "One Piece Vol 1"))
+        comicDao.insert(makeComic(root1, "Comics/Naruto", "Naruto"))
+
+        // Single active collector on search query "Piece"
+        val searchEmissions = mutableListOf<List<ComicEntity>>()
+        val searchJob = launch(UnconfinedTestDispatcher(testScheduler)) {
+            comicDao.searchComicsByRootEscaped(root1, "Piece").collect { searchEmissions.add(it) }
+        }
+
+        for (step in 1..20) {
+            if (searchEmissions.isNotEmpty()) break
+            Thread.sleep(10)
+        }
+
+        // Initial emission #1: contains "One Piece Vol 1"
+        assertEquals(1, searchEmissions.size)
+        assertEquals(1, searchEmissions[0].size)
+        assertEquals("One Piece Vol 1", searchEmissions[0][0].title)
+
+        // Mutation under UNCHANGED query "Piece": Insert "One Piece Vol 2"
+        comicDao.insert(makeComic(root1, "Comics/OP2", "One Piece Vol 2"))
+
+        for (step in 1..20) {
+            if (searchEmissions.size >= 2) break
+            Thread.sleep(10)
+        }
+
+        // Active collector automatically receives emission #2 with BOTH comics!
+        assertEquals("Active search collector must receive emission #2 when matching comic inserted", 2, searchEmissions.size)
+        assertEquals(2, searchEmissions[1].size)
+
+        // Mutation under UNCHANGED query "Piece": Delete "One Piece Vol 1"
+        comicDao.deleteById(id1)
+
+        for (step in 1..20) {
+            if (searchEmissions.size >= 3) break
+            Thread.sleep(10)
+        }
+
+        // Active collector automatically receives emission #3 with remaining comic "One Piece Vol 2"!
+        assertEquals("Active search collector must receive emission #3 when comic deleted", 3, searchEmissions.size)
+        assertEquals(1, searchEmissions[2].size)
+        assertEquals("One Piece Vol 2", searchEmissions[2][0].title)
+
+        searchJob.cancel()
+    }
+
     // ═══════════════════════════════════════════
     // Helpers
     // ═══════════════════════════════════════════

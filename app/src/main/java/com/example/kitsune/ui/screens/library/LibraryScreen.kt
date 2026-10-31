@@ -23,13 +23,17 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOff
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -147,9 +151,17 @@ fun LibraryScreen(
                     comics = state.comics,
                     gridColumns = state.gridColumns,
                     issuesCount = state.issuesCount,
+                    searchQuery = state.searchQuery,
                     viewModel = viewModel,
                     onComicClick = onComicClick,
                     onGridColumnsChange = { columns -> viewModel.setGridColumns(columns) },
+                )
+            }
+            is LibraryUiState.SearchNoResults -> {
+                SearchNoResultsView(
+                    searchQuery = state.searchQuery,
+                    viewModel = viewModel,
+                    modifier = Modifier.align(Alignment.TopCenter)
                 )
             }
             is LibraryUiState.Error -> {
@@ -358,12 +370,17 @@ private fun LibrarySuccessView(
     comics: List<ComicEntity>,
     gridColumns: Int,
     issuesCount: Int,
+    searchQuery: String,
     viewModel: LibraryViewModel,
     onComicClick: (Long) -> Unit,
     onGridColumnsChange: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxSize()) {
+        LibrarySearchBar(
+            searchQuery = searchQuery,
+            onSearchQueryChange = { viewModel.onSearchQueryChanged(it) }
+        )
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -409,6 +426,77 @@ private fun LibrarySuccessView(
                     onClick = { onComicClick(comic.id) },
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun LibrarySearchBar(
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    OutlinedTextField(
+        value = searchQuery,
+        onValueChange = onSearchQueryChange,
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(bottom = 8.dp),
+        placeholder = { Text("Cari judul komik...") },
+        leadingIcon = {
+            Icon(
+                imageVector = Icons.Default.Search,
+                contentDescription = "Cari"
+            )
+        },
+        trailingIcon = {
+            if (searchQuery.isNotEmpty()) {
+                IconButton(onClick = { onSearchQueryChange("") }) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Hapus Pencarian"
+                    )
+                }
+            }
+        },
+        singleLine = true
+    )
+}
+
+@Composable
+private fun SearchNoResultsView(
+    searchQuery: String,
+    viewModel: LibraryViewModel,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        LibrarySearchBar(
+            searchQuery = searchQuery,
+            onSearchQueryChange = { viewModel.onSearchQueryChanged(it) }
+        )
+        Spacer(modifier = Modifier.height(32.dp))
+        Icon(
+            imageVector = Icons.Default.SearchOff,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.outline,
+            modifier = Modifier.padding(bottom = 12.dp)
+        )
+        Text(
+            text = "Tidak Ada Hasil Pencarian",
+            style = MaterialTheme.typography.titleLarge
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "Tidak ditemukan komik dengan judul yang cocok dengan \"$searchQuery\".",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.outline
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Button(onClick = { viewModel.onSearchQueryChanged("") }) {
+            Text("Hapus Pencarian")
         }
     }
 }

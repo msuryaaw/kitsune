@@ -22,4 +22,11 @@ class DefaultSettingsRepository(
         val updated = (existing ?: SettingsEntity()).copy(gridColumns = sanitized)
         settingsDao.upsertSettings(updated)
     }
+
+    override suspend fun setReaderMode(readerMode: String) {
+        val sanitized = if (readerMode == "vertical_continuous") "vertical_continuous" else "single_page"
+        val existing = settingsDao.getSettings()
+        val updated = (existing ?: SettingsEntity()).copy(readerMode = sanitized)
+        settingsDao.upsertSettings(updated)
+    }
 }

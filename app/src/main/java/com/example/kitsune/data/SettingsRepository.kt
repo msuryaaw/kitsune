@@ -18,4 +18,9 @@ interface SettingsRepository {
      * and preserving all other settings fields.
      */
     suspend fun setGridColumns(columns: Int)
+
+    /**
+     * Updates the reader mode setting in DB ("single_page" or "vertical_continuous").
+     */
+    suspend fun setReaderMode(readerMode: String)
 }

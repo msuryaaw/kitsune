@@ -108,6 +108,10 @@ class FakeSettingsRepository(
         val sanitized = columns.coerceIn(2, 4)
         settingsFlow.value = settingsFlow.value.copy(gridColumns = sanitized)
     }
+
+    override suspend fun setReaderMode(readerMode: String) {
+        settingsFlow.value = settingsFlow.value.copy(readerMode = readerMode)
+    }
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)

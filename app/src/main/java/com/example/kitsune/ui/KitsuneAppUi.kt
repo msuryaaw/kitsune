@@ -132,7 +132,19 @@ fun KitsuneApp(
                 )
             ) { backStackEntry ->
                 val chapterId = backStackEntry.arguments?.getLong("chapterId") ?: 0L
-                PlaceholderScreen(title = "Reader (Chapter ID: $chapterId)")
+                val readerViewModel: com.example.kitsune.ui.screens.reader.ReaderViewModel = viewModel(
+                    factory = com.example.kitsune.ui.screens.reader.ReaderViewModel.Factory(
+                        chapterId = chapterId,
+                        libraryRepository = appContainer.libraryRepository,
+                        settingsRepository = appContainer.settingsRepository,
+                        cbzPageIndexer = appContainer.cbzPageIndexer,
+                        cbzPageDecoderFactory = appContainer.cbzPageDecoderFactory
+                    )
+                )
+                com.example.kitsune.ui.screens.reader.ReaderScreen(
+                    viewModel = readerViewModel,
+                    onBackClick = { navController.popBackStack() }
+                )
             }
         }
     }

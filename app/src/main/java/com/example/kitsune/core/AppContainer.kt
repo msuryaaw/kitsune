@@ -41,6 +41,8 @@ interface AppContainer {
     val coverExtractor: CoverExtractor
     val coverCacheManager: CoverCacheManager
     val cbzArchiveProvider: com.example.kitsune.reader.CbzArchiveProvider
+    val cbzPageIndexer: com.example.kitsune.reader.CbzPageIndexer
+    val cbzPageDecoderFactory: com.example.kitsune.reader.CbzPageDecoderFactory
     val libraryRepository: LibraryRepository
     val settingsRepository: SettingsRepository
 }
@@ -114,6 +116,14 @@ class DefaultAppContainer(
             storageGateway = storageGateway,
             chapterDao = database.chapterDao()
         )
+    }
+
+    override val cbzPageIndexer: com.example.kitsune.reader.CbzPageIndexer by lazy {
+        com.example.kitsune.reader.DefaultCbzPageIndexer()
+    }
+
+    override val cbzPageDecoderFactory: com.example.kitsune.reader.CbzPageDecoderFactory by lazy {
+        com.example.kitsune.reader.DefaultCbzPageDecoderFactory()
     }
 
     override val libraryRepository: LibraryRepository by lazy {

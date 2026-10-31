@@ -62,6 +62,18 @@ class ComicDetailViewModel(
             initialValue = ComicDetailUiState.Loading
         )
 
+    fun toggleBookmark() {
+        val currentState = uiState.value
+        if (currentState is ComicDetailUiState.Success) {
+            val comic = currentState.comic
+            viewModelScope.launch {
+                try {
+                    libraryRepository.setBookmarked(comic.id, !comic.isBookmarked)
+                } catch (_: Exception) {}
+            }
+        }
+    }
+
     fun onChapterSelected(chapterId: Long) {
         val currentState = uiState.value
         if (currentState !is ComicDetailUiState.Success) return

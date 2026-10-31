@@ -119,6 +119,14 @@ class LibraryViewModel(
         }
     }
 
+    fun toggleBookmark(comicId: Long, currentIsBookmarked: Boolean) {
+        viewModelScope.launch {
+            try {
+                libraryRepository.setBookmarked(comicId, !currentIsBookmarked)
+            } catch (_: Exception) {}
+        }
+    }
+
     suspend fun getCoverFile(comicId: Long): com.example.kitsune.data.CoverCacheResult {
         return libraryRepository.getCoverFile(comicId)
     }

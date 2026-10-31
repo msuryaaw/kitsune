@@ -60,7 +60,13 @@ class FakeComicDetailLibraryRepository : LibraryRepository {
 
     override suspend fun saveReadingProgress(progress: ReadingProgressEntity) {}
 
-    override suspend fun setBookmarked(comicId: Long, bookmarked: Boolean) {}
+    override suspend fun setBookmarked(comicId: Long, bookmarked: Boolean) {
+        val currentMap = comicsById.value.toMutableMap()
+        currentMap[comicId]?.let { comic ->
+            currentMap[comicId] = comic.copy(isBookmarked = bookmarked)
+            comicsById.value = currentMap
+        }
+    }
 
     override suspend fun fetchCover(comicId: Long): CoverResult = CoverResult.Unavailable("Fake")
 
@@ -123,6 +129,34 @@ class ComicDetailViewModelTest {
         assertEquals(2, success.chapters.size)
         assertEquals("Chapter 1.cbz", success.chapters[0].displayName)
         assertEquals("Chapter 2.cbz", success.chapters[1].displayName)
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun toggleBookmark_togglesBookmarkStateInRepository() = runTest {
+        val comic = ComicEntity(id = 1L, rootUriString = "content://root", relativePath = "Comics/OP", title = "One Piece", isBookmarked = false)
+        val chapter1 = ChapterEntity(id = 101L, comicId = 1L, relativePath = "Comics/OP/Ch1.cbz", chapterNumber = 1, displayName = "Ch1.cbz", pageCount = 10, isValid = true)
+        fakeRepo.comicsById.value = mapOf(1L to comic)
+        fakeRepo.chaptersByComicId.value = mapOf(1L to listOf(chapter1))
+
+        viewModel = ComicDetailViewModel(comicId = 1L, libraryRepository = fakeRepo)
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+
+        val initialState = viewModel.uiState.value as ComicDetailUiState.Success
+        org.junit.Assert.assertFalse(initialState.comic.isBookmarked)
+
+        // Toggle bookmark false -> true
+        viewModel.toggleBookmark()
+
+        val toggledState = viewModel.uiState.value as ComicDetailUiState.Success
+        assertTrue("Comic isBookmarked must become true", toggledState.comic.isBookmarked)
+
+        // Toggle bookmark true -> false
+        viewModel.toggleBookmark()
+
+        val untoggledState = viewModel.uiState.value as ComicDetailUiState.Success
+        org.junit.Assert.assertFalse("Comic isBookmarked must become false", untoggledState.comic.isBookmarked)
 
         collectJob.cancel()
     }

@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -624,6 +625,50 @@ class KitsuneDatabaseTest {
 
         val currentComic = comicDao.getById(comicId)!!
         assertEquals(1000L, currentComic.lastReadAt)
+    }
+
+    @Test
+    fun comicDao_bookmarkPersistenceAndRootIsolation_realRoomDatabase() = runTest {
+        val root1 = "content://primary%3ARoot1"
+        val root2 = "content://primary%3ARoot2"
+
+        val comic1 = makeComic(root1, "Comics/A", "A")
+        val comic2 = makeComic(root1, "Comics/B", "B")
+        val comicRoot2 = makeComic(root2, "Comics/C", "C")
+
+        val id1 = comicDao.insert(comic1)
+        comicDao.insert(comic2)
+        val id3 = comicDao.insert(comicRoot2)
+
+        // Initial observeBookmarkedComicsByRoot is empty
+        assertTrue(comicDao.observeBookmarkedComicsByRoot(root1).first().isEmpty())
+
+        // Set comic 1 bookmarked = true
+        comicDao.setBookmarked(id1, true)
+        comicDao.setBookmarked(id3, true) // Root 2 comic also bookmarked
+
+        // Observe bookmarked comics for Root 1 -> returns ONLY comic 1 (root isolation!)
+        val bookmarkedRoot1 = comicDao.observeBookmarkedComicsByRoot(root1).first()
+        assertEquals(1, bookmarkedRoot1.size)
+        assertEquals(id1, bookmarkedRoot1.first().id)
+        assertTrue(bookmarkedRoot1.first().isBookmarked)
+
+        // Query directly via getById
+        val retrieved1 = comicDao.getById(id1)!!
+        assertTrue(retrieved1.isBookmarked)
+
+        // Set comic 1 bookmarked = false
+        comicDao.setBookmarked(id1, false)
+
+        // Query again -> isBookmarked is false, observeBookmarkedComicsByRoot for Root 1 is now empty
+        val retrieved1After = comicDao.getById(id1)!!
+        assertFalse(retrieved1After.isBookmarked)
+        assertTrue(comicDao.observeBookmarkedComicsByRoot(root1).first().isEmpty())
+
+        // Root 2 comic 3 is still bookmarked
+        val bookmarkedRoot2 = comicDao.observeBookmarkedComicsByRoot(root2).first()
+        assertEquals(1, bookmarkedRoot2.size)
+        assertEquals(id3, bookmarkedRoot2.first().id)
     }
 
     // ═══════════════════════════════════════════

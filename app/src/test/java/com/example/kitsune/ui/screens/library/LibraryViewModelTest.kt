@@ -69,7 +69,25 @@ class FakeLibraryRepository : LibraryRepository {
 
     override suspend fun saveReadingProgress(progress: ReadingProgressEntity) {}
 
-    override suspend fun setBookmarked(comicId: Long, bookmarked: Boolean) {}
+    var setBookmarkedCalled = false
+    var lastBookmarkedComicId = 0L
+    var lastBookmarkedState = false
+
+    override suspend fun setBookmarked(comicId: Long, bookmarked: Boolean) {
+        setBookmarkedCalled = true
+        lastBookmarkedComicId = comicId
+        lastBookmarkedState = bookmarked
+        val currentMap = comicsByRoot.value.toMutableMap()
+        currentMap.keys.forEach { root ->
+            val list = (currentMap[root] ?: emptyList()).toMutableList()
+            val idx = list.indexOfFirst { it.id == comicId }
+            if (idx >= 0) {
+                list[idx] = list[idx].copy(isBookmarked = bookmarked)
+                currentMap[root] = list
+            }
+        }
+        comicsByRoot.value = currentMap
+    }
 
     override suspend fun fetchCover(comicId: Long): CoverResult = CoverResult.Unavailable("Fake")
 
@@ -227,6 +245,35 @@ class LibraryViewModelTest {
         // Change columns to 4
         viewModel.setGridColumns(4)
         assertEquals(4, (viewModel.uiState.value as LibraryUiState.Success).gridColumns)
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun toggleBookmark_togglesBookmarkStateInRepository() = runTest {
+        val rootUri = "content://primary%3AKitsune"
+        val comic1 = ComicEntity(id = 1L, rootUriString = rootUri, relativePath = "Comics/A", title = "A", isBookmarked = false)
+        fakeRepo.comicsByRoot.value = mapOf(rootUri to listOf(comic1))
+        fakePrefs.setRootUriString(rootUri)
+
+        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo, fakeDetector)
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+
+        assertFalse((viewModel.uiState.value as LibraryUiState.Success).comics.first().isBookmarked)
+
+        // Toggle false -> true
+        viewModel.toggleBookmark(1L, currentIsBookmarked = false)
+
+        assertTrue(fakeRepo.setBookmarkedCalled)
+        assertEquals(1L, fakeRepo.lastBookmarkedComicId)
+        assertTrue(fakeRepo.lastBookmarkedState)
+        assertTrue((viewModel.uiState.value as LibraryUiState.Success).comics.first().isBookmarked)
+
+        // Toggle true -> false
+        viewModel.toggleBookmark(1L, currentIsBookmarked = true)
+
+        assertFalse(fakeRepo.lastBookmarkedState)
+        assertFalse((viewModel.uiState.value as LibraryUiState.Success).comics.first().isBookmarked)
 
         collectJob.cancel()
     }

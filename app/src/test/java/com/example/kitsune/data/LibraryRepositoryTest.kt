@@ -32,6 +32,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -594,6 +595,45 @@ class LibraryRepositoryTest {
 
         val comic = fakeComicDao.getById(comicId)!!
         assertEquals(2000L, comic.lastReadAt)
+    }
+
+    @Test
+    fun setBookmarked_togglesIsBookmarked_andPreservesReadingProgressAndLastReadAt() = runTest {
+        val chapter = makeScannedChapter(chapterNumber = 1, pageCount = 10)
+        fakeScanner.result = makeSuccessResult(listOf(makeScannedComic("Comics/OP", chapters = listOf(chapter))))
+        repository.syncLibrary(rootUri)
+
+        val comicId = fakeComicDao.comics.values.first().id
+        fakeComicDao.updateLastReadAt(comicId, 5000L)
+
+        val initialProgress = ReadingProgressEntity(
+            comicId = comicId,
+            lastReadChapterId = 1L,
+            lastReadChapterNumber = 1,
+            chapterRelativePath = "Comics/OP/Chapter 1.cbz",
+            pageIndex = 3,
+            updatedAt = 5000L
+        )
+        repository.saveReadingProgress(initialProgress)
+
+        // Initial bookmark state false
+        assertFalse(fakeComicDao.getById(comicId)!!.isBookmarked)
+        assertEquals(0, repository.observeBookmarkedComicsByRoot(rootUri).first().size)
+
+        // Set bookmarked to true
+        repository.setBookmarked(comicId, true)
+
+        // Verify bookmark state true and observable in observeBookmarkedComicsByRoot
+        assertTrue(fakeComicDao.getById(comicId)!!.isBookmarked)
+        val bookmarkedList = repository.observeBookmarkedComicsByRoot(rootUri).first()
+        assertEquals(1, bookmarkedList.size)
+        assertEquals(comicId, bookmarkedList.first().id)
+
+        // Verify user state (lastReadAt and reading progress) is 100% PRESERVED
+        assertEquals(5000L, fakeComicDao.getById(comicId)!!.lastReadAt)
+        val currentProgress = repository.getReadingProgress(comicId)!!
+        assertEquals(3, currentProgress.pageIndex)
+        assertEquals(5000L, currentProgress.updatedAt)
     }
 
     @Test

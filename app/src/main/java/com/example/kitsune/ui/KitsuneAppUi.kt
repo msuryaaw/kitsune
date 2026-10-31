@@ -96,7 +96,22 @@ fun KitsuneApp(
                 )
             }
             composable(KitsuneDestinations.BOOKMARKS_ROUTE) {
-                PlaceholderScreen(title = "Bookmarks")
+                val bookmarkViewModel: com.example.kitsune.ui.screens.bookmark.BookmarkViewModel = viewModel(
+                    factory = com.example.kitsune.ui.screens.bookmark.BookmarkViewModel.Factory(
+                        libraryRepository = appContainer.libraryRepository,
+                        rootFolderPreferences = appContainer.rootFolderPreferences,
+                        settingsRepository = appContainer.settingsRepository
+                    )
+                )
+                com.example.kitsune.ui.screens.bookmark.BookmarkScreen(
+                    viewModel = bookmarkViewModel,
+                    onComicClick = { comicId ->
+                        navController.navigate(KitsuneDestinations.comicDetailRoute(comicId))
+                    },
+                    onNavigateToSettings = {
+                        navController.navigate(KitsuneDestinations.SETTINGS_ROUTE)
+                    }
+                )
             }
             composable(KitsuneDestinations.HISTORY_ROUTE) {
                 PlaceholderScreen(title = "History")

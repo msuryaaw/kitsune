@@ -22,6 +22,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOff
 import androidx.compose.material.icons.filled.GridView
@@ -35,6 +36,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -459,6 +461,7 @@ private fun ComicGridItemCard(
             ComicCoverImage(
                 comic = comic,
                 viewModel = viewModel,
+                onBookmarkToggle = { viewModel.toggleBookmark(comic.id, comic.isBookmarked) }
             )
             Column(modifier = Modifier.padding(8.dp)) {
                 Text(
@@ -484,6 +487,7 @@ private fun ComicGridItemCard(
 private fun ComicCoverImage(
     comic: ComicEntity,
     viewModel: LibraryViewModel,
+    onBookmarkToggle: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -569,14 +573,14 @@ private fun ComicCoverImage(
             }
         }
 
-        if (comic.isBookmarked) {
+        IconButton(
+            onClick = onBookmarkToggle,
+            modifier = Modifier.align(Alignment.TopEnd)
+        ) {
             Icon(
-                imageVector = Icons.Default.Bookmark,
-                contentDescription = "Bookmarked",
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(6.dp),
+                imageVector = if (comic.isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                contentDescription = if (comic.isBookmarked) "Hapus dari Bookmark" else "Tambah ke Bookmark",
+                tint = if (comic.isBookmarked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
             )
         }
     }

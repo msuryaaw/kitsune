@@ -12,6 +12,8 @@ import com.example.kitsune.data.entity.ChapterEntity
 import com.example.kitsune.data.entity.ComicEntity
 import com.example.kitsune.data.entity.ReadingProgressEntity
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -669,6 +671,127 @@ class KitsuneDatabaseTest {
         val bookmarkedRoot2 = comicDao.observeBookmarkedComicsByRoot(root2).first()
         assertEquals(1, bookmarkedRoot2.size)
         assertEquals(id3, bookmarkedRoot2.first().id)
+    }
+
+    @Test
+    fun comicDao_observeRecentlyReadWithProgressByRoot_realRoomDatabase() = runTest {
+        val root1 = "content://primary%3ARoot1"
+        val root2 = "content://primary%3ARoot2"
+
+        val comic1 = makeComic(root1, "Comics/A", "A")
+        val comic2 = makeComic(root1, "Comics/B", "B")
+        val comicRoot2 = makeComic(root2, "Comics/C", "C")
+
+        val id1 = comicDao.insert(comic1)
+        val id2 = comicDao.insert(comic2)
+        val id3 = comicDao.insert(comicRoot2)
+
+        // Set lastReadAt timestamps
+        comicDao.updateLastReadAt(id1, 1000L)
+        comicDao.updateLastReadAt(id2, 5000L) // id2 read more recently!
+        comicDao.updateLastReadAt(id3, 9000L) // root2 comic
+
+        val chapter1Id = chapterDao.insert(makeChapter(id1, "Comics/A/Ch1.cbz", 1, "Ch1.cbz"))
+        val chapter2Id = chapterDao.insert(makeChapter(id2, "Comics/B/Ch2.cbz", 2, "Ch2.cbz"))
+
+        val progress1 = makeProgress(id1, chapterNumber = 1, chapterId = chapter1Id, pageIndex = 2, updatedAt = 1000L)
+        val progress2 = makeProgress(id2, chapterNumber = 2, chapterId = chapter2Id, pageIndex = 8, scrollOffset = 150, updatedAt = 5000L)
+
+        progressDao.save(progress1)
+        progressDao.save(progress2)
+
+        // Query observeRecentlyReadWithProgressByRoot for root1
+        val historyRoot1 = comicDao.observeRecentlyReadWithProgressByRoot(root1).first()
+
+        assertEquals(2, historyRoot1.size)
+        // Order must be lastReadAt DESC -> id2 (5000L) first, then id1 (1000L)
+        assertEquals(id2, historyRoot1[0].comic.id)
+        assertEquals(8, historyRoot1[0].progress!!.pageIndex)
+        assertEquals(150, historyRoot1[0].progress!!.scrollOffset)
+
+        assertEquals(id1, historyRoot1[1].comic.id)
+        assertEquals(2, historyRoot1[1].progress!!.pageIndex)
+
+        // Root isolation check: root2 has comic 3
+        val historyRoot2 = comicDao.observeRecentlyReadWithProgressByRoot(root2).first()
+        assertEquals(1, historyRoot2.size)
+        assertEquals(id3, historyRoot2[0].comic.id)
+    }
+
+    @Test
+    fun comicDao_observeRecentlyReadWithProgressByRoot_reactsToLastReadAtAndUpdateProgressChanges() = runTest {
+        val root1 = "content://primary%3ARoot1"
+
+        val comic1 = makeComic(root1, "Comics/A", "Comic A")
+        val comic2 = makeComic(root1, "Comics/B", "Comic B")
+
+        val id1 = comicDao.insert(comic1)
+        val id2 = comicDao.insert(comic2)
+
+        comicDao.updateLastReadAt(id1, 1000L)
+        comicDao.updateLastReadAt(id2, 2000L)
+
+        val progress1 = makeProgress(id1, chapterNumber = 1, pageIndex = 2, updatedAt = 1000L)
+        val progress2 = makeProgress(id2, chapterNumber = 2, pageIndex = 5, updatedAt = 2000L)
+
+        progressDao.save(progress1)
+        progressDao.save(progress2)
+
+        // SINGLE active Flow collector throughout the test session
+        val emissions = mutableListOf<List<com.example.kitsune.data.model.ComicWithProgress>>()
+        val collectJob = launch(UnconfinedTestDispatcher(testScheduler)) {
+            comicDao.observeRecentlyReadWithProgressByRoot(root1).collect { emissions.add(it) }
+        }
+
+        // Allow Room background query executor to emit initial emission #1
+        for (step in 1..20) {
+            if (emissions.isNotEmpty()) break
+            Thread.sleep(10)
+        }
+
+        // Initial emission #1 from the single active collector
+        assertEquals("Single active collector must have emission #1", 1, emissions.size)
+        assertEquals(2, emissions[0].size)
+        assertEquals(id2, emissions[0][0].comic.id) // Comic 2 (2000L) first
+        assertEquals(id1, emissions[0][1].comic.id) // Comic 1 (1000L) second
+        assertEquals(2, emissions[0][1].progress!!.pageIndex)
+
+        // Reactivity Mutation 1: Update comic1 lastReadAt = 9000L
+        comicDao.updateLastReadAt(id1, 9000L)
+
+        // Allow Room background query executor to emit emission #2
+        for (step in 1..20) {
+            if (emissions.size >= 2) break
+            Thread.sleep(10)
+        }
+
+        // Single active collector automatically receives emission #2
+        assertEquals("Single active collector must receive emission #2 after lastReadAt update", 2, emissions.size)
+        assertEquals("Comic 1 must move to first position in emission #2", id1, emissions[1][0].comic.id)
+        assertEquals(id2, emissions[1][1].comic.id)
+
+        // Reactivity Mutation 2: Update progress1 pageIndex = 8
+        progressDao.save(progress1.copy(pageIndex = 8, updatedAt = 9000L))
+
+        // Allow Room background query executor to emit emission #3
+        for (step in 1..20) {
+            if (emissions.size >= 3) break
+            Thread.sleep(10)
+        }
+
+        // Single active collector automatically receives emission #3
+        assertEquals("Single active collector must receive emission #3 after progress update", 3, emissions.size)
+        assertEquals("Comic 1 pageIndex MUST reactively update to 8 in emission #3", 8, emissions[2][0].progress!!.pageIndex)
+
+        // Root Isolation & Unread Check: Insert unread comic
+        val comicUnread = makeComic(root1, "Comics/Unread", "Unread Comic")
+        val idUnread = comicDao.insert(comicUnread)
+
+        val latestEmission = emissions.last()
+        assertEquals("Unread comic (lastReadAt == null) MUST NOT appear in History emission", 2, latestEmission.size)
+        assertFalse(latestEmission.any { it.comic.id == idUnread })
+
+        collectJob.cancel()
     }
 
     // ═══════════════════════════════════════════

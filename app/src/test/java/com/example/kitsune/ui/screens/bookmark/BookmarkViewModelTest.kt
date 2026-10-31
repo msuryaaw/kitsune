@@ -9,6 +9,7 @@ import com.example.kitsune.data.entity.ChapterEntity
 import com.example.kitsune.data.entity.ComicEntity
 import com.example.kitsune.data.entity.ReadingProgressEntity
 import com.example.kitsune.data.entity.SettingsEntity
+import com.example.kitsune.data.model.ComicWithProgress
 import com.example.kitsune.scanner.LibraryScanResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -59,6 +60,7 @@ class FakeBookmarkLibraryRepository : LibraryRepository {
     override suspend fun syncLibrary(rootUri: String): LibraryScanResult = LibraryScanResult.RootNotConfigured
     override fun observeComicsByRoot(rootUri: String): Flow<List<ComicEntity>> = flowOf(emptyList())
     override fun observeRecentlyReadByRoot(rootUri: String): Flow<List<ComicEntity>> = flowOf(emptyList())
+    override fun observeRecentlyReadWithProgressByRoot(rootUri: String): Flow<List<ComicWithProgress>> = flowOf(emptyList())
     override fun observeChaptersByComicId(comicId: Long): Flow<List<ChapterEntity>> = flowOf(emptyList())
     override fun observeComicById(comicId: Long): Flow<ComicEntity?> = flowOf(null)
     override suspend fun verifyChapterAvailable(chapterId: Long) = com.example.kitsune.data.ChapterAvailabilityResult.Missing

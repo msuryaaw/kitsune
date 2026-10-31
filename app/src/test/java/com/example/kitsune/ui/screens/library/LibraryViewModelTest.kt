@@ -61,6 +61,10 @@ class FakeLibraryRepository : LibraryRepository {
         return flowOf(emptyList())
     }
 
+    override fun observeRecentlyReadWithProgressByRoot(rootUri: String): Flow<List<com.example.kitsune.data.model.ComicWithProgress>> {
+        return flowOf(emptyList())
+    }
+
     override fun observeChaptersByComicId(comicId: Long): Flow<List<ChapterEntity>> {
         return flowOf(emptyList())
     }

@@ -26,6 +26,7 @@ import java.io.File
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -910,6 +911,9 @@ class FakeComicDao : ComicDao {
                 .filter { c -> c.rootUriString == rootUri && c.lastReadAt != null }
                 .sortedByDescending { c -> c.lastReadAt }
         }
+
+    override fun observeRecentlyReadWithProgressByRoot(rootUri: String): Flow<List<com.example.kitsune.data.model.ComicWithProgress>> =
+        flowOf(emptyList())
 
     override suspend fun getById(comicId: Long): ComicEntity? = comics[comicId]
 

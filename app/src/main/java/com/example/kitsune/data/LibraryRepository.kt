@@ -53,6 +53,11 @@ interface LibraryRepository {
     fun observeRecentlyReadByRoot(rootUri: String): Flow<List<ComicEntity>>
 
     /**
+     * Observes recently read comics with embedded reading progress for [rootUri].
+     */
+    fun observeRecentlyReadWithProgressByRoot(rootUri: String): Flow<List<com.example.kitsune.data.model.ComicWithProgress>>
+
+    /**
      * Observes all chapters for [comicId], ordered by chapter number ascending.
      */
     fun observeChaptersByComicId(comicId: Long): Flow<List<ChapterEntity>>

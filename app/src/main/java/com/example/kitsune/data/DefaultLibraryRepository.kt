@@ -348,6 +348,9 @@ class DefaultLibraryRepository(
     override fun observeRecentlyReadByRoot(rootUri: String): Flow<List<ComicEntity>> =
         comicDao.observeRecentlyReadByRoot(rootUri)
 
+    override fun observeRecentlyReadWithProgressByRoot(rootUri: String): Flow<List<com.example.kitsune.data.model.ComicWithProgress>> =
+        comicDao.observeRecentlyReadWithProgressByRoot(rootUri)
+
     override fun observeChaptersByComicId(comicId: Long): Flow<List<ChapterEntity>> =
         chapterDao.observeChaptersByComicId(comicId)
 

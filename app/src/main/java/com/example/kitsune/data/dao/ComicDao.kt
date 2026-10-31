@@ -46,6 +46,14 @@ interface ComicDao {
     @Query("SELECT * FROM comics WHERE rootUriString = :rootUri AND lastReadAt IS NOT NULL ORDER BY lastReadAt DESC")
     fun observeRecentlyReadByRoot(rootUri: String): Flow<List<ComicEntity>>
 
+    /**
+     * Observes recently read comics along with their latest reading progress relation.
+     * Primary order by [ComicEntity.lastReadAt] descending, secondary order by title ascending (case-insensitive) for determinism.
+     */
+    @Transaction
+    @Query("SELECT * FROM comics WHERE rootUriString = :rootUri AND lastReadAt IS NOT NULL ORDER BY lastReadAt DESC, title COLLATE NOCASE ASC")
+    fun observeRecentlyReadWithProgressByRoot(rootUri: String): Flow<List<com.example.kitsune.data.model.ComicWithProgress>>
+
     // ── One-shot queries (suspend) ──
 
     /**

@@ -114,7 +114,24 @@ fun KitsuneApp(
                 )
             }
             composable(KitsuneDestinations.HISTORY_ROUTE) {
-                PlaceholderScreen(title = "History")
+                val historyViewModel: com.example.kitsune.ui.screens.history.HistoryViewModel = viewModel(
+                    factory = com.example.kitsune.ui.screens.history.HistoryViewModel.Factory(
+                        libraryRepository = appContainer.libraryRepository,
+                        rootFolderPreferences = appContainer.rootFolderPreferences
+                    )
+                )
+                com.example.kitsune.ui.screens.history.HistoryScreen(
+                    viewModel = historyViewModel,
+                    onComicClick = { comicId ->
+                        navController.navigate(KitsuneDestinations.comicDetailRoute(comicId))
+                    },
+                    onContinueReadingClick = { chapterId ->
+                        navController.navigate(KitsuneDestinations.readerRoute(chapterId))
+                    },
+                    onNavigateToSettings = {
+                        navController.navigate(KitsuneDestinations.SETTINGS_ROUTE)
+                    }
+                )
             }
             composable(KitsuneDestinations.SETTINGS_ROUTE) {
                 SettingsScreen(rootFolderPreferences = appContainer.rootFolderPreferences)

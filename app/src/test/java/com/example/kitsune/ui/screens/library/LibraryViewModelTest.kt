@@ -86,6 +86,10 @@ class FakeLibraryRepository : LibraryRepository {
     override suspend fun openCbzArchive(chapterId: Long): com.example.kitsune.reader.CbzArchiveResult =
         com.example.kitsune.reader.CbzArchiveResult.ChapterMissing
 
+    override suspend fun getChapterById(chapterId: Long): ChapterEntity? = null
+
+    override fun flushReadingProgress(progress: ReadingProgressEntity) {}
+
     override fun observeLastScanResult(): Flow<LibraryScanResult?> = lastScanResult
 }
 

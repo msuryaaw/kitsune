@@ -3,6 +3,7 @@ package com.example.kitsune.data
 import android.content.Context
 import android.database.sqlite.SQLiteConstraintException
 import androidx.room.Room
+import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
 import com.example.kitsune.data.dao.ChapterDao
 import com.example.kitsune.data.dao.ComicDao
@@ -596,6 +597,33 @@ class KitsuneDatabaseTest {
         // Only the original chapter 1 should exist; chapter 2 should NOT have been inserted
         // because the entire batch is atomic (Room wraps @Insert in a transaction)
         assertEquals(1, chapterDao.countByComicId(comicId))
+    }
+
+    @Test
+    fun atomicTransaction_rollbackOnFailure_restoresInitialState() = runTest {
+        val comicId = comicDao.insert(makeComic(relativePath = "Comics/OP", title = "OP"))
+        val initialProgress = makeProgress(comicId, chapterNumber = 1, pageIndex = 2, updatedAt = 1000L)
+        progressDao.save(initialProgress)
+        comicDao.updateLastReadAt(comicId, 1000L)
+
+        // Attempt atomic transaction with deliberate failure inside withTransaction
+        try {
+            db.withTransaction {
+                val newProgress = makeProgress(comicId, chapterNumber = 1, pageIndex = 5, updatedAt = 2000L)
+                progressDao.save(newProgress)
+                // Deliberate exception inside transaction to trigger Room rollback
+                throw IllegalStateException("Simulated atomic transaction failure")
+            }
+            fail("Expected exception during atomic transaction")
+        } catch (_: IllegalStateException) {}
+
+        // Assert that progressDao and comicDao remain strictly at initial values due to atomic rollback
+        val currentProgress = progressDao.getByComicId(comicId)!!
+        assertEquals(2, currentProgress.pageIndex)
+        assertEquals(1000L, currentProgress.updatedAt)
+
+        val currentComic = comicDao.getById(comicId)!!
+        assertEquals(1000L, currentComic.lastReadAt)
     }
 
     // ═══════════════════════════════════════════

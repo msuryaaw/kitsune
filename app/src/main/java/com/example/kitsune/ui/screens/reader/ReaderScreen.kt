@@ -97,9 +97,10 @@ fun ReaderScreen(
                         ContinuousVerticalView(
                             chapterPageIndex = state.pageIndex,
                             initialPageIndex = state.currentPageIndex,
+                            initialScrollOffset = state.scrollOffset,
                             viewModel = viewModel,
-                            onFirstVisibleItemChanged = { firstVisible ->
-                                viewModel.setCurrentPageIndex(firstVisible)
+                            onPositionChanged = { firstVisible, offset ->
+                                viewModel.setCurrentPageIndexAndOffset(firstVisible, offset)
                             }
                         )
                     } else {

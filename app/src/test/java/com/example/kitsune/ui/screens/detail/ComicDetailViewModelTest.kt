@@ -70,6 +70,10 @@ class FakeComicDetailLibraryRepository : LibraryRepository {
         releasedFiles.add(file)
     }
 
+    override suspend fun getChapterById(chapterId: Long): ChapterEntity? = null
+
+    override fun flushReadingProgress(progress: ReadingProgressEntity) {}
+
     override fun observeLastScanResult(): Flow<LibraryScanResult?> = flowOf(null)
 
     override suspend fun openCbzArchive(chapterId: Long): com.example.kitsune.reader.CbzArchiveResult =

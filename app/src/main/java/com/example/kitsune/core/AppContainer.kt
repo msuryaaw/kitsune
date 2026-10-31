@@ -43,6 +43,7 @@ interface AppContainer {
     val cbzArchiveProvider: com.example.kitsune.reader.CbzArchiveProvider
     val cbzPageIndexer: com.example.kitsune.reader.CbzPageIndexer
     val cbzPageDecoderFactory: com.example.kitsune.reader.CbzPageDecoderFactory
+    val applicationScope: kotlinx.coroutines.CoroutineScope
     val libraryRepository: LibraryRepository
     val settingsRepository: SettingsRepository
 }
@@ -126,6 +127,10 @@ class DefaultAppContainer(
         com.example.kitsune.reader.DefaultCbzPageDecoderFactory()
     }
 
+    override val applicationScope: kotlinx.coroutines.CoroutineScope by lazy {
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)
+    }
+
     override val libraryRepository: LibraryRepository by lazy {
         DefaultLibraryRepository(
             libraryScanner = libraryScanner,
@@ -136,7 +141,9 @@ class DefaultAppContainer(
             coverExtractor = coverExtractor,
             coverCacheManager = coverCacheManager,
             storageGateway = storageGateway,
-            cbzArchiveProvider = cbzArchiveProvider
+            cbzArchiveProvider = cbzArchiveProvider,
+            database = database,
+            applicationScope = applicationScope
         )
     }
 

@@ -61,10 +61,19 @@ import org.junit.Test
  * 15. Full integration: root isolation — comics from different roots do not interfere.
  * 16. Full integration: scan failure does not trigger mass deletion.
  */
+import android.content.Context
+import androidx.room.Room
+import androidx.test.core.app.ApplicationProvider
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import org.junit.After
+import org.junit.runner.RunWith
+import org.robolectric.annotation.Config
+
+@RunWith(AndroidJUnit4::class)
+@Config(sdk = [34])
 class IncrementalScanTest {
 
-    // ── Layer A fixtures ──────────────────────────────────────────────────────
-
+    private lateinit var db: KitsuneDatabase
     private lateinit var trackingDelegate: TrackingCbzCataloger
     private lateinit var incrementalCataloger: IncrementalCbzCataloger
 
@@ -87,6 +96,11 @@ class IncrementalScanTest {
 
     @Before
     fun setUp() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        db = Room.inMemoryDatabaseBuilder(context, KitsuneDatabase::class.java)
+            .allowMainThreadQueries()
+            .build()
+
         // Layer A
         trackingDelegate = TrackingCbzCataloger(defaultResult = CbzCatalogResult.Success(
             cbzRelativePath = "test.cbz",
@@ -126,8 +140,14 @@ class IncrementalScanTest {
             coverExtractor = coverExtractor,
             coverCacheManager = coverCacheManager,
             storageGateway = fakeStorage,
-            cbzArchiveProvider = cbzProvider
+            cbzArchiveProvider = cbzProvider,
+            database = db
         )
+    }
+
+    @After
+    fun tearDown() {
+        db.close()
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -561,7 +581,8 @@ class IncrementalScanTest {
             coverExtractor = ext,
             coverCacheManager = cache,
             storageGateway = storage,
-            cbzArchiveProvider = cbzProvider
+            cbzArchiveProvider = cbzProvider,
+            database = db
         )
         val result = repo.buildSynthesizedSuccess("path.cbz", pageCount = 3, coverEntryPath = "my_cover.jpg")
 
@@ -585,7 +606,8 @@ class IncrementalScanTest {
             coverExtractor = ext,
             coverCacheManager = cache,
             storageGateway = storage,
-            cbzArchiveProvider = cbzProvider
+            cbzArchiveProvider = cbzProvider,
+            database = db
         )
         val result = repo.buildSynthesizedSuccess("path.cbz", pageCount = 2, coverEntryPath = null)
 
@@ -609,7 +631,8 @@ class IncrementalScanTest {
             coverExtractor = ext,
             coverCacheManager = cache,
             storageGateway = storage,
-            cbzArchiveProvider = cbzProvider
+            cbzArchiveProvider = cbzProvider,
+            database = db
         )
         val result = repo.buildSynthesizedSuccess("path.cbz", pageCount = 0, coverEntryPath = null)
         assertEquals(0, result.pages.size)

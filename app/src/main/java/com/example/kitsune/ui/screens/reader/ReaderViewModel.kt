@@ -5,18 +5,24 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.kitsune.data.LibraryRepository
 import com.example.kitsune.data.SettingsRepository
+import com.example.kitsune.data.entity.ChapterEntity
+import com.example.kitsune.data.entity.ReadingProgressEntity
 import com.example.kitsune.reader.CbzArchiveHandle
 import com.example.kitsune.reader.CbzArchiveResult
 import com.example.kitsune.reader.CbzPageDecoder
 import com.example.kitsune.reader.CbzPageDecoderFactory
 import com.example.kitsune.reader.CbzPageIndexer
+import com.example.kitsune.reader.MonotonicTimestampGenerator
 import com.example.kitsune.reader.PageDecodeResult
 import com.example.kitsune.reader.PageIndexResult
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.util.concurrent.atomic.AtomicReference
 
 class ReaderViewModel(
     private val chapterId: Long,
@@ -32,6 +38,11 @@ class ReaderViewModel(
     @Volatile
     private var activeDecoder: CbzPageDecoder? = null
 
+    private var activeChapter: ChapterEntity? = null
+    private val timestampGenerator = MonotonicTimestampGenerator()
+    private val latestProgressSnapshot = AtomicReference<ReadingProgressEntity?>(null)
+    private var progressSaveJob: Job? = null
+
     init {
         loadChapterAndInitialize()
     }
@@ -42,6 +53,9 @@ class ReaderViewModel(
             var tempHandle: CbzArchiveHandle? = null
 
             try {
+                val chapter = libraryRepository.getChapterById(chapterId)
+                activeChapter = chapter
+
                 when (val openResult = libraryRepository.openCbzArchive(chapterId)) {
                     is CbzArchiveResult.Success -> {
                         tempHandle = openResult.handle
@@ -51,16 +65,34 @@ class ReaderViewModel(
                                 activeDecoder = decoder
                                 tempHandle = null // Transfer of ownership complete!
 
+                                val comicId = chapter?.comicId ?: 0L
+                                val savedProgress = if (comicId > 0L) libraryRepository.getReadingProgress(comicId) else null
+
+                                var initialPageIndex = 0
+                                var initialScrollOffset = 0
+
+                                if (savedProgress != null && savedProgress.lastReadChapterId == chapterId) {
+                                    val totalPages = indexResult.pageIndex.totalPages
+                                    if (totalPages > 0) {
+                                        initialPageIndex = savedProgress.pageIndex.coerceIn(0, totalPages - 1)
+                                        initialScrollOffset = savedProgress.scrollOffset
+                                    }
+                                    timestampGenerator.seed(savedProgress.updatedAt)
+                                }
+
                                 // Observe settings for readerMode & readingDirection
                                 settingsRepository.observeSettings().collect { settings ->
                                     val currentState = _uiState.value
-                                    val currentPos = if (currentState is ReaderUiState.Success) currentState.currentPageIndex else 0
+                                    val currentPos = if (currentState is ReaderUiState.Success) currentState.currentPageIndex else initialPageIndex
+                                    val currentOffset = if (currentState is ReaderUiState.Success) currentState.scrollOffset else initialScrollOffset
+
                                     _uiState.value = ReaderUiState.Success(
                                         chapterId = chapterId,
                                         pageIndex = indexResult.pageIndex,
                                         readerMode = settings.readerMode,
                                         readingDirection = settings.readingDirection,
-                                        currentPageIndex = currentPos
+                                        currentPageIndex = currentPos,
+                                        scrollOffset = currentOffset
                                     )
                                 }
                             }
@@ -128,7 +160,7 @@ class ReaderViewModel(
             if (totalPages <= 0) return
             val maxIndex = totalPages - 1
             if (state.currentPageIndex < maxIndex) {
-                setCurrentPageIndex(state.currentPageIndex + 1)
+                setCurrentPageIndexAndOffset(state.currentPageIndex + 1, 0)
             }
         }
     }
@@ -139,30 +171,63 @@ class ReaderViewModel(
             val totalPages = state.pageIndex.totalPages
             if (totalPages <= 0) return
             if (state.currentPageIndex > 0) {
-                setCurrentPageIndex(state.currentPageIndex - 1)
+                setCurrentPageIndexAndOffset(state.currentPageIndex - 1, 0)
             }
         }
     }
 
     fun setCurrentPageIndex(index: Int) {
+        setCurrentPageIndexAndOffset(index, 0)
+    }
+
+    fun setCurrentPageIndexAndOffset(index: Int, scrollOffset: Int) {
         val state = _uiState.value
         if (state is ReaderUiState.Success) {
             val totalPages = state.pageIndex.totalPages
             if (totalPages <= 0) {
-                if (state.currentPageIndex != 0) {
-                    _uiState.value = state.copy(currentPageIndex = 0)
+                if (state.currentPageIndex != 0 || state.scrollOffset != 0) {
+                    _uiState.value = state.copy(currentPageIndex = 0, scrollOffset = 0)
                 }
                 return
             }
+
             val safeIndex = index.coerceIn(0, totalPages - 1)
-            if (state.currentPageIndex != safeIndex) {
-                _uiState.value = state.copy(currentPageIndex = safeIndex)
+            val safeOffset = scrollOffset.coerceAtLeast(0)
+
+            if (state.currentPageIndex != safeIndex || state.scrollOffset != safeOffset) {
+                _uiState.value = state.copy(currentPageIndex = safeIndex, scrollOffset = safeOffset)
+
+                // Schedule debounced progress save
+                activeChapter?.let { chapter ->
+                    val snapshot = ReadingProgressEntity(
+                        comicId = chapter.comicId,
+                        lastReadChapterId = chapter.id,
+                        lastReadChapterNumber = chapter.chapterNumber,
+                        chapterRelativePath = chapter.relativePath,
+                        pageIndex = safeIndex,
+                        scrollOffset = safeOffset,
+                        updatedAt = timestampGenerator.nextTimestamp()
+                    )
+                    latestProgressSnapshot.set(snapshot)
+
+                    progressSaveJob?.cancel()
+                    progressSaveJob = viewModelScope.launch {
+                        delay(500)
+                        try {
+                            libraryRepository.saveReadingProgress(snapshot)
+                        } catch (_: Exception) {}
+                    }
+                }
             }
         }
     }
 
     override fun onCleared() {
         super.onCleared()
+        progressSaveJob?.cancel()
+        latestProgressSnapshot.get()?.let { snapshot ->
+            libraryRepository.flushReadingProgress(snapshot)
+        }
         activeDecoder?.close()
         activeDecoder = null
     }

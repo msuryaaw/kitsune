@@ -1,5 +1,6 @@
 ﻿package com.example.kitsune.data
 
+import androidx.room.withTransaction
 import com.example.kitsune.data.dao.ChapterDao
 import com.example.kitsune.data.dao.ComicDao
 import com.example.kitsune.data.dao.ReadingProgressDao
@@ -14,8 +15,12 @@ import com.example.kitsune.scanner.LibraryScanner
 import com.example.kitsune.scanner.LibraryScanResult
 import com.example.kitsune.scanner.ScannedComic
 import com.example.kitsune.scanner.ScannedChapter
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -66,7 +71,9 @@ class DefaultLibraryRepository(
     private val coverExtractor: CoverExtractor,
     private val coverCacheManager: CoverCacheManager,
     private val storageGateway: com.example.kitsune.storage.StorageGateway,
-    private val cbzArchiveProvider: com.example.kitsune.reader.CbzArchiveProvider
+    private val cbzArchiveProvider: com.example.kitsune.reader.CbzArchiveProvider,
+    private val database: KitsuneDatabase,
+    private val applicationScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 ) : LibraryRepository {
 
     /**
@@ -370,11 +377,36 @@ class DefaultLibraryRepository(
 
     // ── One-shot mutations ────────────────────────────────────────────────────
 
+    override suspend fun getChapterById(chapterId: Long): ChapterEntity? =
+        chapterDao.getById(chapterId)
+
     override suspend fun getReadingProgress(comicId: Long): ReadingProgressEntity? =
         readingProgressDao.getByComicId(comicId)
 
     override suspend fun saveReadingProgress(progress: ReadingProgressEntity) {
-        readingProgressDao.save(progress)
+        database.withTransaction {
+            if (comicDao.getById(progress.comicId) == null) {
+                throw IllegalArgumentException("Comic with id ${progress.comicId} not found in database")
+            }
+
+            val existingTimestamp = readingProgressDao.getByComicId(progress.comicId)?.updatedAt ?: 0L
+            if (progress.updatedAt > existingTimestamp) {
+                readingProgressDao.save(progress)
+                comicDao.updateLastReadAt(progress.comicId, progress.updatedAt)
+            }
+        }
+    }
+
+    override fun flushReadingProgress(progress: ReadingProgressEntity) {
+        applicationScope.launch {
+            try {
+                saveReadingProgress(progress)
+            } catch (ce: kotlinx.coroutines.CancellationException) {
+                throw ce
+            } catch (e: Exception) {
+                android.util.Log.e("LibraryRepository", "Gagal melakukan flush reading progress: ${e.localizedMessage}", e)
+            }
+        }
     }
 
     override suspend fun setBookmarked(comicId: Long, bookmarked: Boolean) {

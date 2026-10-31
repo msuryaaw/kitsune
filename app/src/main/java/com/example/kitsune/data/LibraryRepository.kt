@@ -63,10 +63,20 @@ interface LibraryRepository {
     suspend fun getReadingProgress(comicId: Long): ReadingProgressEntity?
 
     /**
+     * Retrieves a chapter by its database ID, or null if not found.
+     */
+    suspend fun getChapterById(chapterId: Long): ChapterEntity?
+
+    /**
      * Persists or replaces reading progress for a comic.
      * Safe to call repeatedly; does not trigger CASCADE deletes.
      */
     suspend fun saveReadingProgress(progress: ReadingProgressEntity)
+
+    /**
+     * Immediately flushes reading progress save on application-level coroutine scope.
+     */
+    fun flushReadingProgress(progress: ReadingProgressEntity)
 
     /**
      * Toggles the bookmark state for [comicId].

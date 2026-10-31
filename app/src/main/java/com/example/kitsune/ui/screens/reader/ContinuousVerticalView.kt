@@ -34,21 +34,29 @@ import com.example.kitsune.reader.ChapterPageIndex
 import com.example.kitsune.reader.PageDecodeResult
 import com.example.kitsune.reader.PageMetadata
 
+import kotlinx.coroutines.flow.distinctUntilChanged
+
 @Composable
 fun ContinuousVerticalView(
     chapterPageIndex: ChapterPageIndex,
     initialPageIndex: Int,
+    initialScrollOffset: Int = 0,
     viewModel: ReaderViewModel,
-    onFirstVisibleItemChanged: (Int) -> Unit,
+    onPositionChanged: (pageIndex: Int, scrollOffset: Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val lazyListState = rememberLazyListState(
-        initialFirstVisibleItemIndex = initialPageIndex.coerceIn(0, (chapterPageIndex.totalPages - 1).coerceAtLeast(0))
-    )
+    val lazyListState = androidx.compose.runtime.key(chapterPageIndex.chapterId) {
+        rememberLazyListState(
+            initialFirstVisibleItemIndex = initialPageIndex.coerceIn(0, (chapterPageIndex.totalPages - 1).coerceAtLeast(0)),
+            initialFirstVisibleItemScrollOffset = initialScrollOffset.coerceAtLeast(0)
+        )
+    }
 
     LaunchedEffect(lazyListState) {
-        snapshotFlow { lazyListState.firstVisibleItemIndex }.collect { index ->
-            onFirstVisibleItemChanged(index)
+        snapshotFlow {
+            Pair(lazyListState.firstVisibleItemIndex, lazyListState.firstVisibleItemScrollOffset)
+        }.distinctUntilChanged().collect { (index, offset) ->
+            onPositionChanged(index, offset)
         }
     }
 

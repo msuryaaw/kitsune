@@ -27,32 +27,25 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import androidx.room.Room
+import androidx.test.ext.junit.runners.AndroidJUnit4
 import kotlinx.coroutines.test.runTest
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.annotation.Config
 
-/**
- * Unit tests for [DefaultLibraryRepository].
- *
- * Uses in-memory fake DAOs and a configurable fake [LibraryScanner] — no Room or
- * Android runtime dependency is required. All test assertions run on the JVM.
- *
- * Test criteria covered:
- *  1. Valid scan results are mapped and saved correctly.
- *  2. Re-scan preserves [ComicEntity.isBookmarked] and [ComicEntity.lastReadAt].
- *  3. Comics from different roots are isolated.
- *  4. Chapters are linked to the correct comic and ordered by chapter number.
- *  5. Failed/partial scan does NOT trigger mass deletion or clear existing data.
- *  6. Cover is sourced only from Chapter 1 (K-07); invalid/absent Chapter 1 → null cover.
- *  7. Flow data reacts to DAO state changes.
- *  8. Storage/scanning errors are returned as-is without crashing.
- */
+@RunWith(AndroidJUnit4::class)
+@Config(sdk = [34])
 class LibraryRepositoryTest {
 
+    private lateinit var db: KitsuneDatabase
     private lateinit var fakeComicDao: FakeComicDao
     private lateinit var fakeChapterDao: FakeChapterDao
     private lateinit var fakeReadingProgressDao: FakeReadingProgressDao
@@ -64,6 +57,11 @@ class LibraryRepositoryTest {
 
     @Before
     fun setUp() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        db = Room.inMemoryDatabaseBuilder(context, KitsuneDatabase::class.java)
+            .allowMainThreadQueries()
+            .build()
+
         fakeComicDao = FakeComicDao()
         fakeChapterDao = FakeChapterDao()
         fakeReadingProgressDao = FakeReadingProgressDao()
@@ -84,8 +82,13 @@ class LibraryRepositoryTest {
             chapterDao = fakeChapterDao
         )
         repository = DefaultLibraryRepository(
-            fakeScanner, noopCataloger, fakeComicDao, fakeChapterDao, fakeReadingProgressDao, coverExtractor, coverCacheManager, fakeStorage, cbzProvider
+            fakeScanner, noopCataloger, fakeComicDao, fakeChapterDao, fakeReadingProgressDao, coverExtractor, coverCacheManager, fakeStorage, cbzProvider, db
         )
+    }
+
+    @After
+    fun tearDown() {
+        db.close()
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -515,6 +518,216 @@ class LibraryRepositoryTest {
         assertEquals(3, retrieved!!.lastReadChapterNumber)
         assertEquals(5, retrieved.pageIndex)
         assertEquals(120, retrieved.scrollOffset)
+    }
+
+    @Test
+    fun saveReadingProgress_newerTimestamp_updatesProgressAndLastReadAt() = runTest {
+        val chapter = makeScannedChapter(chapterNumber = 1, pageCount = 10)
+        fakeScanner.result = makeSuccessResult(listOf(makeScannedComic("Comics/OP", chapters = listOf(chapter))))
+        repository.syncLibrary(rootUri)
+
+        val comicId = fakeComicDao.comics.values.first().id
+
+        val progress1 = ReadingProgressEntity(
+            comicId = comicId,
+            lastReadChapterId = 1L,
+            lastReadChapterNumber = 1,
+            chapterRelativePath = "Comics/OP/Chapter 1.cbz",
+            pageIndex = 2,
+            updatedAt = 1000L
+        )
+        repository.saveReadingProgress(progress1)
+
+        val comicAfter1 = fakeComicDao.getById(comicId)!!
+        assertEquals(1000L, comicAfter1.lastReadAt)
+        assertEquals(2, repository.getReadingProgress(comicId)!!.pageIndex)
+
+        val progress2 = ReadingProgressEntity(
+            comicId = comicId,
+            lastReadChapterId = 1L,
+            lastReadChapterNumber = 1,
+            chapterRelativePath = "Comics/OP/Chapter 1.cbz",
+            pageIndex = 5,
+            updatedAt = 2000L
+        )
+        repository.saveReadingProgress(progress2)
+
+        val comicAfter2 = fakeComicDao.getById(comicId)!!
+        assertEquals(2000L, comicAfter2.lastReadAt)
+        assertEquals(5, repository.getReadingProgress(comicId)!!.pageIndex)
+    }
+
+    @Test
+    fun saveReadingProgress_staleTimestamp_rejectsAndPreservesOriginalProgressAndLastReadAt() = runTest {
+        val chapter = makeScannedChapter(chapterNumber = 1, pageCount = 10)
+        fakeScanner.result = makeSuccessResult(listOf(makeScannedComic("Comics/OP", chapters = listOf(chapter))))
+        repository.syncLibrary(rootUri)
+
+        val comicId = fakeComicDao.comics.values.first().id
+
+        // Newer progress B saved first at t=2000L
+        val progressB = ReadingProgressEntity(
+            comicId = comicId,
+            lastReadChapterId = 1L,
+            lastReadChapterNumber = 1,
+            chapterRelativePath = "Comics/OP/Chapter 1.cbz",
+            pageIndex = 5,
+            updatedAt = 2000L
+        )
+        repository.saveReadingProgress(progressB)
+
+        // Stale progress A arrives late at t=1000L
+        val progressA = ReadingProgressEntity(
+            comicId = comicId,
+            lastReadChapterId = 1L,
+            lastReadChapterNumber = 1,
+            chapterRelativePath = "Comics/OP/Chapter 1.cbz",
+            pageIndex = 1,
+            updatedAt = 1000L
+        )
+        repository.saveReadingProgress(progressA)
+
+        // Stale progress A must be REJECTED; progress B remains preserved
+        val retrieved = repository.getReadingProgress(comicId)!!
+        assertEquals(5, retrieved.pageIndex)
+        assertEquals(2000L, retrieved.updatedAt)
+
+        val comic = fakeComicDao.getById(comicId)!!
+        assertEquals(2000L, comic.lastReadAt)
+    }
+
+    @Test
+    fun flushReadingProgress_launchesOnApplicationScopeAndSavesProgress() = runTest {
+        val testAppScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler))
+
+        val realComicDao = db.comicDao()
+        val realChapterDao = db.chapterDao()
+        val realProgressDao = db.readingProgressDao()
+
+        val testRepo = DefaultLibraryRepository(
+            fakeScanner, IncrementalCbzCataloger(NoopCbzCataloger), realComicDao, realChapterDao, realProgressDao,
+            CoverExtractor(FakeStorageGateway(), realComicDao, realChapterDao),
+            CoverCacheManager(File(System.getProperty("java.io.tmpdir"), "test_repo_covers"), CoverExtractor(FakeStorageGateway(), realComicDao, realChapterDao), realComicDao, realChapterDao),
+            FakeStorageGateway(),
+            com.example.kitsune.reader.DefaultCbzArchiveProvider(File(System.getProperty("java.io.tmpdir"), "test_repo_spool"), FakeStorageGateway(), realChapterDao),
+            db,
+            applicationScope = testAppScope
+        )
+
+        val comicId = realComicDao.insert(ComicEntity(rootUriString = rootUri, relativePath = "Comics/OP", title = "OP"))
+        val chapterId = realChapterDao.insert(ChapterEntity(comicId = comicId, relativePath = "Comics/OP/Ch1.cbz", chapterNumber = 1, displayName = "Ch1.cbz", pageCount = 10))
+
+        val progress = ReadingProgressEntity(
+            comicId = comicId,
+            lastReadChapterId = chapterId,
+            lastReadChapterNumber = 1,
+            chapterRelativePath = "Comics/OP/Ch1.cbz",
+            pageIndex = 7,
+            updatedAt = 3000L
+        )
+
+        // Asynchronous flush
+        testRepo.flushReadingProgress(progress)
+
+        val retrieved = realProgressDao.getByComicId(comicId)
+        assertNotNull(retrieved)
+        assertEquals(7, retrieved!!.pageIndex)
+        assertEquals(3000L, retrieved.updatedAt)
+    }
+
+    @Test
+    fun saveReadingProgress_sqliteTriggerFailureOnComicUpdate_rollsBackReadingProgressAndComic() = runTest {
+        val realComicDao = db.comicDao()
+        val realChapterDao = db.chapterDao()
+        val realProgressDao = db.readingProgressDao()
+
+        val testRepo = DefaultLibraryRepository(
+            fakeScanner, IncrementalCbzCataloger(NoopCbzCataloger), realComicDao, realChapterDao, realProgressDao,
+            CoverExtractor(FakeStorageGateway(), realComicDao, realChapterDao),
+            CoverCacheManager(File(System.getProperty("java.io.tmpdir"), "test_repo_covers"), CoverExtractor(FakeStorageGateway(), realComicDao, realChapterDao), realComicDao, realChapterDao),
+            FakeStorageGateway(),
+            com.example.kitsune.reader.DefaultCbzArchiveProvider(File(System.getProperty("java.io.tmpdir"), "test_repo_spool"), FakeStorageGateway(), realChapterDao),
+            db
+        )
+
+        val comicId = realComicDao.insert(ComicEntity(rootUriString = rootUri, relativePath = "Comics/OP", title = "OP"))
+        val chapterId = realChapterDao.insert(ChapterEntity(comicId = comicId, relativePath = "Comics/OP/Ch1.cbz", chapterNumber = 1, displayName = "Ch1.cbz", pageCount = 10))
+
+        // Initial progress at t=1000L
+        val initialProgress = ReadingProgressEntity(
+            comicId = comicId,
+            lastReadChapterId = chapterId,
+            lastReadChapterNumber = 1,
+            chapterRelativePath = "Comics/OP/Ch1.cbz",
+            pageIndex = 2,
+            scrollOffset = 50,
+            updatedAt = 1000L
+        )
+        testRepo.saveReadingProgress(initialProgress)
+
+        // Verify initial state
+        assertEquals(2, realProgressDao.getByComicId(comicId)!!.pageIndex)
+        assertEquals(1000L, realComicDao.getById(comicId)!!.lastReadAt)
+
+        // Install SQLite trigger on Room in-memory database to fail ANY update of lastReadAt > 1500L
+        db.openHelper.writableDatabase.execSQL(
+            """
+            CREATE TRIGGER fail_comic_last_read_update
+            BEFORE UPDATE OF lastReadAt ON comics
+            FOR EACH ROW
+            WHEN NEW.lastReadAt > 1500
+            BEGIN
+                SELECT RAISE(FAIL, 'Simulated SQLite trigger failure on comic lastReadAt update');
+            END;
+            """.trimIndent()
+        )
+
+        // Attempt save with new progress pageIndex = 8, updatedAt = 2000L
+        val newProgress = ReadingProgressEntity(
+            comicId = comicId,
+            lastReadChapterId = chapterId,
+            lastReadChapterNumber = 1,
+            chapterRelativePath = "Comics/OP/Ch1.cbz",
+            pageIndex = 8,
+            scrollOffset = 200,
+            updatedAt = 2000L
+        )
+
+        try {
+            testRepo.saveReadingProgress(newProgress)
+            fail("Expected SQLiteConstraintException from trigger failure")
+        } catch (e: android.database.sqlite.SQLiteConstraintException) {
+            assertTrue(e.message!!.contains("Simulated SQLite trigger failure"))
+        }
+
+        // PROOF OF ATOMIC ROLLBACK:
+        // Even though readingProgressDao.save() was executed FIRST inside withTransaction,
+        // the subsequent failure in comicDao.updateLastReadAt() triggered a SQLite transaction ROLLBACK!
+        // ReadingProgressEntity pageIndex remains 2, updatedAt remains 1000L, and lastReadAt remains 1000L!
+        val currentProgress = realProgressDao.getByComicId(comicId)!!
+        assertEquals("ReadingProgress pageIndex MUST rollback to 2", 2, currentProgress.pageIndex)
+        assertEquals("ReadingProgress updatedAt MUST rollback to 1000L", 1000L, currentProgress.updatedAt)
+
+        val currentComic = realComicDao.getById(comicId)!!
+        assertEquals("ComicEntity lastReadAt MUST rollback to 1000L", 1000L, currentComic.lastReadAt)
+    }
+
+    @Test
+    fun saveReadingProgress_missingComic_throwsException() = runTest {
+        val progress = ReadingProgressEntity(
+            comicId = 99999L,
+            lastReadChapterNumber = 1,
+            chapterRelativePath = "Comics/Missing/Ch1.cbz",
+            pageIndex = 0,
+            updatedAt = 1000L
+        )
+
+        try {
+            repository.saveReadingProgress(progress)
+            fail("Expected IllegalArgumentException for missing comic")
+        } catch (e: IllegalArgumentException) {
+            assertTrue(e.message!!.contains("not found"))
+        }
     }
 
     @Test

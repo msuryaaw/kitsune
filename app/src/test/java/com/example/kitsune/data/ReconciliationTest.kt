@@ -37,8 +37,19 @@ import org.junit.Test
  * 9. Empty successful chapter listing vs failed listing: empty listing deletes stale chapters.
  * 10. Bookmark and reading-progress state is preserved for surviving comics.
  */
+import android.content.Context
+import androidx.room.Room
+import androidx.test.core.app.ApplicationProvider
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import org.junit.After
+import org.junit.runner.RunWith
+import org.robolectric.annotation.Config
+
+@RunWith(AndroidJUnit4::class)
+@Config(sdk = [34])
 class ReconciliationTest {
 
+    private lateinit var db: KitsuneDatabase
     private lateinit var fakeComicDao: FakeComicDao
     private lateinit var fakeChapterDao: FakeChapterDao
     private lateinit var fakeReadingProgressDao: FakeReadingProgressDao
@@ -50,6 +61,11 @@ class ReconciliationTest {
 
     @Before
     fun setUp() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        db = Room.inMemoryDatabaseBuilder(context, KitsuneDatabase::class.java)
+            .allowMainThreadQueries()
+            .build()
+
         fakeComicDao = FakeComicDao()
         fakeChapterDao = FakeChapterDao()
         fakeReadingProgressDao = FakeReadingProgressDao()
@@ -65,8 +81,13 @@ class ReconciliationTest {
             chapterDao = fakeChapterDao
         )
         repository = DefaultLibraryRepository(
-            fakeScanner, noopCataloger, fakeComicDao, fakeChapterDao, fakeReadingProgressDao, coverExtractor, coverCacheManager, fakeStorage, cbzProvider
+            fakeScanner, noopCataloger, fakeComicDao, fakeChapterDao, fakeReadingProgressDao, coverExtractor, coverCacheManager, fakeStorage, cbzProvider, db
         )
+    }
+
+    @After
+    fun tearDown() {
+        db.close()
     }
 
     // ── Test 1: Missing chapter deleted after successful listing ─────────────

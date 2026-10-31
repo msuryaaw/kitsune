@@ -20,7 +20,8 @@ sealed interface ReaderUiState {
         val pageIndex: ChapterPageIndex,
         val readerMode: String,
         val readingDirection: String = "ltr",
-        val currentPageIndex: Int = 0
+        val currentPageIndex: Int = 0,
+        val scrollOffset: Int = 0
     ) : ReaderUiState
 
     /**

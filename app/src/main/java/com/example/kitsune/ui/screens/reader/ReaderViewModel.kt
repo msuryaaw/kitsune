@@ -51,7 +51,7 @@ class ReaderViewModel(
                                 activeDecoder = decoder
                                 tempHandle = null // Transfer of ownership complete!
 
-                                // Observe settings for readerMode
+                                // Observe settings for readerMode & readingDirection
                                 settingsRepository.observeSettings().collect { settings ->
                                     val currentState = _uiState.value
                                     val currentPos = if (currentState is ReaderUiState.Success) currentState.currentPageIndex else 0
@@ -59,6 +59,7 @@ class ReaderViewModel(
                                         chapterId = chapterId,
                                         pageIndex = indexResult.pageIndex,
                                         readerMode = settings.readerMode,
+                                        readingDirection = settings.readingDirection,
                                         currentPageIndex = currentPos
                                     )
                                 }
@@ -114,10 +115,46 @@ class ReaderViewModel(
         }
     }
 
+    fun setReadingDirection(direction: String) {
+        viewModelScope.launch {
+            settingsRepository.setReadingDirection(direction)
+        }
+    }
+
+    fun goToNextPage() {
+        val state = _uiState.value
+        if (state is ReaderUiState.Success) {
+            val totalPages = state.pageIndex.totalPages
+            if (totalPages <= 0) return
+            val maxIndex = totalPages - 1
+            if (state.currentPageIndex < maxIndex) {
+                setCurrentPageIndex(state.currentPageIndex + 1)
+            }
+        }
+    }
+
+    fun goToPreviousPage() {
+        val state = _uiState.value
+        if (state is ReaderUiState.Success) {
+            val totalPages = state.pageIndex.totalPages
+            if (totalPages <= 0) return
+            if (state.currentPageIndex > 0) {
+                setCurrentPageIndex(state.currentPageIndex - 1)
+            }
+        }
+    }
+
     fun setCurrentPageIndex(index: Int) {
         val state = _uiState.value
         if (state is ReaderUiState.Success) {
-            val safeIndex = index.coerceIn(0, (state.pageIndex.totalPages - 1).coerceAtLeast(0))
+            val totalPages = state.pageIndex.totalPages
+            if (totalPages <= 0) {
+                if (state.currentPageIndex != 0) {
+                    _uiState.value = state.copy(currentPageIndex = 0)
+                }
+                return
+            }
+            val safeIndex = index.coerceIn(0, totalPages - 1)
             if (state.currentPageIndex != safeIndex) {
                 _uiState.value = state.copy(currentPageIndex = safeIndex)
             }

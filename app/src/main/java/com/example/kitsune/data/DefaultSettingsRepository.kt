@@ -29,4 +29,11 @@ class DefaultSettingsRepository(
         val updated = (existing ?: SettingsEntity()).copy(readerMode = sanitized)
         settingsDao.upsertSettings(updated)
     }
+
+    override suspend fun setReadingDirection(readingDirection: String) {
+        val sanitized = if (readingDirection == "rtl") "rtl" else "ltr"
+        val existing = settingsDao.getSettings()
+        val updated = (existing ?: SettingsEntity()).copy(readingDirection = sanitized)
+        settingsDao.upsertSettings(updated)
+    }
 }

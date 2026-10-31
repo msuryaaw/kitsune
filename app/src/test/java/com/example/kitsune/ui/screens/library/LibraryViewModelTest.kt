@@ -112,6 +112,10 @@ class FakeSettingsRepository(
     override suspend fun setReaderMode(readerMode: String) {
         settingsFlow.value = settingsFlow.value.copy(readerMode = readerMode)
     }
+
+    override suspend fun setReadingDirection(readingDirection: String) {
+        settingsFlow.value = settingsFlow.value.copy(readingDirection = readingDirection)
+    }
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)

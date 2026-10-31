@@ -23,4 +23,9 @@ interface SettingsRepository {
      * Updates the reader mode setting in DB ("single_page" or "vertical_continuous").
      */
     suspend fun setReaderMode(readerMode: String)
+
+    /**
+     * Updates the reading direction setting in DB ("ltr" or "rtl").
+     */
+    suspend fun setReadingDirection(readingDirection: String)
 }

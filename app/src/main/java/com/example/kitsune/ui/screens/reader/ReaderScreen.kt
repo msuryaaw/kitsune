@@ -64,12 +64,20 @@ fun ReaderScreen(
                 actions = {
                     val state = uiState
                     if (state is ReaderUiState.Success) {
-                        ReaderModeToggleSelector(
-                            currentMode = state.readerMode,
-                            onModeSelected = { newMode ->
-                                viewModel.setReaderMode(newMode)
-                            }
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            ReaderDirectionToggleSelector(
+                                currentDirection = state.readingDirection,
+                                onDirectionSelected = { newDirection ->
+                                    viewModel.setReadingDirection(newDirection)
+                                }
+                            )
+                            ReaderModeToggleSelector(
+                                currentMode = state.readerMode,
+                                onModeSelected = { newMode ->
+                                    viewModel.setReaderMode(newMode)
+                                }
+                            )
+                        }
                     }
                 }
             )
@@ -97,6 +105,7 @@ fun ReaderScreen(
                     } else {
                         SinglePageView(
                             currentPageIndex = state.currentPageIndex,
+                            readingDirection = state.readingDirection,
                             viewModel = viewModel
                         )
                     }
@@ -111,6 +120,23 @@ fun ReaderScreen(
             }
         }
     }
+}
+
+@Composable
+private fun ReaderDirectionToggleSelector(
+    currentDirection: String,
+    onDirectionSelected: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    FilterChip(
+        selected = currentDirection == "rtl",
+        onClick = {
+            val nextDir = if (currentDirection == "rtl") "ltr" else "rtl"
+            onDirectionSelected(nextDir)
+        },
+        label = { Text(if (currentDirection == "rtl") "RTL" else "LTR") },
+        modifier = modifier.padding(end = 4.dp)
+    )
 }
 
 @Composable

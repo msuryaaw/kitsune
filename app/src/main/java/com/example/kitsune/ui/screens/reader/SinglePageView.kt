@@ -1,16 +1,26 @@
 package com.example.kitsune.ui.screens.reader
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.NavigateBefore
+import androidx.compose.material.icons.automirrored.filled.NavigateNext
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -28,6 +38,7 @@ import com.example.kitsune.reader.PageDecodeResult
 @Composable
 fun SinglePageView(
     currentPageIndex: Int,
+    readingDirection: String,
     viewModel: ReaderViewModel,
     modifier: Modifier = Modifier
 ) {
@@ -82,6 +93,63 @@ fun SinglePageView(
             }
             is PageRenderState.Error -> {
                 PageErrorCard(message = state.message)
+            }
+        }
+
+        // Tap gesture navigation zones mapped according to readingDirection
+        Row(
+            modifier = Modifier.fillMaxSize()
+        ) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .clickable {
+                        if (readingDirection == "rtl") {
+                            viewModel.goToNextPage()
+                        } else {
+                            viewModel.goToPreviousPage()
+                        }
+                    }
+            )
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .clickable {
+                        if (readingDirection == "rtl") {
+                            viewModel.goToPreviousPage()
+                        } else {
+                            viewModel.goToNextPage()
+                        }
+                    }
+            )
+        }
+
+        // Explicit Previous and Next IconButton Navigation Controls
+        Row(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 16.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(
+                onClick = { viewModel.goToPreviousPage() }
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.NavigateBefore,
+                    contentDescription = "Halaman Sebelumnya"
+                )
+            }
+            Spacer(modifier = Modifier.width(32.dp))
+            IconButton(
+                onClick = { viewModel.goToNextPage() }
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.NavigateNext,
+                    contentDescription = "Halaman Berikutnya"
+                )
             }
         }
     }

@@ -67,6 +67,9 @@ class FakeReaderSettingsRepository(initialSettings: SettingsEntity = SettingsEnt
     override suspend fun setReaderMode(readerMode: String) {
         settingsFlow.value = settingsFlow.value.copy(readerMode = readerMode)
     }
+    override suspend fun setReadingDirection(readingDirection: String) {
+        settingsFlow.value = settingsFlow.value.copy(readingDirection = readingDirection)
+    }
 }
 
 class FakeCbzPageIndexer : CbzPageIndexer {
@@ -86,7 +89,12 @@ class FakeCbzPageDecoder(
 class FakeCbzPageDecoderFactory(
     private val decoderToReturn: FakeCbzPageDecoder
 ) : CbzPageDecoderFactory {
+    var createCount = 0
+    val createdDecoders = mutableListOf<CbzPageDecoder>()
+
     override fun createDecoder(pageIndex: ChapterPageIndex, archiveHandle: CbzArchiveHandle): CbzPageDecoder {
+        createCount++
+        createdDecoders.add(decoderToReturn)
         return decoderToReturn
     }
 }
@@ -309,6 +317,163 @@ class ReaderViewModelTest {
 
         assertFalse("Archive handle MUST NOT be closed on mode switch", handleClosed)
         assertFalse("Decoder MUST NOT be closed on mode switch", fakeDecoder.closed)
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun goToNextPage_incrementsPage_boundedByTotalPages() = runTest {
+        val spooledFile = tempFolder.newFile("spool.cbz")
+        val handle = CbzArchiveHandle(1L, spooledFile) {}
+        fakeRepo.openResult = CbzArchiveResult.Success(handle)
+
+        val pages = listOf(
+            PageMetadata(pageIndex = 0, entryName = "p1.jpg", normalizedPath = "p1.jpg"),
+            PageMetadata(pageIndex = 1, entryName = "p2.jpg", normalizedPath = "p2.jpg"),
+            PageMetadata(pageIndex = 2, entryName = "p3.jpg", normalizedPath = "p3.jpg")
+        )
+        fakeIndexer.indexResult = PageIndexResult.Success(ChapterPageIndex(chapterId = 1L, pages = pages))
+
+        val viewModel = ReaderViewModel(
+            chapterId = 1L,
+            libraryRepository = fakeRepo,
+            settingsRepository = fakeSettingsRepo,
+            cbzPageIndexer = fakeIndexer,
+            cbzPageDecoderFactory = fakeDecoderFactory
+        )
+
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+
+        assertEquals(0, (viewModel.uiState.value as ReaderUiState.Success).currentPageIndex)
+
+        viewModel.goToNextPage()
+        assertEquals(1, (viewModel.uiState.value as ReaderUiState.Success).currentPageIndex)
+
+        viewModel.goToNextPage()
+        assertEquals(2, (viewModel.uiState.value as ReaderUiState.Success).currentPageIndex)
+
+        // Attempt next on last page (page 2 of 3) -> remains 2, no-op, no crash, no auto-chapter advance
+        viewModel.goToNextPage()
+        assertEquals(2, (viewModel.uiState.value as ReaderUiState.Success).currentPageIndex)
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun goToPreviousPage_decrementsPage_boundedByZero() = runTest {
+        val spooledFile = tempFolder.newFile("spool.cbz")
+        val handle = CbzArchiveHandle(1L, spooledFile) {}
+        fakeRepo.openResult = CbzArchiveResult.Success(handle)
+
+        val pages = listOf(
+            PageMetadata(pageIndex = 0, entryName = "p1.jpg", normalizedPath = "p1.jpg"),
+            PageMetadata(pageIndex = 1, entryName = "p2.jpg", normalizedPath = "p2.jpg")
+        )
+        fakeIndexer.indexResult = PageIndexResult.Success(ChapterPageIndex(chapterId = 1L, pages = pages))
+
+        val viewModel = ReaderViewModel(
+            chapterId = 1L,
+            libraryRepository = fakeRepo,
+            settingsRepository = fakeSettingsRepo,
+            cbzPageIndexer = fakeIndexer,
+            cbzPageDecoderFactory = fakeDecoderFactory
+        )
+
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+
+        viewModel.setCurrentPageIndex(1)
+        assertEquals(1, (viewModel.uiState.value as ReaderUiState.Success).currentPageIndex)
+
+        viewModel.goToPreviousPage()
+        assertEquals(0, (viewModel.uiState.value as ReaderUiState.Success).currentPageIndex)
+
+        // Attempt previous on first page -> remains 0, no-op, no crash
+        viewModel.goToPreviousPage()
+        assertEquals(0, (viewModel.uiState.value as ReaderUiState.Success).currentPageIndex)
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun setReadingDirection_updatesSettingsRepository_andPreservesDecoder() = runTest {
+        val spooledFile = tempFolder.newFile("spool.cbz")
+        var handleClosed = false
+        val handle = CbzArchiveHandle(1L, spooledFile) { handleClosed = true }
+        fakeRepo.openResult = CbzArchiveResult.Success(handle)
+
+        val pages = listOf(
+            PageMetadata(pageIndex = 0, entryName = "p1.jpg", normalizedPath = "p1.jpg"),
+            PageMetadata(pageIndex = 1, entryName = "p2.jpg", normalizedPath = "p2.jpg")
+        )
+        fakeIndexer.indexResult = PageIndexResult.Success(ChapterPageIndex(chapterId = 1L, pages = pages))
+
+        val viewModel = ReaderViewModel(
+            chapterId = 1L,
+            libraryRepository = fakeRepo,
+            settingsRepository = fakeSettingsRepo,
+            cbzPageIndexer = fakeIndexer,
+            cbzPageDecoderFactory = fakeDecoderFactory
+        )
+
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+
+        // Initial factory create count must be 1
+        assertEquals(1, fakeDecoderFactory.createCount)
+        val initialDecoder = fakeDecoderFactory.createdDecoders.first()
+
+        // Transition LTR -> RTL -> LTR
+        viewModel.setReadingDirection("rtl")
+        val stateRtl = viewModel.uiState.value as ReaderUiState.Success
+        assertEquals("rtl", stateRtl.readingDirection)
+        assertEquals("Factory MUST NOT create a new decoder on direction change", 1, fakeDecoderFactory.createCount)
+
+        viewModel.setReadingDirection("ltr")
+        val stateLtr = viewModel.uiState.value as ReaderUiState.Success
+        assertEquals("ltr", stateLtr.readingDirection)
+        assertEquals("Factory MUST NOT create a new decoder on direction change", 1, fakeDecoderFactory.createCount)
+
+        // ASSERTION SPESIFIK: Decoder instance is 100% same instance!
+        org.junit.Assert.assertSame(initialDecoder, fakeDecoderFactory.createdDecoders.first())
+
+        assertFalse("Archive handle MUST NOT be closed on reading direction change", handleClosed)
+        assertFalse("Decoder MUST NOT be closed on reading direction change", fakeDecoder.closed)
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun emptyChapter_navigationCallsDoNotCrashOrProduceInvalidIndex() = runTest {
+        val spooledFile = tempFolder.newFile("spool_empty.cbz")
+        val handle = CbzArchiveHandle(1L, spooledFile) {}
+        fakeRepo.openResult = CbzArchiveResult.Success(handle)
+
+        // Empty ChapterPageIndex with 0 pages (totalPages == 0)
+        val emptyPageIndex = ChapterPageIndex(chapterId = 1L, pages = emptyList())
+        fakeIndexer.indexResult = PageIndexResult.Success(emptyPageIndex)
+
+        val viewModel = ReaderViewModel(
+            chapterId = 1L,
+            libraryRepository = fakeRepo,
+            settingsRepository = fakeSettingsRepo,
+            cbzPageIndexer = fakeIndexer,
+            cbzPageDecoderFactory = fakeDecoderFactory
+        )
+
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+
+        val currentState = viewModel.uiState.value as ReaderUiState.Success
+        assertEquals(0, currentState.pageIndex.totalPages)
+        assertEquals(0, currentState.currentPageIndex)
+
+        // Navigation calls on empty chapter MUST NOT crash or produce negative index
+        viewModel.goToNextPage()
+        assertEquals(0, (viewModel.uiState.value as ReaderUiState.Success).currentPageIndex)
+
+        viewModel.goToPreviousPage()
+        assertEquals(0, (viewModel.uiState.value as ReaderUiState.Success).currentPageIndex)
+
+        viewModel.setCurrentPageIndex(5)
+        assertEquals(0, (viewModel.uiState.value as ReaderUiState.Success).currentPageIndex)
 
         collectJob.cancel()
     }

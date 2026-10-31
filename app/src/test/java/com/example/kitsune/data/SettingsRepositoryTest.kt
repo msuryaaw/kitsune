@@ -128,4 +128,41 @@ class SettingsRepositoryTest {
         fileDb.close()
         dbFile.delete()
     }
+
+    @Test
+    fun setReadingDirection_validInputs_persistsAndPreservesOtherFields() = runTest {
+        // Seed initial settings
+        val initial = SettingsEntity(
+            id = 1,
+            gridColumns = 4,
+            theme = "dark",
+            readingDirection = "ltr",
+            readerMode = "vertical_continuous",
+            pageFit = "fit_width"
+        )
+        settingsDao.upsertSettings(initial)
+
+        // Set direction to "rtl"
+        repository.setReadingDirection("rtl")
+        val settingsRtl = repository.observeSettings().first()
+        assertEquals("rtl", settingsRtl.readingDirection)
+        // All other fields preserved 100%
+        assertEquals(4, settingsRtl.gridColumns)
+        assertEquals("dark", settingsRtl.theme)
+        assertEquals("vertical_continuous", settingsRtl.readerMode)
+        assertEquals("fit_width", settingsRtl.pageFit)
+
+        // Set direction to "ltr"
+        repository.setReadingDirection("ltr")
+        val settingsLtr = repository.observeSettings().first()
+        assertEquals("ltr", settingsLtr.readingDirection)
+        assertEquals(4, settingsLtr.gridColumns)
+    }
+
+    @Test
+    fun setReadingDirection_invalidInput_sanitizesToLtr() = runTest {
+        repository.setReadingDirection("invalid_direction_string")
+        val settings = repository.observeSettings().first()
+        assertEquals("ltr", settings.readingDirection)
+    }
 }

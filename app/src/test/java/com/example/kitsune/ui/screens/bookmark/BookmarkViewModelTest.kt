@@ -92,6 +92,7 @@ class FakeBookmarkSettingsRepo(initialSettings: SettingsEntity = SettingsEntity(
     }
     override suspend fun setReaderMode(readerMode: String) {}
     override suspend fun setReadingDirection(readingDirection: String) {}
+    override suspend fun setPageFit(pageFit: String) {}
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)

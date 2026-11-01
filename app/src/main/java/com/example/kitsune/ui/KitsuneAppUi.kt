@@ -134,7 +134,10 @@ fun KitsuneApp(
                 )
             }
             composable(KitsuneDestinations.SETTINGS_ROUTE) {
-                SettingsScreen(rootFolderPreferences = appContainer.rootFolderPreferences)
+                SettingsScreen(
+                    rootFolderPreferences = appContainer.rootFolderPreferences,
+                    settingsRepository = appContainer.settingsRepository
+                )
             }
             composable(
                 route = KitsuneDestinations.COMIC_DETAIL_ROUTE,

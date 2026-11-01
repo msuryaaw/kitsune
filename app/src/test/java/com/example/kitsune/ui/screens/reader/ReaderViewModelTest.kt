@@ -91,6 +91,9 @@ class FakeReaderSettingsRepository(initialSettings: SettingsEntity = SettingsEnt
     override suspend fun setReadingDirection(readingDirection: String) {
         settingsFlow.value = settingsFlow.value.copy(readingDirection = readingDirection)
     }
+    override suspend fun setPageFit(pageFit: String) {
+        settingsFlow.value = settingsFlow.value.copy(pageFit = pageFit)
+    }
 }
 
 class FakeCbzPageIndexer : CbzPageIndexer {
@@ -993,6 +996,91 @@ class ReaderViewModelTest {
         // Verify that stale request 1 did NOT overwrite request 2 -> final state is Success (from request 2), NOT PermissionDenied!
         val currentState = viewModel.uiState.value
         assertTrue("State must be Success from request 2, discarding stale request 1", currentState is ReaderUiState.Success)
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun setPageFit_updatesSettingsAndEmitsNewPageFitInUiState() = runTest {
+        val spooledFile = tempFolder.newFile("spool_fit.cbz")
+        val handle = CbzArchiveHandle(1L, spooledFile) {}
+        fakeRepo.openResult = CbzArchiveResult.Success(handle)
+
+        val samplePage = PageMetadata(pageIndex = 0, entryName = "p1.jpg", normalizedPath = "p1.jpg")
+        fakeIndexer.indexResult = PageIndexResult.Success(ChapterPageIndex(chapterId = 1L, pages = listOf(samplePage)))
+
+        val viewModel = ReaderViewModel(
+            chapterId = 1L,
+            libraryRepository = fakeRepo,
+            settingsRepository = fakeSettingsRepo,
+            cbzPageIndexer = fakeIndexer,
+            cbzPageDecoderFactory = fakeDecoderFactory
+        )
+
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+
+        assertEquals("fit_screen", (viewModel.uiState.value as ReaderUiState.Success).pageFit)
+
+        // Update pageFit to "fit_width"
+        viewModel.setPageFit("fit_width")
+
+        assertEquals("fit_width", (viewModel.uiState.value as ReaderUiState.Success).pageFit)
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun singlePageView_tapZoneMapping_ltrAndRtlNavigation() = runTest {
+        val spooledFile = tempFolder.newFile("spool_tap.cbz")
+        val handle = CbzArchiveHandle(1L, spooledFile) {}
+        fakeRepo.openResult = CbzArchiveResult.Success(handle)
+
+        val pages = listOf(
+            PageMetadata(pageIndex = 0, entryName = "p1.jpg", normalizedPath = "p1.jpg"),
+            PageMetadata(pageIndex = 1, entryName = "p2.jpg", normalizedPath = "p2.jpg"),
+            PageMetadata(pageIndex = 2, entryName = "p3.jpg", normalizedPath = "p3.jpg")
+        )
+        fakeIndexer.indexResult = PageIndexResult.Success(ChapterPageIndex(chapterId = 1L, pages = pages))
+
+        val viewModel = ReaderViewModel(
+            chapterId = 1L,
+            libraryRepository = fakeRepo,
+            settingsRepository = fakeSettingsRepo,
+            cbzPageIndexer = fakeIndexer,
+            cbzPageDecoderFactory = fakeDecoderFactory
+        )
+
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+
+        // Start on page 1 (middle page)
+        viewModel.setCurrentPageIndex(1)
+
+        // Function mirroring SinglePageView.kt tap zone decision logic:
+        fun handleTap(readingDirection: String, isLeftZoneTap: Boolean) {
+            if (isLeftZoneTap) {
+                if (readingDirection == "rtl") viewModel.goToNextPage() else viewModel.goToPreviousPage()
+            } else {
+                if (readingDirection == "rtl") viewModel.goToPreviousPage() else viewModel.goToNextPage()
+            }
+        }
+
+        // Test LTR Left Tap -> Previous (Page 1 -> 0)
+        viewModel.setReadingDirection("ltr")
+        handleTap("ltr", isLeftZoneTap = true)
+        assertEquals(0, (viewModel.uiState.value as ReaderUiState.Success).currentPageIndex)
+
+        // Test LTR Right Tap -> Next (Page 0 -> 1)
+        handleTap("ltr", isLeftZoneTap = false)
+        assertEquals(1, (viewModel.uiState.value as ReaderUiState.Success).currentPageIndex)
+
+        // Test RTL Left Tap -> Next (Page 1 -> 2)
+        viewModel.setReadingDirection("rtl")
+        handleTap("rtl", isLeftZoneTap = true)
+        assertEquals(2, (viewModel.uiState.value as ReaderUiState.Success).currentPageIndex)
+
+        // Test RTL Right Tap -> Previous (Page 2 -> 1)
+        handleTap("rtl", isLeftZoneTap = false)
+        assertEquals(1, (viewModel.uiState.value as ReaderUiState.Success).currentPageIndex)
 
         collectJob.cancel()
     }

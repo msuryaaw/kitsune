@@ -36,4 +36,14 @@ class DefaultSettingsRepository(
         val updated = (existing ?: SettingsEntity()).copy(readingDirection = sanitized)
         settingsDao.upsertSettings(updated)
     }
+
+    override suspend fun setPageFit(pageFit: String) {
+        val sanitized = when (pageFit) {
+            "fit_width", "fit_height" -> pageFit
+            else -> "fit_screen"
+        }
+        val existing = settingsDao.getSettings()
+        val updated = (existing ?: SettingsEntity()).copy(pageFit = sanitized)
+        settingsDao.upsertSettings(updated)
+    }
 }

@@ -28,4 +28,9 @@ interface SettingsRepository {
      * Updates the reading direction setting in DB ("ltr" or "rtl").
      */
     suspend fun setReadingDirection(readingDirection: String)
+
+    /**
+     * Updates the page fit setting in DB ("fit_screen", "fit_width", or "fit_height").
+     */
+    suspend fun setPageFit(pageFit: String)
 }

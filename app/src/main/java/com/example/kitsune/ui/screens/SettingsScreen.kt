@@ -15,10 +15,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -27,23 +30,33 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.kitsune.core.RootFolderPreferences
 import com.example.kitsune.core.RootFolderState
 import com.example.kitsune.core.SafStorageHelper
+import com.example.kitsune.data.SettingsRepository
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 
 @Composable
 fun SettingsScreen(
     rootFolderPreferences: RootFolderPreferences,
+    settingsRepository: SettingsRepository? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var folderState by remember { mutableStateOf<RootFolderState>(RootFolderState.NotConfigured) }
     var operationError by remember { mutableStateOf<String?>(null) }
     var isVerifying by remember { mutableStateOf(false) }
+
+    val settingsState by (settingsRepository?.observeSettings() ?: flowOf(com.example.kitsune.data.entity.SettingsEntity()))
+        .collectAsStateWithLifecycle(initialValue = com.example.kitsune.data.entity.SettingsEntity())
 
     fun refreshStatus() {
         val uriStr = rootFolderPreferences.getRootUriString()
@@ -109,6 +122,7 @@ fun SettingsScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(16.dp)
     ) {
         Text(
@@ -286,6 +300,108 @@ fun SettingsScreen(
                     ) {
                         Text("Lepas Folder Root")
                     }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Reader Preferences Card
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant
+            )
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "Preferensi Reader",
+                    style = MaterialTheme.typography.titleMedium
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Mode Reader
+                Text(
+                    text = "Mode Tampilan Reader",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = settingsState.readerMode == "single_page",
+                        onClick = {
+                            scope.launch { settingsRepository?.setReaderMode("single_page") }
+                        },
+                        label = { Text("Single Page") }
+                    )
+                    FilterChip(
+                        selected = settingsState.readerMode == "vertical_continuous",
+                        onClick = {
+                            scope.launch { settingsRepository?.setReaderMode("vertical_continuous") }
+                        },
+                        label = { Text("Vertical Continuous") }
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Arah Baca
+                Text(
+                    text = "Arah Membaca Halaman",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = settingsState.readingDirection == "ltr",
+                        onClick = {
+                            scope.launch { settingsRepository?.setReadingDirection("ltr") }
+                        },
+                        label = { Text("LTR (Kiri ke Kanan)") }
+                    )
+                    FilterChip(
+                        selected = settingsState.readingDirection == "rtl",
+                        onClick = {
+                            scope.launch { settingsRepository?.setReadingDirection("rtl") }
+                        },
+                        label = { Text("RTL (Kanan ke Kiri)") }
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Page Fit
+                Text(
+                    text = "Ukuran Halaman (Page Fit)",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = settingsState.pageFit == "fit_screen",
+                        onClick = {
+                            scope.launch { settingsRepository?.setPageFit("fit_screen") }
+                        },
+                        label = { Text("Pas Layar") }
+                    )
+                    FilterChip(
+                        selected = settingsState.pageFit == "fit_width",
+                        onClick = {
+                            scope.launch { settingsRepository?.setPageFit("fit_width") }
+                        },
+                        label = { Text("Pas Lebar") }
+                    )
+                    FilterChip(
+                        selected = settingsState.pageFit == "fit_height",
+                        onClick = {
+                            scope.launch { settingsRepository?.setPageFit("fit_height") }
+                        },
+                        label = { Text("Pas Tinggi") }
+                    )
                 }
             }
         }

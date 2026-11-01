@@ -41,6 +41,7 @@ fun ContinuousVerticalView(
     chapterPageIndex: ChapterPageIndex,
     initialPageIndex: Int,
     initialScrollOffset: Int = 0,
+    pageFit: String = "fit_screen",
     viewModel: ReaderViewModel,
     onPositionChanged: (pageIndex: Int, scrollOffset: Int) -> Unit,
     modifier: Modifier = Modifier
@@ -92,6 +93,7 @@ fun ContinuousVerticalView(
                     isVisible = isVisible,
                     targetWidthPx = parentWidthPx,
                     targetHeightPx = parentHeightPx,
+                    pageFit = pageFit,
                     viewModel = viewModel
                 )
             }
@@ -105,9 +107,16 @@ private fun ContinuousPageItem(
     isVisible: Boolean,
     targetWidthPx: Int,
     targetHeightPx: Int,
+    pageFit: String,
     viewModel: ReaderViewModel,
     modifier: Modifier = Modifier
 ) {
+    val contentScale = when (pageFit) {
+        "fit_height" -> ContentScale.FillHeight
+        "fit_screen" -> ContentScale.Fit
+        else -> ContentScale.FillWidth
+    }
+
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -157,7 +166,7 @@ private fun ContinuousPageItem(
                 Image(
                     painter = BitmapPainter(state.imageBitmap),
                     contentDescription = "Halaman ${page.pageNumber}",
-                    contentScale = ContentScale.FillWidth,
+                    contentScale = contentScale,
                     modifier = Modifier.fillMaxWidth()
                 )
             }

@@ -39,6 +39,7 @@ import com.example.kitsune.reader.PageDecodeResult
 fun SinglePageView(
     currentPageIndex: Int,
     readingDirection: String,
+    pageFit: String = "fit_screen",
     viewModel: ReaderViewModel,
     modifier: Modifier = Modifier
 ) {
@@ -50,6 +51,12 @@ fun SinglePageView(
         val targetWidthPx = with(density) { maxWidth.roundToPx() }.coerceIn(1, 2048)
         val targetHeightPx = with(density) { maxHeight.roundToPx() }.coerceIn(1, 2048)
         val retryTrigger = androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(0) }
+
+        val contentScale = when (pageFit) {
+            "fit_width" -> ContentScale.FillWidth
+            "fit_height" -> ContentScale.FillHeight
+            else -> ContentScale.Fit
+        }
 
         val renderState by produceState<PageRenderState>(
             initialValue = PageRenderState.Loading,
@@ -86,7 +93,7 @@ fun SinglePageView(
                 Image(
                     painter = BitmapPainter(state.imageBitmap),
                     contentDescription = "Halaman ${currentPageIndex + 1}",
-                    contentScale = ContentScale.Fit,
+                    contentScale = contentScale,
                     modifier = Modifier.fillMaxSize()
                 )
             }

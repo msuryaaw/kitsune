@@ -66,6 +66,12 @@ fun ReaderScreen(
                     val state = uiState
                     if (state is ReaderUiState.Success) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
+                            ReaderPageFitToggleSelector(
+                                currentFit = state.pageFit,
+                                onFitSelected = { newFit ->
+                                    viewModel.setPageFit(newFit)
+                                }
+                            )
                             ReaderDirectionToggleSelector(
                                 currentDirection = state.readingDirection,
                                 onDirectionSelected = { newDirection ->
@@ -99,6 +105,7 @@ fun ReaderScreen(
                             chapterPageIndex = state.pageIndex,
                             initialPageIndex = state.currentPageIndex,
                             initialScrollOffset = state.scrollOffset,
+                            pageFit = state.pageFit,
                             viewModel = viewModel,
                             onPositionChanged = { firstVisible, offset ->
                                 viewModel.setCurrentPageIndexAndOffset(firstVisible, offset)
@@ -108,6 +115,7 @@ fun ReaderScreen(
                         SinglePageView(
                             currentPageIndex = state.currentPageIndex,
                             readingDirection = state.readingDirection,
+                            pageFit = state.pageFit,
                             viewModel = viewModel
                         )
                     }
@@ -124,6 +132,25 @@ fun ReaderScreen(
             }
         }
     }
+}
+
+@Composable
+private fun ReaderPageFitToggleSelector(
+    currentFit: String,
+    onFitSelected: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val (label, nextFit) = when (currentFit) {
+        "fit_width" -> "Width" to "fit_height"
+        "fit_height" -> "Height" to "fit_screen"
+        else -> "Fit" to "fit_width"
+    }
+    FilterChip(
+        selected = currentFit != "fit_screen",
+        onClick = { onFitSelected(nextFit) },
+        label = { Text(label) },
+        modifier = modifier.padding(end = 4.dp)
+    )
 }
 
 @Composable

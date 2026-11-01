@@ -148,6 +148,10 @@ class FakeSettingsRepository(
     override suspend fun setReadingDirection(readingDirection: String) {
         settingsFlow.value = settingsFlow.value.copy(readingDirection = readingDirection)
     }
+
+    override suspend fun setPageFit(pageFit: String) {
+        settingsFlow.value = settingsFlow.value.copy(pageFit = pageFit)
+    }
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)

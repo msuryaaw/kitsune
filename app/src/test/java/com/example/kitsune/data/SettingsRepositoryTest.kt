@@ -165,4 +165,71 @@ class SettingsRepositoryTest {
         val settings = repository.observeSettings().first()
         assertEquals("ltr", settings.readingDirection)
     }
+
+    @Test
+    fun setReaderMode_validInputs_persistsAndPreservesOtherFields() = runTest {
+        repository.setReaderMode("vertical_continuous")
+        val settingsContinuous = repository.observeSettings().first()
+        assertEquals("vertical_continuous", settingsContinuous.readerMode)
+
+        repository.setReaderMode("single_page")
+        val settingsSingle = repository.observeSettings().first()
+        assertEquals("single_page", settingsSingle.readerMode)
+    }
+
+    @Test
+    fun setReaderMode_invalidInput_sanitizesToSinglePage() = runTest {
+        repository.setReaderMode("invalid_mode")
+        val settings = repository.observeSettings().first()
+        assertEquals("single_page", settings.readerMode)
+    }
+
+    @Test
+    fun setPageFit_validInputs_persistsAndPreservesOtherFields() = runTest {
+        repository.setPageFit("fit_width")
+        assertEquals("fit_width", repository.observeSettings().first().pageFit)
+
+        repository.setPageFit("fit_height")
+        assertEquals("fit_height", repository.observeSettings().first().pageFit)
+
+        repository.setPageFit("fit_screen")
+        assertEquals("fit_screen", repository.observeSettings().first().pageFit)
+    }
+
+    @Test
+    fun setPageFit_invalidInput_sanitizesToFitScreen() = runTest {
+        repository.setPageFit("invalid_fit")
+        assertEquals("fit_screen", repository.observeSettings().first().pageFit)
+    }
+
+    @Test
+    fun readerPreferences_persistsAcrossDatabaseReopen() = runTest {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val dbFile = context.getDatabasePath("test_reader_prefs.db")
+        dbFile.delete()
+
+        var fileDb = Room.databaseBuilder(context, KitsuneDatabase::class.java, dbFile.name)
+            .allowMainThreadQueries()
+            .build()
+        var repo: SettingsRepository = DefaultSettingsRepository(fileDb.settingsDao())
+
+        repo.setReadingDirection("rtl")
+        repo.setReaderMode("vertical_continuous")
+        repo.setPageFit("fit_width")
+
+        fileDb.close()
+
+        fileDb = Room.databaseBuilder(context, KitsuneDatabase::class.java, dbFile.name)
+            .allowMainThreadQueries()
+            .build()
+        repo = DefaultSettingsRepository(fileDb.settingsDao())
+
+        val restored = repo.observeSettings().first()
+        assertEquals("rtl", restored.readingDirection)
+        assertEquals("vertical_continuous", restored.readerMode)
+        assertEquals("fit_width", restored.pageFit)
+
+        fileDb.close()
+        dbFile.delete()
+    }
 }

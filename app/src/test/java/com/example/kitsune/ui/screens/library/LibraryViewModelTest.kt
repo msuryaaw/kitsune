@@ -68,6 +68,9 @@ class FakeLibraryRepository : LibraryRepository {
         return flowOf(emptyList())
     }
 
+    override suspend fun clearHistoryForComic(comicId: Long) {}
+    override suspend fun clearAllHistoryByRoot(rootUri: String) {}
+
     override fun observeChaptersByComicId(comicId: Long): Flow<List<ChapterEntity>> {
         return flowOf(emptyList())
     }

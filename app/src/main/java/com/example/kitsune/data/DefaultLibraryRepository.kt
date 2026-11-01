@@ -416,6 +416,14 @@ class DefaultLibraryRepository(
         comicDao.setBookmarked(comicId, bookmarked)
     }
 
+    override suspend fun clearHistoryForComic(comicId: Long) {
+        comicDao.clearHistoryForComic(comicId)
+    }
+
+    override suspend fun clearAllHistoryByRoot(rootUri: String) {
+        comicDao.clearAllHistoryByRoot(rootUri)
+    }
+
     override suspend fun fetchCover(comicId: Long): CoverResult =
         coverExtractor.extractCover(comicId)
 

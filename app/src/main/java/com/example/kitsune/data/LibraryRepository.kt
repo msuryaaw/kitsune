@@ -58,6 +58,16 @@ interface LibraryRepository {
     fun observeRecentlyReadWithProgressByRoot(rootUri: String): Flow<List<com.example.kitsune.data.model.ComicWithProgress>>
 
     /**
+     * Clears history for a single comic by setting lastReadAt to null (Option B).
+     */
+    suspend fun clearHistoryForComic(comicId: Long)
+
+    /**
+     * Clears history for all comics under [rootUri] by setting lastReadAt to null (Option B).
+     */
+    suspend fun clearAllHistoryByRoot(rootUri: String)
+
+    /**
      * Observes all chapters for [comicId], ordered by chapter number ascending.
      */
     fun observeChaptersByComicId(comicId: Long): Flow<List<ChapterEntity>>

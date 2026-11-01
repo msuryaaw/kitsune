@@ -125,6 +125,33 @@ class HistoryViewModel(
         }
     }
 
+    fun clearHistoryForComic(comicId: Long) {
+        viewModelScope.launch {
+            try {
+                libraryRepository.clearHistoryForComic(comicId)
+            } catch (ce: CancellationException) {
+                throw ce
+            } catch (e: Exception) {
+                eventChannel.send(HistoryEvent.ShowFeedback("Gagal menghapus riwayat komik: ${e.localizedMessage}"))
+            }
+        }
+    }
+
+    fun clearAllHistoryForRoot() {
+        val rootUri = rootFolderPreferences.getRootUriString()
+        if (rootUri.isNullOrBlank()) return
+
+        viewModelScope.launch {
+            try {
+                libraryRepository.clearAllHistoryByRoot(rootUri)
+            } catch (ce: CancellationException) {
+                throw ce
+            } catch (e: Exception) {
+                eventChannel.send(HistoryEvent.ShowFeedback("Gagal menghapus seluruh riwayat: ${e.localizedMessage}"))
+            }
+        }
+    }
+
     suspend fun getCoverFile(comicId: Long): CoverCacheResult {
         return libraryRepository.getCoverFile(comicId)
     }

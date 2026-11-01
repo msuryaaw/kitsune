@@ -146,6 +146,20 @@ interface ComicDao {
     suspend fun updateLastReadAt(comicId: Long, timestamp: Long)
 
     /**
+     * Clears lastReadAt for a single comic, removing it from History (Option B).
+     * Does NOT touch ReadingProgressEntity or isBookmarked.
+     */
+    @Query("UPDATE comics SET lastReadAt = NULL WHERE id = :comicId")
+    suspend fun clearHistoryForComic(comicId: Long)
+
+    /**
+     * Clears lastReadAt for all comics under [rootUri], clearing History for that root (Option B).
+     * Does NOT touch ReadingProgressEntity or isBookmarked.
+     */
+    @Query("UPDATE comics SET lastReadAt = NULL WHERE rootUriString = :rootUri")
+    suspend fun clearAllHistoryByRoot(rootUri: String)
+
+    /**
      * Deletes a comic by ID. CASCADE foreign keys will remove associated chapters
      * and reading progress.
      */

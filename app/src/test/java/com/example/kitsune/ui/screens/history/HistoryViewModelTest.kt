@@ -28,6 +28,7 @@ import com.example.kitsune.reader.PageIndexResult
 import com.example.kitsune.reader.PageMetadata
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -64,6 +65,30 @@ class FakeHistoryLibraryRepository : LibraryRepository {
     override suspend fun saveReadingProgress(progress: ReadingProgressEntity) {}
     override fun flushReadingProgress(progress: ReadingProgressEntity) {}
     override suspend fun setBookmarked(comicId: Long, bookmarked: Boolean) {}
+
+    var clearSingleHistoryCalled = false
+    var lastClearedComicId = 0L
+    var clearAllHistoryCalled = false
+    var lastClearedRootUri: String? = null
+
+    override suspend fun clearHistoryForComic(comicId: Long) {
+        clearSingleHistoryCalled = true
+        lastClearedComicId = comicId
+        val currentMap = recentlyReadByRoot.value.toMutableMap()
+        currentMap.keys.forEach { root ->
+            val list = (currentMap[root] ?: emptyList()).filter { it.comic.id != comicId }
+            currentMap[root] = list
+        }
+        recentlyReadByRoot.value = currentMap
+    }
+
+    override suspend fun clearAllHistoryByRoot(rootUri: String) {
+        clearAllHistoryCalled = true
+        lastClearedRootUri = rootUri
+        val currentMap = recentlyReadByRoot.value.toMutableMap()
+        currentMap[rootUri] = emptyList()
+        recentlyReadByRoot.value = currentMap
+    }
     override suspend fun fetchCover(comicId: Long): CoverResult = CoverResult.Unavailable("Fake")
     override suspend fun getCoverFile(comicId: Long): CoverCacheResult = CoverCacheResult.Unavailable("Fake")
     override suspend fun releaseCoverFile(file: File) {}
@@ -437,5 +462,219 @@ class HistoryViewModelTest {
         collectHistoryJob.cancel()
         collectReaderJob.cancel()
         db.close()
+    }
+
+    @Test
+    fun clearHistoryForComic_setsLastReadAtNull_andPreservesProgress_OptionB() = runTest {
+        val rootUri = "content://root"
+        fakeRootPrefs.rootUriFlow.value = rootUri
+
+        val comic = ComicEntity(id = 1L, rootUriString = rootUri, relativePath = "Comics/A", title = "Comic A", lastReadAt = 1000L, isBookmarked = true)
+        val progress = ReadingProgressEntity(comicId = 1L, lastReadChapterId = 101L, lastReadChapterNumber = 1, chapterRelativePath = "Comics/A/Ch1.cbz", pageIndex = 4, scrollOffset = 120, updatedAt = 1000L)
+        val item = ComicWithProgress(comic, progress)
+
+        fakeRepo.recentlyReadByRoot.value = mapOf(rootUri to listOf(item))
+
+        viewModel = HistoryViewModel(fakeRepo, fakeRootPrefs)
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+
+        assertEquals(1, (viewModel.uiState.value as HistoryUiState.Success).items.size)
+
+        // Clear history for comic 1
+        viewModel.clearHistoryForComic(1L)
+
+        assertTrue(fakeRepo.clearSingleHistoryCalled)
+        assertEquals(1L, fakeRepo.lastClearedComicId)
+        assertEquals("State must become Empty when history cleared", HistoryUiState.Empty, viewModel.uiState.value)
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun clearAllHistoryForRoot_clearsHistoryForActiveRoot_OptionB() = runTest {
+        val rootUri = "content://root"
+        fakeRootPrefs.rootUriFlow.value = rootUri
+
+        val comic1 = ComicEntity(id = 1L, rootUriString = rootUri, relativePath = "Comics/A", title = "Comic A", lastReadAt = 1000L)
+        val comic2 = ComicEntity(id = 2L, rootUriString = rootUri, relativePath = "Comics/B", title = "Comic B", lastReadAt = 2000L)
+
+        val item1 = ComicWithProgress(comic1, null)
+        val item2 = ComicWithProgress(comic2, null)
+
+        fakeRepo.recentlyReadByRoot.value = mapOf(rootUri to listOf(item1, item2))
+
+        viewModel = HistoryViewModel(fakeRepo, fakeRootPrefs)
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+
+        assertEquals(2, (viewModel.uiState.value as HistoryUiState.Success).items.size)
+
+        // Clear all history for root
+        viewModel.clearAllHistoryForRoot()
+
+        assertTrue(fakeRepo.clearAllHistoryCalled)
+        assertEquals(rootUri, fakeRepo.lastClearedRootUri)
+        assertEquals("State must become Empty when all history cleared", HistoryUiState.Empty, viewModel.uiState.value)
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun history_deleteHistory_setsLastReadAtNull_andPreservesSameRoomProgressInReader_OptionB() = runTest {
+        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        val db = androidx.room.Room.inMemoryDatabaseBuilder(context, com.example.kitsune.data.KitsuneDatabase::class.java)
+            .allowMainThreadQueries()
+            .build()
+
+        val realComicDao = db.comicDao()
+        val realChapterDao = db.chapterDao()
+        val realProgressDao = db.readingProgressDao()
+
+        val rootUri = "content://primary%3ARoot"
+        fakeRootPrefs.rootUriFlow.value = rootUri
+
+        // Step 1: Insert comic, chapter, and progress into real Room DB
+        val comicId = realComicDao.insert(ComicEntity(rootUriString = rootUri, relativePath = "Comics/OnePiece", title = "One Piece", lastReadAt = 5000L, isBookmarked = true))
+        val chapterId = realChapterDao.insert(ChapterEntity(comicId = comicId, relativePath = "Comics/OnePiece/Ch1.cbz", chapterNumber = 1, displayName = "Ch1.cbz", pageCount = 10, isValid = true))
+
+        val savedProgress = ReadingProgressEntity(
+            comicId = comicId,
+            lastReadChapterId = chapterId,
+            lastReadChapterNumber = 1,
+            chapterRelativePath = "Comics/OnePiece/Ch1.cbz",
+            pageIndex = 8,
+            scrollOffset = 240,
+            updatedAt = 5000L
+        )
+        realProgressDao.save(savedProgress)
+
+        val fakeStorage = com.example.kitsune.storage.FakeStorageGateway(rootConfigured = true, permissionGranted = true).apply {
+            addFile("Comics/OnePiece/Ch1.cbz", ByteArray(1024))
+        }
+
+        val realRepo = com.example.kitsune.data.DefaultLibraryRepository(
+            com.example.kitsune.data.FakeLibraryScanner(),
+            com.example.kitsune.scanner.IncrementalCbzCataloger(com.example.kitsune.data.NoopCbzCataloger),
+            realComicDao, realChapterDao, realProgressDao,
+            com.example.kitsune.data.CoverExtractor(fakeStorage, realComicDao, realChapterDao),
+            com.example.kitsune.data.CoverCacheManager(java.io.File(System.getProperty("java.io.tmpdir"), "real_hist_covers_2"), com.example.kitsune.data.CoverExtractor(fakeStorage, realComicDao, realChapterDao), realComicDao, realChapterDao),
+            fakeStorage,
+            com.example.kitsune.reader.DefaultCbzArchiveProvider(java.io.File(System.getProperty("java.io.tmpdir"), "real_hist_spool_2"), fakeStorage, realChapterDao),
+            db
+        )
+
+        // Step 2: Initialize HistoryViewModel using realRepo and real Room DB
+        viewModel = HistoryViewModel(realRepo, fakeRootPrefs)
+        val collectHistoryJob = launch(testDispatcher) { viewModel.uiState.collect() }
+
+        // Allow Room background query executor to complete query
+        var historyState: HistoryUiState = HistoryUiState.Loading
+        for (step in 1..50) {
+            testDispatcher.scheduler.advanceTimeBy(50)
+            historyState = viewModel.uiState.value
+            if (historyState is HistoryUiState.Success) break
+            Thread.sleep(20)
+        }
+        assertTrue("HistoryViewModel state must initially be Success", historyState is HistoryUiState.Success)
+        val initialHistory = historyState as HistoryUiState.Success
+        assertEquals(1, initialHistory.items.size)
+
+        // Step 3: Delete History for Comic via ViewModel
+        viewModel.clearHistoryForComic(comicId)
+
+        // Allow Room background query executor to update lastReadAt = null and emit
+        for (step in 1..50) {
+            testDispatcher.scheduler.advanceTimeBy(50)
+            historyState = viewModel.uiState.value
+            if (historyState is HistoryUiState.Empty) break
+            Thread.sleep(20)
+        }
+
+        // Step 4: VERIFY HISTORY DELETED FROM HISTORY SCREEN
+        assertEquals("HistoryViewModel state MUST become Empty after history deletion", HistoryUiState.Empty, viewModel.uiState.value)
+
+        // Step 5: VERIFY OPTION B DATA PRESERVATION IN ROOM DATABASE
+        val persistedComic = realComicDao.getById(comicId)!!
+        assertNull("Comic lastReadAt MUST become null in Room DB", persistedComic.lastReadAt)
+        assertTrue("Comic isBookmarked MUST remain true in Room DB", persistedComic.isBookmarked)
+
+        val persistedProgress = realProgressDao.getByComicId(comicId)!!
+        assertEquals("OPTION B: pageIndex MUST be preserved as 8 in Room DB", 8, persistedProgress.pageIndex)
+        assertEquals("OPTION B: scrollOffset MUST be preserved as 240 in Room DB", 240, persistedProgress.scrollOffset)
+        assertEquals("OPTION B: lastReadChapterId MUST be preserved in Room DB", chapterId, persistedProgress.lastReadChapterId)
+
+        // Step 6: Open ReaderViewModel directly for chapterId using SAME realRepo and SAME Room DB
+        val tempSpoolFile = tempFolder.newFile("spool_hist_reader_2.cbz")
+        val handle = CbzArchiveHandle(chapterId, tempSpoolFile) {}
+
+        val pages = (1..10).map { i -> PageMetadata(pageIndex = i - 1, entryName = "p$i.jpg", normalizedPath = "p$i.jpg") }
+        val fakeIndexer = com.example.kitsune.ui.screens.reader.FakeCbzPageIndexer().apply {
+            indexResult = PageIndexResult.Success(ChapterPageIndex(chapterId = chapterId, pages = pages))
+        }
+        val samplePage = PageMetadata(pageIndex = 0, entryName = "p1.jpg", normalizedPath = "p1.jpg")
+        val fakeDecoder = com.example.kitsune.ui.screens.reader.FakeCbzPageDecoder(ChapterPageIndex(chapterId = chapterId, pages = listOf(samplePage)))
+        val fakeDecoderFactory = com.example.kitsune.ui.screens.reader.FakeCbzPageDecoderFactory(fakeDecoder)
+        val fakeSettingsRepo = com.example.kitsune.ui.screens.reader.FakeReaderSettingsRepository()
+
+        val realRepoWrapper = object : LibraryRepository by realRepo {
+            override suspend fun openCbzArchive(cId: Long): com.example.kitsune.reader.CbzArchiveResult = com.example.kitsune.reader.CbzArchiveResult.Success(handle)
+        }
+
+        val readerViewModel = com.example.kitsune.ui.screens.reader.ReaderViewModel(
+            chapterId = chapterId,
+            libraryRepository = realRepoWrapper,
+            settingsRepository = fakeSettingsRepo,
+            cbzPageIndexer = fakeIndexer,
+            cbzPageDecoderFactory = fakeDecoderFactory
+        )
+
+        val collectReaderJob = launch(testDispatcher) { readerViewModel.uiState.collect() }
+
+        var readerState: com.example.kitsune.ui.screens.reader.ReaderUiState = com.example.kitsune.ui.screens.reader.ReaderUiState.Loading
+        for (step in 1..50) {
+            testDispatcher.scheduler.advanceTimeBy(50)
+            readerState = readerViewModel.uiState.value
+            if (readerState is com.example.kitsune.ui.screens.reader.ReaderUiState.Success) break
+            Thread.sleep(20)
+        }
+
+        // Step 7: VERIFY READER RESTORES EXACT PAGE INDEX (8) AND SCROLL OFFSET (240) FROM ROOM DB!
+        assertTrue("ReaderViewModel state must be Success", readerState is com.example.kitsune.ui.screens.reader.ReaderUiState.Success)
+        val successReader = readerState as com.example.kitsune.ui.screens.reader.ReaderUiState.Success
+        assertEquals("Reader MUST restore exact pageIndex 8 from Room DB even after history deletion!", 8, successReader.currentPageIndex)
+        assertEquals("Reader MUST restore exact scrollOffset 240 from Room DB even after history deletion!", 240, successReader.scrollOffset)
+
+        collectHistoryJob.cancel()
+        collectReaderJob.cancel()
+        db.close()
+    }
+
+    @Test
+    fun clearHistoryForComic_repositoryThrowsException_emitsShowFeedbackEvent() = runTest {
+        val rootUri = "content://root"
+        fakeRootPrefs.rootUriFlow.value = rootUri
+
+        val failingRepo = object : LibraryRepository by fakeRepo {
+            override suspend fun clearHistoryForComic(comicId: Long) {
+                throw RuntimeException("Database I/O failure")
+            }
+        }
+
+        viewModel = HistoryViewModel(failingRepo, fakeRootPrefs)
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+
+        val events = mutableListOf<HistoryEvent>()
+        val eventJob = launch(testDispatcher) {
+            viewModel.eventFlow.collect { events.add(it) }
+        }
+
+        viewModel.clearHistoryForComic(1L)
+
+        // Must emit feedback cleanly without crashing
+        assertEquals(1, events.size)
+        assertTrue(events.first() is HistoryEvent.ShowFeedback)
+        assertTrue((events.first() as HistoryEvent.ShowFeedback).message.contains("Gagal menghapus riwayat komik"))
+
+        eventJob.cancel()
+        collectJob.cancel()
     }
 }

@@ -884,6 +884,65 @@ class KitsuneDatabaseTest {
         searchJob.cancel()
     }
 
+    @Test
+    fun comicDao_clearHistory_setsLastReadAtNull_andPreservesProgressAndBookmark_OptionB() = runTest {
+        val root1 = "content://primary%3ARoot1"
+        val root2 = "content://primary%3ARoot2"
+
+        val comic1 = makeComic(root1, "Comics/A", "Comic A").copy(isBookmarked = true)
+        val comic2 = makeComic(root1, "Comics/B", "Comic B").copy(isBookmarked = false)
+        val comic3 = makeComic(root2, "Comics/C", "Comic C").copy(isBookmarked = true)
+
+        val id1 = comicDao.insert(comic1)
+        val id2 = comicDao.insert(comic2)
+        val id3 = comicDao.insert(comic3)
+
+        comicDao.updateLastReadAt(id1, 1000L)
+        comicDao.updateLastReadAt(id2, 2000L)
+        comicDao.updateLastReadAt(id3, 3000L)
+
+        val progress1 = makeProgress(id1, chapterNumber = 1, pageIndex = 4, scrollOffset = 100, updatedAt = 1000L)
+        val progress2 = makeProgress(id2, chapterNumber = 2, pageIndex = 8, scrollOffset = 200, updatedAt = 2000L)
+        progressDao.save(progress1)
+        progressDao.save(progress2)
+
+        // Clear history for Comic 1
+        comicDao.clearHistoryForComic(id1)
+
+        val retrieved1 = comicDao.getById(id1)!!
+        assertNull("Comic 1 lastReadAt MUST become null", retrieved1.lastReadAt)
+        assertTrue("Comic 1 isBookmarked MUST remain true", retrieved1.isBookmarked)
+
+        // OPTION B ASSERTION: ReadingProgressEntity for Comic 1 MUST remain untouched!
+        val preservedProgress1 = progressDao.getByComicId(id1)!!
+        assertEquals(4, preservedProgress1.pageIndex)
+        assertEquals(100, preservedProgress1.scrollOffset)
+
+        // History list for root1 now contains only Comic 2
+        val historyRoot1 = comicDao.observeRecentlyReadWithProgressByRoot(root1).first()
+        assertEquals(1, historyRoot1.size)
+        assertEquals(id2, historyRoot1.first().comic.id)
+
+        // Clear all history for Root 1
+        comicDao.clearAllHistoryByRoot(root1)
+
+        val retrieved2 = comicDao.getById(id2)!!
+        assertNull("Comic 2 lastReadAt MUST become null", retrieved2.lastReadAt)
+
+        // OPTION B ASSERTION: ReadingProgressEntity for Comic 2 MUST remain untouched!
+        val preservedProgress2 = progressDao.getByComicId(id2)!!
+        assertEquals(8, preservedProgress2.pageIndex)
+        assertEquals(200, preservedProgress2.scrollOffset)
+
+        // Root 1 history is now empty
+        assertTrue(comicDao.observeRecentlyReadWithProgressByRoot(root1).first().isEmpty())
+
+        // ROOT ISOLATION: Root 2 history for Comic 3 remains untouched!
+        val historyRoot2 = comicDao.observeRecentlyReadWithProgressByRoot(root2).first()
+        assertEquals(1, historyRoot2.size)
+        assertEquals(id3, historyRoot2.first().comic.id)
+    }
+
     // ═══════════════════════════════════════════
     // Helpers
     // ═══════════════════════════════════════════

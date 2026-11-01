@@ -925,6 +925,9 @@ class FakeComicDao : ComicDao {
     override fun searchComicsByRootEscaped(rootUri: String, rawQuery: String): Flow<List<ComicEntity>> =
         searchComicsByRoot(rootUri, rawQuery)
 
+    override suspend fun clearHistoryForComic(comicId: Long) {}
+    override suspend fun clearAllHistoryByRoot(rootUri: String) {}
+
     override suspend fun getById(comicId: Long): ComicEntity? = comics[comicId]
 
     override suspend fun getByRootAndPath(rootUri: String, relativePath: String): ComicEntity? =

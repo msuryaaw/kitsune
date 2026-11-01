@@ -61,6 +61,8 @@ class FakeBookmarkLibraryRepository : LibraryRepository {
     override fun observeComicsByRoot(rootUri: String): Flow<List<ComicEntity>> = flowOf(emptyList())
     override fun observeRecentlyReadByRoot(rootUri: String): Flow<List<ComicEntity>> = flowOf(emptyList())
     override fun observeRecentlyReadWithProgressByRoot(rootUri: String): Flow<List<ComicWithProgress>> = flowOf(emptyList())
+    override suspend fun clearHistoryForComic(comicId: Long) {}
+    override suspend fun clearAllHistoryByRoot(rootUri: String) {}
     override fun observeChaptersByComicId(comicId: Long): Flow<List<ChapterEntity>> = flowOf(emptyList())
     override fun observeComicById(comicId: Long): Flow<ComicEntity?> = flowOf(null)
     override suspend fun verifyChapterAvailable(chapterId: Long) = com.example.kitsune.data.ChapterAvailabilityResult.Missing

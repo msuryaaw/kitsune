@@ -51,6 +51,9 @@ class FakeComicDetailLibraryRepository : LibraryRepository {
 
     override fun observeRecentlyReadWithProgressByRoot(rootUri: String): Flow<List<com.example.kitsune.data.model.ComicWithProgress>> = flowOf(emptyList())
 
+    override suspend fun clearHistoryForComic(comicId: Long) {}
+    override suspend fun clearAllHistoryByRoot(rootUri: String) {}
+
     override fun observeChaptersByComicId(comicId: Long): Flow<List<ChapterEntity>> {
         if (shouldThrowError) return flow { throw RuntimeException(errorMessage) }
         return chaptersByComicId.map { it[comicId] ?: emptyList() }

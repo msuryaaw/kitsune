@@ -22,24 +22,32 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.FolderOff
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
@@ -141,17 +149,58 @@ private fun HistorySuccessView(
     onContinueClick: (ComicWithProgress) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var showClearAllDialog by remember { mutableStateOf(false) }
+    var itemToDelete by remember { mutableStateOf<ComicWithProgress?>(null) }
+
+    if (showClearAllDialog) {
+        ClearAllConfirmationDialog(
+            onConfirm = {
+                viewModel.clearAllHistoryForRoot()
+                showClearAllDialog = false
+            },
+            onDismiss = { showClearAllDialog = false }
+        )
+    }
+
+    itemToDelete?.let { item ->
+        SingleDeleteConfirmationDialog(
+            comicTitle = item.comic.title,
+            onConfirm = {
+                viewModel.clearHistoryForComic(item.comic.id)
+                itemToDelete = null
+            },
+            onDismiss = { itemToDelete = null }
+        )
+    }
+
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
-            Text(
-                text = "Riwayat Membaca (${items.size})",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Riwayat Membaca (${items.size})",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                OutlinedButton(
+                    onClick = { showClearAllDialog = true },
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.DeleteSweep,
+                        contentDescription = "Hapus Semua Riwayat",
+                        modifier = Modifier.padding(end = 4.dp)
+                    )
+                    Text("Hapus Semua", style = MaterialTheme.typography.labelMedium)
+                }
+            }
         }
 
         items(
@@ -162,7 +211,8 @@ private fun HistorySuccessView(
                 item = item,
                 viewModel = viewModel,
                 onClick = { onItemClick(item) },
-                onContinueClick = { onContinueClick(item) }
+                onContinueClick = { onContinueClick(item) },
+                onDeleteClick = { itemToDelete = item }
             )
         }
     }
@@ -174,6 +224,7 @@ private fun HistoryItemCard(
     viewModel: HistoryViewModel,
     onClick: () -> Unit,
     onContinueClick: () -> Unit,
+    onDeleteClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -244,7 +295,15 @@ private fun HistoryItemCard(
                 }
             }
 
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(6.dp))
+
+            IconButton(onClick = onDeleteClick) {
+                Icon(
+                    imageVector = Icons.Default.DeleteOutline,
+                    contentDescription = "Hapus Riwayat Komik",
+                    tint = MaterialTheme.colorScheme.outline
+                )
+            }
 
             OutlinedButton(
                 onClick = onContinueClick,
@@ -259,6 +318,55 @@ private fun HistoryItemCard(
             }
         }
     }
+}
+
+@Composable
+private fun SingleDeleteConfirmationDialog(
+    comicTitle: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Hapus Riwayat Komik") },
+        text = {
+            Text("Apakah Anda yakin ingin menghapus \"$comicTitle\" dari riwayat membaca? Posisi membaca Anda di Library tetap tersimpan.")
+        },
+        confirmButton = {
+            Button(onClick = onConfirm) {
+                Text("Hapus")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Batal")
+            }
+        }
+    )
+}
+
+@Composable
+private fun ClearAllConfirmationDialog(
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Hapus Semua Riwayat") },
+        text = {
+            Text("Apakah Anda yakin ingin menghapus seluruh riwayat membaca untuk folder aktif ini? Posisi membaca Anda di Library tetap tersimpan.")
+        },
+        confirmButton = {
+            Button(onClick = onConfirm) {
+                Text("Hapus Semua")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Batal")
+            }
+        }
+    )
 }
 
 @Composable

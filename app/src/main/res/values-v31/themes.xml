@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <style name="Theme.Kitsune.Starting" parent="Theme.Kitsune">
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/kitsune_splash_logo</item>
+        <item name="android:windowSplashScreenBackground">@color/splash_background</item>
+    </style>
+</resources>

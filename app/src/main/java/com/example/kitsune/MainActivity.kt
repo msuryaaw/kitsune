@@ -13,6 +13,7 @@ import com.example.kitsune.ui.theme.KitsuneTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        setTheme(R.style.Theme_Kitsune)
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 

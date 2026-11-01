@@ -2,4 +2,8 @@
 <resources>
 
     <style name="Theme.Kitsune" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <style name="Theme.Kitsune.Starting" parent="Theme.Kitsune">
+        <item name="android:windowBackground">@drawable/kitsune_splash_bg</item>
+    </style>
 </resources>

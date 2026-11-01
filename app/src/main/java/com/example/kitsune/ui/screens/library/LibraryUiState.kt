@@ -2,6 +2,12 @@ package com.example.kitsune.ui.screens.library
 
 import com.example.kitsune.data.entity.ComicEntity
 
+enum class SortOption(val displayName: String) {
+    TITLE_ASC("Nama (A-Z)"),
+    TITLE_DESC("Nama (Z-A)"),
+    LAST_READ_DESC("Terakhir Dibaca")
+}
+
 /**
  * UI State for Library Screen.
  */
@@ -37,23 +43,27 @@ sealed interface LibraryUiState {
     object NoValidChapters : LibraryUiState
 
     /**
-     * Collection loaded successfully with matching comic entities, grid column preference, search query, and optional issues count.
+     * Collection loaded successfully with matching comic entities, grid column preference, search query, sorting, and optional issues count.
      */
     data class Success(
         val rootUriString: String,
         val comics: List<ComicEntity>,
         val gridColumns: Int = 3,
         val issuesCount: Int = 0,
-        val searchQuery: String = ""
+        val searchQuery: String = "",
+        val sortOption: SortOption = SortOption.TITLE_ASC,
+        val isBookmarkedOnly: Boolean = false
     ) : LibraryUiState
 
     /**
-     * Search query did not match any comic titles in the collection.
+     * Search query or active filter did not match any comic titles in the collection.
      */
     data class SearchNoResults(
         val rootUriString: String,
-        val searchQuery: String,
-        val gridColumns: Int = 3
+        val searchQuery: String = "",
+        val gridColumns: Int = 3,
+        val sortOption: SortOption = SortOption.TITLE_ASC,
+        val isBookmarkedOnly: Boolean = false
     ) : LibraryUiState
 
     /**

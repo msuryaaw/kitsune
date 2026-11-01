@@ -856,4 +856,259 @@ class LibraryViewModelTest {
         collectJob.cancel()
         db.close()
     }
+
+    @Test
+    fun sortOption_TITLE_ASC_sortsByTitleNaturalOrderAscending() = runTest {
+        val rootUri = "content://primary%3AKitsune"
+        val comic1 = ComicEntity(id = 1L, rootUriString = rootUri, relativePath = "Comics/M10", title = "Manga 10", lastScannedAt = 100L)
+        val comic2 = ComicEntity(id = 2L, rootUriString = rootUri, relativePath = "Comics/M2", title = "Manga 2", lastScannedAt = 100L)
+        val comic3 = ComicEntity(id = 3L, rootUriString = rootUri, relativePath = "Comics/M1", title = "Manga 1", lastScannedAt = 100L)
+
+        fakeRepo.comicsByRoot.value = mapOf(rootUri to listOf(comic1, comic2, comic3))
+        fakePrefs.setRootUriString(rootUri)
+
+        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo, fakeDetector)
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+
+        viewModel.setSortOption(SortOption.TITLE_ASC)
+
+        val state = viewModel.uiState.value as LibraryUiState.Success
+        assertEquals(3, state.comics.size)
+        // Natural order: "Manga 1", "Manga 2", "Manga 10"
+        assertEquals("Manga 1", state.comics[0].title)
+        assertEquals("Manga 2", state.comics[1].title)
+        assertEquals("Manga 10", state.comics[2].title)
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun sortOption_TITLE_DESC_sortsByTitleNaturalOrderDescending() = runTest {
+        val rootUri = "content://primary%3AKitsune"
+        val comic1 = ComicEntity(id = 1L, rootUriString = rootUri, relativePath = "Comics/M10", title = "Manga 10", lastScannedAt = 100L)
+        val comic2 = ComicEntity(id = 2L, rootUriString = rootUri, relativePath = "Comics/M2", title = "Manga 2", lastScannedAt = 100L)
+        val comic3 = ComicEntity(id = 3L, rootUriString = rootUri, relativePath = "Comics/M1", title = "Manga 1", lastScannedAt = 100L)
+
+        fakeRepo.comicsByRoot.value = mapOf(rootUri to listOf(comic1, comic2, comic3))
+        fakePrefs.setRootUriString(rootUri)
+
+        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo, fakeDetector)
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+
+        viewModel.setSortOption(SortOption.TITLE_DESC)
+
+        val state = viewModel.uiState.value as LibraryUiState.Success
+        assertEquals(3, state.comics.size)
+        // Natural order DESC: "Manga 10", "Manga 2", "Manga 1"
+        assertEquals("Manga 10", state.comics[0].title)
+        assertEquals("Manga 2", state.comics[1].title)
+        assertEquals("Manga 1", state.comics[2].title)
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun sortOption_LAST_READ_DESC_sortsByLastReadAtDescending_withNaturalTitleTieBreaker() = runTest {
+        val rootUri = "content://primary%3AKitsune"
+        val comic1 = ComicEntity(id = 1L, rootUriString = rootUri, relativePath = "Comics/A", title = "Manga A", lastReadAt = 1000L)
+        val comic2 = ComicEntity(id = 2L, rootUriString = rootUri, relativePath = "Comics/B", title = "Manga B", lastReadAt = 5000L)
+        val comic3 = ComicEntity(id = 3L, rootUriString = rootUri, relativePath = "Comics/C", title = "Manga C", lastReadAt = null)
+
+        fakeRepo.comicsByRoot.value = mapOf(rootUri to listOf(comic1, comic2, comic3))
+        fakePrefs.setRootUriString(rootUri)
+
+        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo, fakeDetector)
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+
+        viewModel.setSortOption(SortOption.LAST_READ_DESC)
+
+        val state = viewModel.uiState.value as LibraryUiState.Success
+        assertEquals(3, state.comics.size)
+        assertEquals(2L, state.comics[0].id) // lastReadAt = 5000L
+        assertEquals(1L, state.comics[1].id) // lastReadAt = 1000L
+        assertEquals(3L, state.comics[2].id) // lastReadAt = null
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun isBookmarkedOnly_filtersOnlyBookmarkedComics() = runTest {
+        val rootUri = "content://primary%3AKitsune"
+        val comic1 = ComicEntity(id = 1L, rootUriString = rootUri, relativePath = "Comics/A", title = "Comic A", isBookmarked = true)
+        val comic2 = ComicEntity(id = 2L, rootUriString = rootUri, relativePath = "Comics/B", title = "Comic B", isBookmarked = false)
+
+        fakeRepo.comicsByRoot.value = mapOf(rootUri to listOf(comic1, comic2))
+        fakePrefs.setRootUriString(rootUri)
+
+        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo, fakeDetector)
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+
+        viewModel.setBookmarkedFilter(true)
+
+        val state = viewModel.uiState.value as LibraryUiState.Success
+        assertEquals(1, state.comics.size)
+        assertEquals("Comic A", state.comics.first().title)
+        assertTrue(state.isBookmarkedOnly)
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun combined_searchFilterAndSorting_operatesTogether() = runTest {
+        val rootUri = "content://primary%3AKitsune"
+        val comic1 = ComicEntity(id = 1L, rootUriString = rootUri, relativePath = "Comics/OP10", title = "One Piece 10", isBookmarked = true, lastReadAt = 1000L)
+        val comic2 = ComicEntity(id = 2L, rootUriString = rootUri, relativePath = "Comics/OP2", title = "One Piece 2", isBookmarked = true, lastReadAt = 5000L)
+        val comic3 = ComicEntity(id = 3L, rootUriString = rootUri, relativePath = "Comics/OP1", title = "One Piece 1", isBookmarked = false, lastReadAt = 9000L)
+        val comic4 = ComicEntity(id = 4L, rootUriString = rootUri, relativePath = "Comics/Naruto", title = "Naruto", isBookmarked = true, lastReadAt = 8000L)
+
+        fakeRepo.comicsByRoot.value = mapOf(rootUri to listOf(comic1, comic2, comic3, comic4))
+        fakePrefs.setRootUriString(rootUri)
+
+        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo, fakeDetector)
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+
+        // Apply Search "Piece" + Bookmark Only + Sort LAST_READ_DESC
+        viewModel.onSearchQueryChanged("Piece")
+        viewModel.setBookmarkedFilter(true)
+        viewModel.setSortOption(SortOption.LAST_READ_DESC)
+
+        val state = viewModel.uiState.value as LibraryUiState.Success
+        assertEquals(2, state.comics.size)
+        assertEquals("One Piece 2", state.comics[0].title)
+        assertEquals("One Piece 10", state.comics[1].title)
+
+        // Reset
+        viewModel.resetFiltersAndSorting()
+
+        val resetState = viewModel.uiState.value as LibraryUiState.Success
+        assertEquals(4, resetState.comics.size)
+        assertEquals("", resetState.searchQuery)
+        assertFalse(resetState.isBookmarkedOnly)
+        assertEquals(SortOption.TITLE_ASC, resetState.sortOption)
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun sortOption_tieBreakers_deterministicSortingWhenTitlesOrTimestampsIdentical() = runTest {
+        val rootUri = "content://primary%3AKitsune"
+        val comicA = ComicEntity(id = 1L, rootUriString = rootUri, relativePath = "Comics/B_Path", title = "Same Title", lastReadAt = 1000L)
+        val comicB = ComicEntity(id = 2L, rootUriString = rootUri, relativePath = "Comics/A_Path", title = "Same Title", lastReadAt = 1000L)
+
+        fakeRepo.comicsByRoot.value = mapOf(rootUri to listOf(comicA, comicB))
+        fakePrefs.setRootUriString(rootUri)
+
+        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo, fakeDetector)
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+
+        // TITLE_ASC: Identical titles tie-break by relativePath ("Comics/A_Path" before "Comics/B_Path")
+        viewModel.setSortOption(SortOption.TITLE_ASC)
+        val stateAsc = viewModel.uiState.value as LibraryUiState.Success
+        assertEquals("Comics/A_Path", stateAsc.comics[0].relativePath)
+        assertEquals("Comics/B_Path", stateAsc.comics[1].relativePath)
+
+        // LAST_READ_DESC: Identical lastReadAt tie-break by title then relativePath
+        viewModel.setSortOption(SortOption.LAST_READ_DESC)
+        val stateLastRead = viewModel.uiState.value as LibraryUiState.Success
+        assertEquals("Comics/A_Path", stateLastRead.comics[0].relativePath)
+        assertEquals("Comics/B_Path", stateLastRead.comics[1].relativePath)
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun rootIsolation_underActiveSortingAndBookmarkFilter() = runTest {
+        val rootA = "content://primary%3ARootA"
+        val rootB = "content://primary%3ARootB"
+
+        val comicA = ComicEntity(id = 1L, rootUriString = rootA, relativePath = "Comics/A", title = "Comic A", isBookmarked = true, lastReadAt = 1000L)
+        val comicB = ComicEntity(id = 2L, rootUriString = rootB, relativePath = "Comics/B", title = "Comic B", isBookmarked = true, lastReadAt = 5000L)
+
+        fakeRepo.comicsByRoot.value = mapOf(
+            rootA to listOf(comicA),
+            rootB to listOf(comicB)
+        )
+
+        fakePrefs.setRootUriString(rootA)
+        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo, fakeDetector)
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+
+        // Activate bookmark filter and LAST_READ_DESC sort
+        viewModel.setBookmarkedFilter(true)
+        viewModel.setSortOption(SortOption.LAST_READ_DESC)
+
+        val stateA = viewModel.uiState.value as LibraryUiState.Success
+        assertEquals(1, stateA.comics.size)
+        assertEquals("Comic A", stateA.comics.first().title)
+
+        // Switch to Root B under active sort and filter
+        fakePrefs.setRootUriString(rootB)
+
+        val stateB = viewModel.uiState.value as LibraryUiState.Success
+        assertEquals(rootB, stateB.rootUriString)
+        assertEquals(1, stateB.comics.size)
+        assertEquals("Comic B", stateB.comics.first().title)
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun liveObservation_underActiveSearchAndSortAndBookmarkFilter() = runTest {
+        val rootUri = "content://primary%3AKitsune"
+        val comic1 = ComicEntity(id = 1L, rootUriString = rootUri, relativePath = "Comics/OP1", title = "One Piece 1", isBookmarked = true, lastReadAt = 1000L)
+
+        fakeRepo.comicsByRoot.value = mapOf(rootUri to listOf(comic1))
+        fakePrefs.setRootUriString(rootUri)
+
+        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo, fakeDetector)
+
+        val stateEmissions = mutableListOf<LibraryUiState>()
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect { stateEmissions.add(it) } }
+
+        // Activate Search "Piece", Bookmark Only, LAST_READ_DESC sort
+        viewModel.onSearchQueryChanged("Piece")
+        viewModel.setBookmarkedFilter(true)
+        viewModel.setSortOption(SortOption.LAST_READ_DESC)
+
+        val currentSuccess = viewModel.uiState.value as LibraryUiState.Success
+        assertEquals(1, currentSuccess.comics.size)
+
+        // Add a new matching bookmarked comic "One Piece 3" with higher lastReadAt = 9999L
+        val comic3 = ComicEntity(id = 3L, rootUriString = rootUri, relativePath = "Comics/OP3", title = "One Piece 3", isBookmarked = true, lastReadAt = 9999L)
+        fakeRepo.comicsByRoot.value = mapOf(rootUri to listOf(comic1, comic3))
+
+        val updatedSuccess = viewModel.uiState.value as LibraryUiState.Success
+        assertEquals("Active collector MUST reactively update under active search, filter, and sort", 2, updatedSuccess.comics.size)
+        assertEquals("One Piece 3", updatedSuccess.comics.first().title)
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun emptyResult_whenBookmarkFilterActiveWithZeroBookmarks_providesResetRecovery() = runTest {
+        val rootUri = "content://primary%3AKitsune"
+        val comic1 = ComicEntity(id = 1L, rootUriString = rootUri, relativePath = "Comics/A", title = "Unbookmarked Comic", isBookmarked = false)
+
+        fakeRepo.comicsByRoot.value = mapOf(rootUri to listOf(comic1))
+        fakePrefs.setRootUriString(rootUri)
+
+        viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo, fakeDetector)
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+
+        // Activate bookmark filter -> 0 matches -> SearchNoResults
+        viewModel.setBookmarkedFilter(true)
+
+        val stateNoResults = viewModel.uiState.value
+        assertTrue("Filter with 0 matches MUST emit SearchNoResults state", stateNoResults is LibraryUiState.SearchNoResults)
+        assertTrue((stateNoResults as LibraryUiState.SearchNoResults).isBookmarkedOnly)
+
+        // Reset filter
+        viewModel.resetFiltersAndSorting()
+
+        val restoredState = viewModel.uiState.value
+        assertTrue("Reset MUST restore Success state with full collection", restoredState is LibraryUiState.Success)
+        assertEquals(1, (restoredState as LibraryUiState.Success).comics.size)
+
+        collectJob.cancel()
+    }
 }

@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material.icons.filled.Warning
@@ -152,6 +153,8 @@ fun LibraryScreen(
                     gridColumns = state.gridColumns,
                     issuesCount = state.issuesCount,
                     searchQuery = state.searchQuery,
+                    sortOption = state.sortOption,
+                    isBookmarkedOnly = state.isBookmarkedOnly,
                     viewModel = viewModel,
                     onComicClick = onComicClick,
                     onGridColumnsChange = { columns -> viewModel.setGridColumns(columns) },
@@ -160,6 +163,8 @@ fun LibraryScreen(
             is LibraryUiState.SearchNoResults -> {
                 SearchNoResultsView(
                     searchQuery = state.searchQuery,
+                    sortOption = state.sortOption,
+                    isBookmarkedOnly = state.isBookmarkedOnly,
                     viewModel = viewModel,
                     modifier = Modifier.align(Alignment.TopCenter)
                 )
@@ -371,6 +376,8 @@ private fun LibrarySuccessView(
     gridColumns: Int,
     issuesCount: Int,
     searchQuery: String,
+    sortOption: SortOption,
+    isBookmarkedOnly: Boolean,
     viewModel: LibraryViewModel,
     onComicClick: (Long) -> Unit,
     onGridColumnsChange: (Int) -> Unit,
@@ -380,6 +387,14 @@ private fun LibrarySuccessView(
         LibrarySearchBar(
             searchQuery = searchQuery,
             onSearchQueryChange = { viewModel.onSearchQueryChanged(it) }
+        )
+        FilterAndSortControlBar(
+            sortOption = sortOption,
+            isBookmarkedOnly = isBookmarkedOnly,
+            searchQuery = searchQuery,
+            onSortOptionChange = { viewModel.setSortOption(it) },
+            onBookmarkedFilterChange = { viewModel.setBookmarkedFilter(it) },
+            onResetClick = { viewModel.resetFiltersAndSorting() }
         )
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -431,6 +446,56 @@ private fun LibrarySuccessView(
 }
 
 @Composable
+private fun FilterAndSortControlBar(
+    sortOption: SortOption,
+    isBookmarkedOnly: Boolean,
+    searchQuery: String,
+    onSortOptionChange: (SortOption) -> Unit,
+    onBookmarkedFilterChange: (Boolean) -> Unit,
+    onResetClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(bottom = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        FilterChip(
+            selected = isBookmarkedOnly,
+            onClick = { onBookmarkedFilterChange(!isBookmarkedOnly) },
+            label = { Text("Favorit") },
+            leadingIcon = {
+                Icon(
+                    imageVector = if (isBookmarkedOnly) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                    contentDescription = null,
+                    tint = if (isBookmarkedOnly) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        )
+
+        SortOption.entries.forEach { option ->
+            FilterChip(
+                selected = sortOption == option,
+                onClick = { onSortOptionChange(option) },
+                label = { Text(option.displayName) }
+            )
+        }
+
+        if (searchQuery.isNotBlank() || isBookmarkedOnly || sortOption != SortOption.TITLE_ASC) {
+            IconButton(onClick = onResetClick) {
+                Icon(
+                    imageVector = Icons.Default.RestartAlt,
+                    contentDescription = "Reset Filter & Sorting",
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun LibrarySearchBar(
     searchQuery: String,
     onSearchQueryChange: (String) -> Unit,
@@ -466,6 +531,8 @@ private fun LibrarySearchBar(
 @Composable
 private fun SearchNoResultsView(
     searchQuery: String,
+    sortOption: SortOption,
+    isBookmarkedOnly: Boolean,
     viewModel: LibraryViewModel,
     modifier: Modifier = Modifier
 ) {
@@ -477,7 +544,15 @@ private fun SearchNoResultsView(
             searchQuery = searchQuery,
             onSearchQueryChange = { viewModel.onSearchQueryChanged(it) }
         )
-        Spacer(modifier = Modifier.height(32.dp))
+        FilterAndSortControlBar(
+            sortOption = sortOption,
+            isBookmarkedOnly = isBookmarkedOnly,
+            searchQuery = searchQuery,
+            onSortOptionChange = { viewModel.setSortOption(it) },
+            onBookmarkedFilterChange = { viewModel.setBookmarkedFilter(it) },
+            onResetClick = { viewModel.resetFiltersAndSorting() }
+        )
+        Spacer(modifier = Modifier.height(24.dp))
         Icon(
             imageVector = Icons.Default.SearchOff,
             contentDescription = null,
@@ -485,18 +560,22 @@ private fun SearchNoResultsView(
             modifier = Modifier.padding(bottom = 12.dp)
         )
         Text(
-            text = "Tidak Ada Hasil Pencarian",
+            text = "Tidak Ada Hasil",
             style = MaterialTheme.typography.titleLarge
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Tidak ditemukan komik dengan judul yang cocok dengan \"$searchQuery\".",
+            text = if (searchQuery.isNotBlank()) {
+                "Tidak ditemukan komik dengan judul yang cocok dengan \"$searchQuery\"."
+            } else {
+                "Tidak ditemukan komik yang cocok dengan filter aktif."
+            },
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.outline
         )
         Spacer(modifier = Modifier.height(16.dp))
-        Button(onClick = { viewModel.onSearchQueryChanged("") }) {
-            Text("Hapus Pencarian")
+        Button(onClick = { viewModel.resetFiltersAndSorting() }) {
+            Text("Reset Filter & Pencarian")
         }
     }
 }

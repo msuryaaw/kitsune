@@ -30,6 +30,8 @@ class LibraryViewModel(
 
     private val isRefreshing = MutableStateFlow(false)
     val searchQuery = MutableStateFlow("")
+    val sortOption = MutableStateFlow(SortOption.TITLE_ASC)
+    val isBookmarkedOnly = MutableStateFlow(false)
 
     val uiState: StateFlow<LibraryUiState> = rootFolderPreferences
         .observeRootUriString()
@@ -42,32 +44,80 @@ class LibraryViewModel(
                     settingsRepository.observeSettings(),
                     libraryRepository.observeLastScanResult(),
                     isRefreshing,
-                    searchQuery
-                ) { comics, settings, scanResult, refreshing, query ->
+                    searchQuery,
+                    sortOption,
+                    isBookmarkedOnly
+                ) { flows: Array<Any?> ->
+                    @Suppress("UNCHECKED_CAST")
+                    val comics = flows[0] as List<com.example.kitsune.data.entity.ComicEntity>
+                    val settings = flows[1] as com.example.kitsune.data.entity.SettingsEntity
+                    val scanResult = flows[2] as LibraryScanResult?
+                    val refreshing = flows[3] as Boolean
+                    val query = flows[4] as String
+                    val sort = flows[5] as SortOption
+                    val bookmarkedOnly = flows[6] as Boolean
+
                     if (refreshing) {
                         LibraryUiState.Loading
                     } else if (comics.isNotEmpty()) {
                         val trimmedQuery = query.trim()
-                        val filteredComics = if (trimmedQuery.isBlank()) {
+
+                        // 1. Search Filter
+                        val searchFiltered = if (trimmedQuery.isBlank()) {
                             comics
                         } else {
                             comics.filter { it.title.contains(trimmedQuery, ignoreCase = true) }
                         }
 
-                        if (filteredComics.isNotEmpty()) {
+                        // 2. Bookmark Filter
+                        val bookmarkFiltered = if (bookmarkedOnly) {
+                            searchFiltered.filter { it.isBookmarked }
+                        } else {
+                            searchFiltered
+                        }
+
+                        // 3. Natural Deterministic Sorting
+                        val finalComics = when (sort) {
+                            SortOption.TITLE_ASC ->
+                                bookmarkFiltered.sortedWith(
+                                    Comparator<com.example.kitsune.data.entity.ComicEntity> { c1, c2 ->
+                                        com.example.kitsune.scanner.NaturalOrderComparator.compare(c1.title, c2.title)
+                                    }.thenBy { it.relativePath }
+                                )
+                            SortOption.TITLE_DESC ->
+                                bookmarkFiltered.sortedWith(
+                                    Comparator<com.example.kitsune.data.entity.ComicEntity> { c1, c2 ->
+                                        com.example.kitsune.scanner.NaturalOrderComparator.compare(c2.title, c1.title)
+                                    }.thenBy { it.relativePath }
+                                )
+                            SortOption.LAST_READ_DESC ->
+                                bookmarkFiltered.sortedWith(
+                                    compareByDescending<com.example.kitsune.data.entity.ComicEntity> { it.lastReadAt ?: 0L }
+                                        .thenComparing { c1, c2 ->
+                                            com.example.kitsune.scanner.NaturalOrderComparator.compare(c1.title, c2.title)
+                                        }
+                                        .thenBy { it.relativePath }
+                                )
+                        }
+
+                        if (finalComics.isNotEmpty()) {
                             val issuesCount = (scanResult as? LibraryScanResult.Success)?.issues?.size ?: 0
                             LibraryUiState.Success(
                                 rootUriString = rootUri,
-                                comics = filteredComics,
+                                comics = finalComics,
                                 gridColumns = settings.gridColumns.coerceIn(2, 4),
                                 issuesCount = issuesCount,
-                                searchQuery = query
+                                searchQuery = query,
+                                sortOption = sort,
+                                isBookmarkedOnly = bookmarkedOnly
                             )
                         } else {
                             LibraryUiState.SearchNoResults(
                                 rootUriString = rootUri,
                                 searchQuery = query,
-                                gridColumns = settings.gridColumns.coerceIn(2, 4)
+                                gridColumns = settings.gridColumns.coerceIn(2, 4),
+                                sortOption = sort,
+                                isBookmarkedOnly = bookmarkedOnly
                             )
                         }
                     } else {
@@ -133,6 +183,20 @@ class LibraryViewModel(
 
     fun onSearchQueryChanged(query: String) {
         searchQuery.value = query
+    }
+
+    fun setSortOption(option: SortOption) {
+        sortOption.value = option
+    }
+
+    fun setBookmarkedFilter(bookmarkedOnly: Boolean) {
+        isBookmarkedOnly.value = bookmarkedOnly
+    }
+
+    fun resetFiltersAndSorting() {
+        searchQuery.value = ""
+        isBookmarkedOnly.value = false
+        sortOption.value = SortOption.TITLE_ASC
     }
 
     fun setGridColumns(columns: Int) {

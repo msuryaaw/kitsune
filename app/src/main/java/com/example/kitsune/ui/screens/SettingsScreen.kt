@@ -5,15 +5,20 @@ import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -38,6 +43,7 @@ fun SettingsScreen(
     val context = LocalContext.current
     var folderState by remember { mutableStateOf<RootFolderState>(RootFolderState.NotConfigured) }
     var operationError by remember { mutableStateOf<String?>(null) }
+    var isVerifying by remember { mutableStateOf(false) }
 
     fun refreshStatus() {
         val uriStr = rootFolderPreferences.getRootUriString()
@@ -202,28 +208,54 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                Button(
-                    onClick = {
-                        val openDocTreeIntent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
-                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
-                            val currentStr = rootFolderPreferences.getRootUriString()
-                            if (!currentStr.isNullOrEmpty()) {
-                                try {
-                                    val currentUri = Uri.parse(currentStr)
-                                    putExtra("android.provider.extra.INITIAL_URI", currentUri)
-                                } catch (_: Exception) {}
-                            }
-                        }
-                        launcher.launch(openDocTreeIntent)
-                    }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(
-                        text = if (folderState is RootFolderState.Ready) {
-                            "Ubah Folder Root"
-                        } else {
-                            "Pilih Folder Root"
+                    Button(
+                        onClick = {
+                            val openDocTreeIntent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                                val currentStr = rootFolderPreferences.getRootUriString()
+                                if (!currentStr.isNullOrEmpty()) {
+                                    try {
+                                        val currentUri = Uri.parse(currentStr)
+                                        putExtra("android.provider.extra.INITIAL_URI", currentUri)
+                                    } catch (_: Exception) {}
+                                }
+                            }
+                            launcher.launch(openDocTreeIntent)
                         }
-                    )
+                    ) {
+                        Text(
+                            text = if (folderState is RootFolderState.Ready) {
+                                "Ubah Folder Root"
+                            } else {
+                                "Pilih Folder Root"
+                            }
+                        )
+                    }
+
+                    if (folderState !is RootFolderState.NotConfigured) {
+                        OutlinedButton(
+                            onClick = {
+                                operationError = null
+                                isVerifying = true
+                                refreshStatus()
+                                isVerifying = false
+                            },
+                            enabled = !isVerifying
+                        ) {
+                            if (isVerifying) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                            }
+                            Text("Periksa Ulang Akses")
+                        }
+                    }
                 }
 
                 if (folderState !is RootFolderState.NotConfigured) {

@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -25,6 +26,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -54,6 +56,7 @@ fun SettingsScreen(
     var folderState by remember { mutableStateOf<RootFolderState>(RootFolderState.NotConfigured) }
     var operationError by remember { mutableStateOf<String?>(null) }
     var isVerifying by remember { mutableStateOf(false) }
+    var showReleaseRootDialog by remember { mutableStateOf(false) }
 
     val settingsState by (settingsRepository?.observeSettings() ?: flowOf(com.example.kitsune.data.entity.SettingsEntity()))
         .collectAsStateWithLifecycle(initialValue = com.example.kitsune.data.entity.SettingsEntity())
@@ -272,10 +275,10 @@ fun SettingsScreen(
                     }
                 }
 
-                if (folderState !is RootFolderState.NotConfigured) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedButton(
-                        onClick = {
+                if (showReleaseRootDialog) {
+                    ReleaseRootConfirmationDialog(
+                        onConfirm = {
+                            showReleaseRootDialog = false
                             val currentStr = rootFolderPreferences.getRootUriString()
                             var releaseFailed = false
                             if (!currentStr.isNullOrEmpty()) {
@@ -296,7 +299,15 @@ fun SettingsScreen(
                                 rootFolderPreferences.setRootUriString(null)
                                 refreshStatus()
                             }
-                        }
+                        },
+                        onDismiss = { showReleaseRootDialog = false }
+                    )
+                }
+
+                if (folderState !is RootFolderState.NotConfigured) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = { showReleaseRootDialog = true }
                     ) {
                         Text("Lepas Folder Root")
                     }
@@ -477,4 +488,28 @@ fun SettingsScreen(
             }
         }
     }
+}
+
+@Composable
+private fun ReleaseRootConfirmationDialog(
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Lepas Folder Root") },
+        text = {
+            Text("Apakah Anda yakin ingin melepas folder root aktif? Aplikasi tidak dapat memuat komik sampai folder root dipilih kembali.")
+        },
+        confirmButton = {
+            Button(onClick = onConfirm) {
+                Text("Lepas")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Batal")
+            }
+        }
+    )
 }

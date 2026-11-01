@@ -33,4 +33,9 @@ interface SettingsRepository {
      * Updates the page fit setting in DB ("fit_screen", "fit_width", or "fit_height").
      */
     suspend fun setPageFit(pageFit: String)
+
+    /**
+     * Updates the app theme setting in DB ("system", "light", or "dark").
+     */
+    suspend fun setTheme(theme: String)
 }

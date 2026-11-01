@@ -232,4 +232,51 @@ class SettingsRepositoryTest {
         fileDb.close()
         dbFile.delete()
     }
+
+    @Test
+    fun setTheme_validInputs_persistsAndPreservesOtherFields() = runTest {
+        repository.setTheme("light")
+        assertEquals("light", repository.observeSettings().first().theme)
+
+        repository.setTheme("dark")
+        assertEquals("dark", repository.observeSettings().first().theme)
+
+        repository.setTheme("system")
+        assertEquals("system", repository.observeSettings().first().theme)
+    }
+
+    @Test
+    fun setTheme_invalidInput_sanitizesToSystem() = runTest {
+        repository.setTheme("invalid_theme_string")
+        assertEquals("system", repository.observeSettings().first().theme)
+    }
+
+    @Test
+    fun themeAndGridPreferences_persistsAcrossDatabaseReopen() = runTest {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val dbFile = context.getDatabasePath("test_theme_grid_prefs.db")
+        dbFile.delete()
+
+        var fileDb = Room.databaseBuilder(context, KitsuneDatabase::class.java, dbFile.name)
+            .allowMainThreadQueries()
+            .build()
+        var repo: SettingsRepository = DefaultSettingsRepository(fileDb.settingsDao())
+
+        repo.setTheme("dark")
+        repo.setGridColumns(4)
+
+        fileDb.close()
+
+        fileDb = Room.databaseBuilder(context, KitsuneDatabase::class.java, dbFile.name)
+            .allowMainThreadQueries()
+            .build()
+        repo = DefaultSettingsRepository(fileDb.settingsDao())
+
+        val restored = repo.observeSettings().first()
+        assertEquals("dark", restored.theme)
+        assertEquals(4, restored.gridColumns)
+
+        fileDb.close()
+        dbFile.delete()
+    }
 }

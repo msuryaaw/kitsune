@@ -94,6 +94,9 @@ class FakeReaderSettingsRepository(initialSettings: SettingsEntity = SettingsEnt
     override suspend fun setPageFit(pageFit: String) {
         settingsFlow.value = settingsFlow.value.copy(pageFit = pageFit)
     }
+    override suspend fun setTheme(theme: String) {
+        settingsFlow.value = settingsFlow.value.copy(theme = theme)
+    }
 }
 
 class FakeCbzPageIndexer : CbzPageIndexer {

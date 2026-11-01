@@ -46,4 +46,14 @@ class DefaultSettingsRepository(
         val updated = (existing ?: SettingsEntity()).copy(pageFit = sanitized)
         settingsDao.upsertSettings(updated)
     }
+
+    override suspend fun setTheme(theme: String) {
+        val sanitized = when (theme) {
+            "light", "dark" -> theme
+            else -> "system"
+        }
+        val existing = settingsDao.getSettings()
+        val updated = (existing ?: SettingsEntity()).copy(theme = sanitized)
+        settingsDao.upsertSettings(updated)
+    }
 }

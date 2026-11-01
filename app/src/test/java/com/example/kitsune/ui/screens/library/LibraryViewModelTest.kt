@@ -152,6 +152,10 @@ class FakeSettingsRepository(
     override suspend fun setPageFit(pageFit: String) {
         settingsFlow.value = settingsFlow.value.copy(pageFit = pageFit)
     }
+
+    override suspend fun setTheme(theme: String) {
+        settingsFlow.value = settingsFlow.value.copy(theme = theme)
+    }
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)

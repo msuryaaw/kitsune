@@ -405,5 +405,76 @@ fun SettingsScreen(
                 }
             }
         }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Appearance & Grid Preferences Card
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant
+            )
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "Tampilan & Grid",
+                    style = MaterialTheme.typography.titleMedium
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Tema Aplikasi
+                Text(
+                    text = "Tema Tampilan",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = settingsState.theme == "system",
+                        onClick = {
+                            scope.launch { settingsRepository?.setTheme("system") }
+                        },
+                        label = { Text("Sistem") }
+                    )
+                    FilterChip(
+                        selected = settingsState.theme == "light",
+                        onClick = {
+                            scope.launch { settingsRepository?.setTheme("light") }
+                        },
+                        label = { Text("Terang") }
+                    )
+                    FilterChip(
+                        selected = settingsState.theme == "dark",
+                        onClick = {
+                            scope.launch { settingsRepository?.setTheme("dark") }
+                        },
+                        label = { Text("Gelap") }
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Jumlah Kolom Grid Library
+                Text(
+                    text = "Jumlah Kolom Grid Library",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(2, 3, 4).forEach { cols ->
+                        FilterChip(
+                            selected = settingsState.gridColumns == cols,
+                            onClick = {
+                                scope.launch { settingsRepository?.setGridColumns(cols) }
+                            },
+                            label = { Text("${cols}x") }
+                        )
+                    }
+                }
+            }
+        }
     }
 }

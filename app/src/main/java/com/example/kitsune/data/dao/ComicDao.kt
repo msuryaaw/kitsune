@@ -126,7 +126,8 @@ interface ComicDao {
                     isBookmarked = existing.isBookmarked,
                     lastReadAt = existing.lastReadAt,
                     type = comic.type ?: existing.type,
-                    language = comic.language ?: existing.language
+                    language = comic.language ?: existing.language,
+                    author = comic.author ?: existing.author
                 )
             )
             existing.id

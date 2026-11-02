@@ -313,10 +313,9 @@ class DefaultLibraryRepository(
         title = scannedComic.title,
         type = scannedComic.type,
         language = scannedComic.language,
+        author = scannedComic.author,
         coverEntryPath = scannedComic.coverEntryPath,
         lastScannedAt = nowMillis,
-        // isBookmarked and lastReadAt are default-false/null here; upsertByRootAndPath
-        // will preserve the existing values if the comic already exists in the database.
     )
 
     /**

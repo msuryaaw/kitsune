@@ -21,6 +21,9 @@ class FakeStorageGateway(
     private val fileContents = mutableMapOf<String, ByteArray>()
     private val tempFiles = mutableListOf<File>()
 
+    var createFileCalls = 0
+    var openOutputStreamCalls = 0
+
     fun addDirectory(relativePath: String) {
         val norm = StoragePathUtils.normalizeRelativePath(relativePath)
         val name = if (norm.isEmpty()) "" else norm.substringAfterLast('/')
@@ -223,6 +226,7 @@ class FakeStorageGateway(
     override fun openOutputStream(relativePath: String): StorageResult<java.io.OutputStream> {
         if (!rootConfigured) return StorageResult.RootNotConfigured
         if (!permissionGranted) return StorageResult.PermissionDenied("Fake permission denied")
+        openOutputStreamCalls++
         val normalized = StoragePathUtils.normalizeRelativePath(relativePath)
         val entry = entries[normalized] ?: return StorageResult.NotFound(normalized)
         if (entry.isDirectory) return StorageResult.Error(IllegalArgumentException("Path '$normalized' is a directory"))
@@ -237,6 +241,7 @@ class FakeStorageGateway(
     override fun createFile(parentRelativePath: String, fileName: String, mimeType: String): StorageResult<StorageEntry> {
         if (!rootConfigured) return StorageResult.RootNotConfigured
         if (!permissionGranted) return StorageResult.PermissionDenied("Fake permission denied")
+        createFileCalls++
         val fullPath = StoragePathUtils.combineRelativePath(parentRelativePath, fileName)
         if (!entries.containsKey(fullPath)) {
             addFile(fullPath, ByteArray(0), mimeType)

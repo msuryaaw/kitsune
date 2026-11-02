@@ -41,7 +41,8 @@ class DefaultComicFolderScanner(
                             defaultTitle = metadata.title,
                             entry = entry,
                             type = metadata.type,
-                            language = metadata.language
+                            language = metadata.language,
+                            author = metadata.author
                         )
                     }
                 ComicFolderDiscoveryResult.Success(directFolders)
@@ -66,12 +67,13 @@ class DefaultComicFolderScanner(
             try {
                 readResult.data.use { stream ->
                     val jsonText = stream.bufferedReader().readText()
-                    val (type, language) = parseMetadataJson(jsonText)
-                    if (!type.isNullOrBlank() || !language.isNullOrBlank()) {
+                    val (type, language, author) = parseMetadataJson(jsonText)
+                    if (!type.isNullOrBlank() || !language.isNullOrBlank() || !author.isNullOrBlank()) {
                         return ParsedFolderMetadata(
                             title = parsedFolderName.title,
                             type = type.takeIf { it?.isNotBlank() == true } ?: parsedFolderName.type,
-                            language = language.takeIf { it?.isNotBlank() == true } ?: parsedFolderName.language
+                            language = language.takeIf { it?.isNotBlank() == true } ?: parsedFolderName.language,
+                            author = author.takeIf { it?.isNotBlank() == true } ?: parsedFolderName.author
                         )
                     }
                 }
@@ -81,14 +83,14 @@ class DefaultComicFolderScanner(
         }
 
         // 2. If metadata.json does NOT exist and folder name parsing extracted valid metadata, create metadata.json
-        if (readResult is StorageResult.NotFound && (parsedFolderName.type != null || parsedFolderName.language != null)) {
+        if (readResult is StorageResult.NotFound && (parsedFolderName.type != null || parsedFolderName.language != null || parsedFolderName.author != null)) {
             try {
                 val createResult = storageGateway.createFile(folderRelativePath, "metadata.json", "application/json")
                 if (createResult is StorageResult.Success) {
                     val outResult = storageGateway.openOutputStream(metadataPath)
                     if (outResult is StorageResult.Success) {
                         outResult.data.use { outStream ->
-                            val jsonString = buildMetadataJson(parsedFolderName.type, parsedFolderName.language)
+                            val jsonString = buildMetadataJson(parsedFolderName.type, parsedFolderName.language, parsedFolderName.author)
                             outStream.write(jsonString.toByteArray(Charsets.UTF_8))
                             outStream.flush()
                         }
@@ -102,22 +104,25 @@ class DefaultComicFolderScanner(
         return parsedFolderName
     }
 
-    private fun parseMetadataJson(jsonText: String): Pair<String?, String?> {
+    private fun parseMetadataJson(jsonText: String): Triple<String?, String?, String?> {
         val typeRegex = Regex(""""type"\s*:\s*"([^"]+)"""")
         val langRegex = Regex(""""language"\s*:\s*"([^"]+)"""")
+        val authorRegex = Regex(""""author"\s*:\s*"([^"]+)"""")
 
         val typeMatch = typeRegex.find(jsonText)?.groupValues?.get(1)?.trim()
         val langMatch = langRegex.find(jsonText)?.groupValues?.get(1)?.trim()
+        val authorMatch = authorRegex.find(jsonText)?.groupValues?.get(1)?.trim()
 
-        return Pair(typeMatch, langMatch)
+        return Triple(typeMatch, langMatch, authorMatch)
     }
 
-    private fun buildMetadataJson(type: String?, language: String?): String {
+    private fun buildMetadataJson(type: String?, language: String?, author: String?): String {
         val sb = StringBuilder()
         sb.append("{\n")
         val parts = mutableListOf<String>()
         if (!type.isNullOrBlank()) parts.add("""  "type": "$type"""")
         if (!language.isNullOrBlank()) parts.add("""  "language": "$language"""")
+        if (!author.isNullOrBlank()) parts.add("""  "author": "$author"""")
         sb.append(parts.joinToString(",\n"))
         sb.append("\n}")
         return sb.toString()

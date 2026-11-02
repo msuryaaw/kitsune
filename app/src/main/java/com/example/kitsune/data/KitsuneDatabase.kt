@@ -29,7 +29,7 @@ import com.example.kitsune.data.entity.SettingsEntity
         ReadingProgressEntity::class,
         SettingsEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = true
 )
 abstract class KitsuneDatabase : RoomDatabase() {
@@ -43,6 +43,12 @@ abstract class KitsuneDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE comics ADD COLUMN type TEXT")
                 db.execSQL("ALTER TABLE comics ADD COLUMN language TEXT")
+            }
+        }
+
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE comics ADD COLUMN author TEXT")
             }
         }
     }

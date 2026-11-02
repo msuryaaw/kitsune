@@ -142,6 +142,11 @@ data class ScannedComic(
     val language: String? get() = folder.language
 
     /**
+     * Optional author (e.g. "Oda", "Kishimoto").
+     */
+    val author: String? get() = folder.author
+
+    /**
      * Relative path of the comic folder.
      */
     val relativePath: String get() = folder.relativePath

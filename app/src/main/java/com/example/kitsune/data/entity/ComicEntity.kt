@@ -34,6 +34,7 @@ data class ComicEntity(
     val title: String,
     val type: String? = null,
     val language: String? = null,
+    val author: String? = null,
     val isBookmarked: Boolean = false,
     val lastReadAt: Long? = null,
     val coverEntryPath: String? = null,

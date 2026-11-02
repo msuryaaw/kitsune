@@ -157,5 +157,21 @@ class NaturalOrderComparatorTest {
         assertEquals(2, sorted[1].chapterNumber)
         assertEquals(10, sorted[2].chapterNumber)
     }
+
+    @Test
+    fun naturalOrderComparator_mixedFormatsAndSpecialCharacters_sortsDeterministically() {
+        val input = listOf(
+            "Chapter 10 (Color).cbz",
+            "Chapter 2 (RAW).cbz",
+            "Chapter 1.cbz",
+            "Chapter 2 (Color).cbz"
+        )
+        val sorted = input.sortedWith(NaturalOrderComparator)
+
+        assertEquals("Chapter 1.cbz", sorted[0])
+        assertEquals("Chapter 2 (Color).cbz", sorted[1])
+        assertEquals("Chapter 2 (RAW).cbz", sorted[2])
+        assertEquals("Chapter 10 (Color).cbz", sorted[3])
+    }
 }
 

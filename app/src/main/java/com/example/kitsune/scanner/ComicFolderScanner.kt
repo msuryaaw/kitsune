@@ -14,7 +14,9 @@ data class DiscoveredComicFolder(
     val folderName: String,
     val relativePath: String,
     val defaultTitle: String,
-    val entry: StorageEntry
+    val entry: StorageEntry,
+    val type: String? = null,
+    val language: String? = null
 )
 
 /**

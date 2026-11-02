@@ -34,11 +34,14 @@ class DefaultComicFolderScanner(
                 val directFolders = childrenResult.data
                     .filter { it.isDirectory }
                     .map { entry ->
+                        val metadata = inspectAndResolveMetadata(entry.relativePath, entry.name)
                         DiscoveredComicFolder(
                             folderName = entry.name,
                             relativePath = entry.relativePath,
-                            defaultTitle = deriveDefaultTitle(entry.name),
-                            entry = entry
+                            defaultTitle = metadata.title,
+                            entry = entry,
+                            type = metadata.type,
+                            language = metadata.language
                         )
                     }
                 ComicFolderDiscoveryResult.Success(directFolders)
@@ -48,6 +51,76 @@ class DefaultComicFolderScanner(
             is StorageResult.NotFound -> ComicFolderDiscoveryResult.ComicsDirectoryNotFound
             is StorageResult.Error -> ComicFolderDiscoveryResult.Error(childrenResult.exception)
         }
+    }
+
+    private fun inspectAndResolveMetadata(
+        folderRelativePath: String,
+        folderName: String
+    ): ParsedFolderMetadata {
+        val parsedFolderName = FolderMetadataParser.parseFolderName(folderName)
+        val metadataPath = com.example.kitsune.storage.StoragePathUtils.combineRelativePath(folderRelativePath, "metadata.json")
+
+        // 1. Try reading existing metadata.json
+        val readResult = storageGateway.openInputStream(metadataPath)
+        if (readResult is StorageResult.Success) {
+            try {
+                readResult.data.use { stream ->
+                    val jsonText = stream.bufferedReader().readText()
+                    val (type, language) = parseMetadataJson(jsonText)
+                    if (!type.isNullOrBlank() || !language.isNullOrBlank()) {
+                        return ParsedFolderMetadata(
+                            title = parsedFolderName.title,
+                            type = type.takeIf { it?.isNotBlank() == true } ?: parsedFolderName.type,
+                            language = language.takeIf { it?.isNotBlank() == true } ?: parsedFolderName.language
+                        )
+                    }
+                }
+            } catch (_: Exception) {
+                // If reading/parsing existing metadata.json fails, do not overwrite!
+            }
+        }
+
+        // 2. If metadata.json does NOT exist and folder name parsing extracted valid metadata, create metadata.json
+        if (readResult is StorageResult.NotFound && (parsedFolderName.type != null || parsedFolderName.language != null)) {
+            try {
+                val createResult = storageGateway.createFile(folderRelativePath, "metadata.json", "application/json")
+                if (createResult is StorageResult.Success) {
+                    val outResult = storageGateway.openOutputStream(metadataPath)
+                    if (outResult is StorageResult.Success) {
+                        outResult.data.use { outStream ->
+                            val jsonString = buildMetadataJson(parsedFolderName.type, parsedFolderName.language)
+                            outStream.write(jsonString.toByteArray(Charsets.UTF_8))
+                            outStream.flush()
+                        }
+                    }
+                }
+            } catch (_: Exception) {
+                // If writing sidecar fails (e.g. read-only SAF root), safely ignore and use parsedFolderName
+            }
+        }
+
+        return parsedFolderName
+    }
+
+    private fun parseMetadataJson(jsonText: String): Pair<String?, String?> {
+        val typeRegex = Regex(""""type"\s*:\s*"([^"]+)"""")
+        val langRegex = Regex(""""language"\s*:\s*"([^"]+)"""")
+
+        val typeMatch = typeRegex.find(jsonText)?.groupValues?.get(1)?.trim()
+        val langMatch = langRegex.find(jsonText)?.groupValues?.get(1)?.trim()
+
+        return Pair(typeMatch, langMatch)
+    }
+
+    private fun buildMetadataJson(type: String?, language: String?): String {
+        val sb = StringBuilder()
+        sb.append("{\n")
+        val parts = mutableListOf<String>()
+        if (!type.isNullOrBlank()) parts.add("""  "type": "$type"""")
+        if (!language.isNullOrBlank()) parts.add("""  "language": "$language"""")
+        sb.append(parts.joinToString(",\n"))
+        sb.append("\n}")
+        return sb.toString()
     }
 
     /**

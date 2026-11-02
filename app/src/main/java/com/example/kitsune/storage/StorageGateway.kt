@@ -57,9 +57,27 @@ interface StorageGateway {
     fun openInputStream(relativePath: String): StorageResult<InputStream>
 
     /**
+     * Opens an [OutputStream] for writing a file at [relativePath].
+     * Caller is responsible for closing the returned stream.
+     */
+    fun openOutputStream(relativePath: String): StorageResult<java.io.OutputStream>
+
+    /**
      * Opens a [ParcelFileDescriptor] for seekable reading of a file at [relativePath].
      * Mode must be "r". Caller is responsible for closing the descriptor.
      */
     fun openFileDescriptor(relativePath: String, mode: String = "r"): StorageResult<ParcelFileDescriptor>
+
+    /**
+     * Creates a directory named [directoryName] inside [parentRelativePath].
+     * If [parentRelativePath] is empty or null, creates the directory directly under the root.
+     */
+    fun createDirectory(parentRelativePath: String = "", directoryName: String): StorageResult<StorageEntry>
+
+    /**
+     * Creates a new file named [fileName] inside [parentRelativePath].
+     * Returns the created [StorageEntry].
+     */
+    fun createFile(parentRelativePath: String = "", fileName: String, mimeType: String = "application/json"): StorageResult<StorageEntry>
 }
 

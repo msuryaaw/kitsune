@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
@@ -32,6 +33,30 @@ class LibraryViewModel(
     val searchQuery = MutableStateFlow("")
     val sortOption = MutableStateFlow(SortOption.TITLE_ASC)
     val isBookmarkedOnly = MutableStateFlow(false)
+
+    init {
+        viewModelScope.launch {
+            rootFolderPreferences.observeRootUriString()
+                .distinctUntilChanged()
+                .collect { rootUri ->
+                    if (!rootUri.isNullOrBlank()) {
+                        performAutoScan(rootUri)
+                    }
+                }
+        }
+    }
+
+    private suspend fun performAutoScan(rootUri: String) {
+        if (isRefreshing.value) return
+        isRefreshing.value = true
+        try {
+            libraryRepository.ensureComicsDirectory()
+            libraryRepository.syncLibrary(rootUri)
+        } catch (_: Exception) {
+        } finally {
+            isRefreshing.value = false
+        }
+    }
 
     val uiState: StateFlow<LibraryUiState> = rootFolderPreferences
         .observeRootUriString()
@@ -173,6 +198,22 @@ class LibraryViewModel(
             if (!rootUri.isNullOrBlank()) {
                 isRefreshing.value = true
                 try {
+                    libraryRepository.ensureComicsDirectory()
+                    libraryRepository.syncLibrary(rootUri)
+                } finally {
+                    isRefreshing.value = false
+                }
+            }
+        }
+    }
+
+    fun createComicsDirectory() {
+        viewModelScope.launch {
+            val rootUri = rootFolderPreferences.getRootUriString()
+            if (!rootUri.isNullOrBlank()) {
+                isRefreshing.value = true
+                try {
+                    libraryRepository.ensureComicsDirectory()
                     libraryRepository.syncLibrary(rootUri)
                 } finally {
                     isRefreshing.value = false

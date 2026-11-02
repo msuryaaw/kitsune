@@ -132,5 +132,10 @@ interface LibraryRepository {
      * Opens/spools the CBZ archive for [chapterId] into a private seekable cache handle.
      */
     suspend fun openCbzArchive(chapterId: Long): com.example.kitsune.reader.CbzArchiveResult
+
+    /**
+     * Ensures that the `Comics` subfolder exists inside the root directory, creating it if needed.
+     */
+    suspend fun ensureComicsDirectory(): com.example.kitsune.storage.StorageResult<com.example.kitsune.storage.StorageEntry>
 }
 

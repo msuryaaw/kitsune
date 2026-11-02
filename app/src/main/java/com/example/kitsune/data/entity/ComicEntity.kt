@@ -32,6 +32,8 @@ data class ComicEntity(
     val rootUriString: String,
     val relativePath: String,
     val title: String,
+    val type: String? = null,
+    val language: String? = null,
     val isBookmarked: Boolean = false,
     val lastReadAt: Long? = null,
     val coverEntryPath: String? = null,

@@ -131,18 +131,21 @@ fun LibraryScreen(
             }
             is LibraryUiState.ComicsDirectoryNotFound -> {
                 ComicsDirectoryNotFoundView(
+                    onCreateComicsDirectory = { viewModel.createComicsDirectory() },
                     onNavigateToSettings = onNavigateToSettings,
                     modifier = Modifier.align(Alignment.Center),
                 )
             }
             is LibraryUiState.EmptyComicsDirectory -> {
                 EmptyComicsDirectoryView(
+                    onRefresh = { viewModel.refreshLibrary() },
                     onNavigateToSettings = onNavigateToSettings,
                     modifier = Modifier.align(Alignment.Center),
                 )
             }
             is LibraryUiState.NoValidChapters -> {
                 NoValidChaptersView(
+                    onRefresh = { viewModel.refreshLibrary() },
                     onNavigateToSettings = onNavigateToSettings,
                     modifier = Modifier.align(Alignment.Center),
                 )
@@ -262,6 +265,7 @@ private fun PermissionDeniedView(
 
 @Composable
 private fun ComicsDirectoryNotFoundView(
+    onCreateComicsDirectory: () -> Unit,
     onNavigateToSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -292,8 +296,13 @@ private fun ComicsDirectoryNotFoundView(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(modifier = Modifier.height(16.dp))
-            OutlinedButton(onClick = onNavigateToSettings) {
-                Text("Periksa Folder Root")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = onCreateComicsDirectory) {
+                    Text("Buat Folder 'Comics'")
+                }
+                OutlinedButton(onClick = onNavigateToSettings) {
+                    Text("Periksa Root")
+                }
             }
         }
     }
@@ -301,6 +310,7 @@ private fun ComicsDirectoryNotFoundView(
 
 @Composable
 private fun EmptyComicsDirectoryView(
+    onRefresh: () -> Unit,
     onNavigateToSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -325,14 +335,20 @@ private fun EmptyComicsDirectoryView(
             color = MaterialTheme.colorScheme.outline,
         )
         Spacer(modifier = Modifier.height(16.dp))
-        OutlinedButton(onClick = onNavigateToSettings) {
-            Text("Periksa Folder Root")
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = onRefresh) {
+                Text("Pindai Koleksi")
+            }
+            OutlinedButton(onClick = onNavigateToSettings) {
+                Text("Periksa Root")
+            }
         }
     }
 }
 
 @Composable
 private fun NoValidChaptersView(
+    onRefresh: () -> Unit,
     onNavigateToSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -363,8 +379,13 @@ private fun NoValidChaptersView(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(modifier = Modifier.height(16.dp))
-            OutlinedButton(onClick = onNavigateToSettings) {
-                Text("Periksa Koleksi")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = onRefresh) {
+                    Text("Pindai Ulang")
+                }
+                OutlinedButton(onClick = onNavigateToSettings) {
+                    Text("Periksa Root")
+                }
             }
         }
     }

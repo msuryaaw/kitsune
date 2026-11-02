@@ -62,6 +62,14 @@ sealed class CbzCatalogResult {
     ) : CbzCatalogResult()
 
     /**
+     * Archive exceeds security limits (e.g. more than 500 pages per chapter).
+     */
+    data class LimitExceeded(
+        val cbzRelativePath: String,
+        val reason: String
+    ) : CbzCatalogResult()
+
+    /**
      * General error during cataloging.
      */
     data class Error(

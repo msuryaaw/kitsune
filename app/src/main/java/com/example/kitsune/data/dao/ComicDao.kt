@@ -122,9 +122,11 @@ interface ComicDao {
             update(
                 comic.copy(
                     id = existing.id,
-                    // Preserve user state during scan reconciliation
+                    // Preserve user state and existing metadata during scan reconciliation
                     isBookmarked = existing.isBookmarked,
-                    lastReadAt = existing.lastReadAt
+                    lastReadAt = existing.lastReadAt,
+                    type = comic.type ?: existing.type,
+                    language = comic.language ?: existing.language
                 )
             )
             existing.id

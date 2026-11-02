@@ -11,6 +11,8 @@ import com.example.kitsune.data.entity.ComicEntity
 import com.example.kitsune.data.entity.ReadingProgressEntity
 import com.example.kitsune.data.entity.SettingsEntity
 import com.example.kitsune.scanner.LibraryScanResult
+import com.example.kitsune.storage.StorageEntry
+import com.example.kitsune.storage.StorageResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -113,6 +115,9 @@ class FakeLibraryRepository : LibraryRepository {
 
     override suspend fun openCbzArchive(chapterId: Long): com.example.kitsune.reader.CbzArchiveResult =
         com.example.kitsune.reader.CbzArchiveResult.ChapterMissing
+
+    override suspend fun ensureComicsDirectory(): StorageResult<StorageEntry> =
+        StorageResult.Success(StorageEntry("Comics", "Comics", true))
 
     override suspend fun getChapterById(chapterId: Long): ChapterEntity? = null
 
@@ -601,10 +606,11 @@ class LibraryViewModelTest {
         fakeRepo.syncCalls = 0
         viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo, fakeDetector)
 
+        val initialSyncCalls = fakeRepo.syncCalls
         viewModel.refreshLibrary()
         testDispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals("refreshLibrary must invoke syncLibrary on repository", 1, fakeRepo.syncCalls)
+        assertEquals("refreshLibrary must invoke syncLibrary on repository", initialSyncCalls + 1, fakeRepo.syncCalls)
         assertEquals(rootUri, fakeRepo.syncRootUri)
     }
 

@@ -91,7 +91,8 @@ class DefaultAppContainer(
             appContext,
             KitsuneDatabase::class.java,
             "kitsune_db"
-        ).build()
+        ).addMigrations(KitsuneDatabase.MIGRATION_1_2)
+        .build()
     }
 
     override val coverExtractor: CoverExtractor by lazy {

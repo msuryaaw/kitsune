@@ -57,7 +57,12 @@ class DefaultCbzCataloger(
         }
 
         /**
-         * Checks whether an entry path represents known metadata or junk files.
+         * Security limit: maximum allowable valid image pages per chapter.
+         */
+        const val MAX_PAGES_PER_CHAPTER = 500
+
+        /**
+         * Checks whether an entry path represents known metadata, junk files, or dangerous path traversal entries.
          */
         fun isIgnoredMetadataOrJunk(normalizedPath: String): Boolean {
             val lower = normalizedPath.lowercase()
@@ -66,7 +71,9 @@ class DefaultCbzCataloger(
                     lower.endsWith("/.ds_store") ||
                     lower == ".ds_store" ||
                     lower.endsWith("/thumbs.db") ||
-                    lower == "thumbs.db"
+                    lower == "thumbs.db" ||
+                    lower.contains("../") ||
+                    lower.startsWith("/")
         }
     }
 
@@ -301,6 +308,13 @@ class DefaultCbzCataloger(
 
         if (rawCandidates.isEmpty()) {
             return CbzCatalogResult.Empty(cbzRelativePath)
+        }
+
+        if (rawCandidates.size > MAX_PAGES_PER_CHAPTER) {
+            return CbzCatalogResult.LimitExceeded(
+                cbzRelativePath = cbzRelativePath,
+                reason = "Batas maksimal $MAX_PAGES_PER_CHAPTER halaman per chapter terlampaui (ditemukan ${rawCandidates.size} halaman)"
+            )
         }
 
         // Urutkan kandidat gambar menggunakan NaturalOrderComparator

@@ -13,6 +13,8 @@ import com.example.kitsune.reader.CbzArchiveResult
 import com.example.kitsune.reader.CbzPageDecoder
 import com.example.kitsune.reader.CbzPageDecoderFactory
 import com.example.kitsune.reader.CbzPageIndexer
+import com.example.kitsune.storage.StorageEntry
+import com.example.kitsune.storage.StorageResult
 import com.example.kitsune.reader.ChapterPageIndex
 import com.example.kitsune.reader.PageDecodeResult
 import com.example.kitsune.reader.PageIndexResult
@@ -79,6 +81,7 @@ class FakeReaderLibraryRepository : LibraryRepository {
     override suspend fun getCoverFile(comicId: Long): CoverCacheResult = CoverCacheResult.Unavailable("Fake")
     override suspend fun releaseCoverFile(file: File) {}
     override fun observeLastScanResult(): Flow<LibraryScanResult?> = flowOf(null)
+    override suspend fun ensureComicsDirectory(): StorageResult<StorageEntry> = StorageResult.Success(StorageEntry("Comics", "Comics", true))
 }
 
 class FakeReaderSettingsRepository(initialSettings: SettingsEntity = SettingsEntity()) : SettingsRepository {

@@ -10,6 +10,8 @@ import com.example.kitsune.data.entity.ComicEntity
 import com.example.kitsune.data.entity.ReadingProgressEntity
 import com.example.kitsune.data.model.ComicWithProgress
 import com.example.kitsune.scanner.LibraryScanResult
+import com.example.kitsune.storage.StorageEntry
+import com.example.kitsune.storage.StorageResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -95,6 +97,8 @@ class FakeHistoryLibraryRepository : LibraryRepository {
     val lastScanResult = MutableStateFlow<LibraryScanResult?>(null)
     override fun observeLastScanResult(): Flow<LibraryScanResult?> = lastScanResult
     override suspend fun openCbzArchive(chapterId: Long) = com.example.kitsune.reader.CbzArchiveResult.ChapterMissing
+    override suspend fun ensureComicsDirectory(): StorageResult<StorageEntry> =
+        StorageResult.Success(StorageEntry("Comics", "Comics", true))
 }
 
 class FakeHistoryRootPrefs(initialRoot: String? = null) : RootFolderPreferences {

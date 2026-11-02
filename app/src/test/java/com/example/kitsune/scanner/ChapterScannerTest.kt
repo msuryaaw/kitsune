@@ -91,6 +91,9 @@ class ChapterScannerTest {
             override fun findEntry(relativePath: String) = com.example.kitsune.storage.StorageResult.NotFound(relativePath)
             override fun openInputStream(relativePath: String) = com.example.kitsune.storage.StorageResult.NotFound(relativePath)
             override fun openFileDescriptor(relativePath: String, mode: String) = com.example.kitsune.storage.StorageResult.NotFound(relativePath)
+            override fun createDirectory(parentRelativePath: String, directoryName: String) = com.example.kitsune.storage.StorageResult.Success(com.example.kitsune.storage.StorageEntry(directoryName, "$parentRelativePath/$directoryName", true))
+            override fun openOutputStream(relativePath: String) = com.example.kitsune.storage.StorageResult.Success(java.io.ByteArrayOutputStream())
+            override fun createFile(parentRelativePath: String, fileName: String, mimeType: String) = com.example.kitsune.storage.StorageResult.Success(com.example.kitsune.storage.StorageEntry(fileName, "$parentRelativePath/$fileName", false))
         }
 
         val scanner = DefaultChapterScanner(errorGateway)

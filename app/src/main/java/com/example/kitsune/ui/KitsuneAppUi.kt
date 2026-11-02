@@ -136,7 +136,8 @@ fun KitsuneApp(
             composable(KitsuneDestinations.SETTINGS_ROUTE) {
                 SettingsScreen(
                     rootFolderPreferences = appContainer.rootFolderPreferences,
-                    settingsRepository = appContainer.settingsRepository
+                    settingsRepository = appContainer.settingsRepository,
+                    libraryRepository = appContainer.libraryRepository
                 )
             }
             composable(

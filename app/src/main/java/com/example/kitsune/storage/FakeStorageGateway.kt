@@ -212,6 +212,38 @@ class FakeStorageGateway(
         }
     }
 
+    override fun createDirectory(parentRelativePath: String, directoryName: String): StorageResult<StorageEntry> {
+        if (!rootConfigured) return StorageResult.RootNotConfigured
+        if (!permissionGranted) return StorageResult.PermissionDenied("Fake permission denied")
+        val fullPath = StoragePathUtils.combineRelativePath(parentRelativePath, directoryName)
+        addDirectory(fullPath)
+        return findEntry(fullPath)
+    }
+
+    override fun openOutputStream(relativePath: String): StorageResult<java.io.OutputStream> {
+        if (!rootConfigured) return StorageResult.RootNotConfigured
+        if (!permissionGranted) return StorageResult.PermissionDenied("Fake permission denied")
+        val normalized = StoragePathUtils.normalizeRelativePath(relativePath)
+        val entry = entries[normalized] ?: return StorageResult.NotFound(normalized)
+        if (entry.isDirectory) return StorageResult.Error(IllegalArgumentException("Path '$normalized' is a directory"))
+        return StorageResult.Success(object : java.io.ByteArrayOutputStream() {
+            override fun close() {
+                super.close()
+                fileContents[normalized] = toByteArray()
+            }
+        })
+    }
+
+    override fun createFile(parentRelativePath: String, fileName: String, mimeType: String): StorageResult<StorageEntry> {
+        if (!rootConfigured) return StorageResult.RootNotConfigured
+        if (!permissionGranted) return StorageResult.PermissionDenied("Fake permission denied")
+        val fullPath = StoragePathUtils.combineRelativePath(parentRelativePath, fileName)
+        if (!entries.containsKey(fullPath)) {
+            addFile(fullPath, ByteArray(0), mimeType)
+        }
+        return findEntry(fullPath)
+    }
+
     fun cleanUp() {
         for (f in tempFiles) {
             try { f.delete() } catch (_: Exception) {}

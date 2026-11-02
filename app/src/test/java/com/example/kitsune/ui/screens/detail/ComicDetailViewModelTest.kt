@@ -8,6 +8,8 @@ import com.example.kitsune.data.entity.ChapterEntity
 import com.example.kitsune.data.entity.ComicEntity
 import com.example.kitsune.data.entity.ReadingProgressEntity
 import com.example.kitsune.scanner.LibraryScanResult
+import com.example.kitsune.storage.StorageEntry
+import com.example.kitsune.storage.StorageResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -89,6 +91,9 @@ class FakeComicDetailLibraryRepository : LibraryRepository {
 
     override suspend fun openCbzArchive(chapterId: Long): com.example.kitsune.reader.CbzArchiveResult =
         com.example.kitsune.reader.CbzArchiveResult.ChapterMissing
+
+    override suspend fun ensureComicsDirectory(): StorageResult<StorageEntry> =
+        StorageResult.Success(StorageEntry("Comics", "Comics", true))
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)

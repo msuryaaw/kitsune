@@ -41,6 +41,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.kitsune.core.RootFolderPreferences
 import com.example.kitsune.core.RootFolderState
 import com.example.kitsune.core.SafStorageHelper
+import com.example.kitsune.data.LibraryRepository
 import com.example.kitsune.data.SettingsRepository
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
@@ -49,6 +50,7 @@ import kotlinx.coroutines.launch
 fun SettingsScreen(
     rootFolderPreferences: RootFolderPreferences,
     settingsRepository: SettingsRepository? = null,
+    libraryRepository: LibraryRepository? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -111,6 +113,13 @@ fun SettingsScreen(
                 if (verifiedAccess is RootFolderState.Ready) {
                     rootFolderPreferences.setRootUriString(pickedUri.toString())
                     folderState = verifiedAccess
+                    // Ensure "Comics" directory exists and trigger initial scan
+                    scope.launch {
+                        try {
+                            libraryRepository?.ensureComicsDirectory()
+                            libraryRepository?.syncLibrary(pickedUri.toString())
+                        } catch (_: Exception) {}
+                    }
                 } else {
                     operationError = "Izin berhasil diminta tetapi folder tidak dapat diakses."
                     folderState = verifiedAccess

@@ -251,6 +251,140 @@ class SafStorageGateway(
         }
     }
 
+    override fun createDirectory(parentRelativePath: String, directoryName: String): StorageResult<StorageEntry> {
+        val rootUri = when (val state = getVerifiedRootUri()) {
+            is StorageResult.Success -> state.data
+            is StorageResult.RootNotConfigured -> return StorageResult.RootNotConfigured
+            is StorageResult.PermissionDenied -> return StorageResult.PermissionDenied(state.message)
+            is StorageResult.Error -> return StorageResult.Error(state.exception)
+            is StorageResult.NotFound -> return StorageResult.NotFound(parentRelativePath)
+        }
+
+        val normalizedParent = try {
+            StoragePathUtils.normalizeRelativePath(parentRelativePath)
+        } catch (e: SecurityException) {
+            return StorageResult.Error(e)
+        }
+
+        return try {
+            val fullRelativePath = StoragePathUtils.combineRelativePath(normalizedParent, directoryName)
+            when (val existing = findEntry(fullRelativePath)) {
+                is StorageResult.Success -> {
+                    if (existing.data.isDirectory) {
+                        return StorageResult.Success(existing.data)
+                    }
+                }
+                else -> { /* Proceed to create */ }
+            }
+
+            val parentDocUri = resolveDocumentUri(rootUri, normalizedParent)
+                ?: return StorageResult.NotFound(normalizedParent)
+
+            val newDocUri = DocumentsContract.createDocument(
+                resolver,
+                parentDocUri,
+                DocumentsContract.Document.MIME_TYPE_DIR,
+                directoryName
+            ) ?: return StorageResult.Error(IllegalStateException("Gagal membuat direktori '$directoryName' via SAF"))
+
+            StorageResult.Success(
+                StorageEntry(
+                    name = directoryName,
+                    relativePath = fullRelativePath,
+                    isDirectory = true,
+                    lastModifiedMillis = System.currentTimeMillis(),
+                    mimeType = DocumentsContract.Document.MIME_TYPE_DIR
+                )
+            )
+        } catch (se: SecurityException) {
+            StorageResult.PermissionDenied(se.localizedMessage ?: "Izin akses SAF ditolak saat membuat direktori")
+        } catch (e: Exception) {
+            StorageResult.Error(e)
+        }
+    }
+
+    override fun openOutputStream(relativePath: String): StorageResult<java.io.OutputStream> {
+        val rootUri = when (val state = getVerifiedRootUri()) {
+            is StorageResult.Success -> state.data
+            is StorageResult.RootNotConfigured -> return StorageResult.RootNotConfigured
+            is StorageResult.PermissionDenied -> return StorageResult.PermissionDenied(state.message)
+            is StorageResult.Error -> return StorageResult.Error(state.exception)
+            is StorageResult.NotFound -> return StorageResult.NotFound(relativePath)
+        }
+
+        val normalized = try {
+            StoragePathUtils.normalizeRelativePath(relativePath)
+        } catch (e: SecurityException) {
+            return StorageResult.Error(e)
+        }
+
+        return try {
+            val docUri = resolveDocumentUri(rootUri, normalized)
+                ?: return StorageResult.NotFound(normalized)
+
+            val stream = resolver.openOutputStream(docUri)
+                ?: return StorageResult.Error(FileNotFoundException("Gagal membuka OutputStream untuk $normalized"))
+
+            StorageResult.Success(stream)
+        } catch (se: SecurityException) {
+            StorageResult.PermissionDenied(se.localizedMessage ?: "Izin akses SAF ditolak")
+        } catch (e: Exception) {
+            StorageResult.Error(e)
+        }
+    }
+
+    override fun createFile(parentRelativePath: String, fileName: String, mimeType: String): StorageResult<StorageEntry> {
+        val rootUri = when (val state = getVerifiedRootUri()) {
+            is StorageResult.Success -> state.data
+            is StorageResult.RootNotConfigured -> return StorageResult.RootNotConfigured
+            is StorageResult.PermissionDenied -> return StorageResult.PermissionDenied(state.message)
+            is StorageResult.Error -> return StorageResult.Error(state.exception)
+            is StorageResult.NotFound -> return StorageResult.NotFound(parentRelativePath)
+        }
+
+        val normalizedParent = try {
+            StoragePathUtils.normalizeRelativePath(parentRelativePath)
+        } catch (e: SecurityException) {
+            return StorageResult.Error(e)
+        }
+
+        return try {
+            val fullRelativePath = StoragePathUtils.combineRelativePath(normalizedParent, fileName)
+            when (val existing = findEntry(fullRelativePath)) {
+                is StorageResult.Success -> {
+                    if (!existing.data.isDirectory) {
+                        return StorageResult.Success(existing.data)
+                    }
+                }
+                else -> { /* Proceed to create */ }
+            }
+
+            val parentDocUri = resolveDocumentUri(rootUri, normalizedParent)
+                ?: return StorageResult.NotFound(normalizedParent)
+
+            val newDocUri = DocumentsContract.createDocument(
+                resolver,
+                parentDocUri,
+                mimeType,
+                fileName
+            ) ?: return StorageResult.Error(IllegalStateException("Gagal membuat file '$fileName' via SAF"))
+
+            StorageResult.Success(
+                StorageEntry(
+                    name = fileName,
+                    relativePath = fullRelativePath,
+                    isDirectory = false,
+                    lastModifiedMillis = System.currentTimeMillis(),
+                    mimeType = mimeType
+                )
+            )
+        } catch (se: SecurityException) {
+            StorageResult.PermissionDenied(se.localizedMessage ?: "Izin akses SAF ditolak saat membuat file")
+        } catch (e: Exception) {
+            StorageResult.Error(e)
+        }
+    }
+
     private fun getVerifiedRootUri(): StorageResult<Uri> {
         val raw = preferences.getRootUriString() ?: return StorageResult.RootNotConfigured
         val uri = try {

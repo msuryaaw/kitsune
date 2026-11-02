@@ -257,6 +257,31 @@ class CoverExtractorTest {
         assertTrue((result as CoverResult.Unavailable).reason.contains("Stream truncated prematurely"))
     }
 
+    @Test
+    fun extractCover_chapter1ContainsOnlyNonImageEntries_returnsUnavailable_noFallbackToChapter2() = runTest {
+        val comicId = comicDao.insert(
+            ComicEntity(rootUriString = rootUri, relativePath = "Comics/One Piece", title = "One Piece", coverEntryPath = null)
+        )
+        // Insert Chapter 1 with no valid cover image (coverEntryPath is null)
+        chapterDao.insert(
+            ChapterEntity(comicId = comicId, relativePath = "Comics/One Piece/Chapter 1.cbz", chapterNumber = 1, displayName = "Chapter 1.cbz", pageCount = 0)
+        )
+        // Insert Chapter 2 with a valid cover image
+        chapterDao.insert(
+            ChapterEntity(comicId = comicId, relativePath = "Comics/One Piece/Chapter 2.cbz", chapterNumber = 2, displayName = "Chapter 2.cbz", pageCount = 10)
+        )
+
+        val ch1Bytes = buildZipArchive(mapOf(".DS_Store" to "junk".toByteArray(), "info.txt" to "text".toByteArray()))
+        val ch2Bytes = buildZipArchive(mapOf("page1.jpg" to "valid_jpeg_data".toByteArray()))
+
+        fakeStorage.addFile("Comics/One Piece/Chapter 1.cbz", ch1Bytes)
+        fakeStorage.addFile("Comics/One Piece/Chapter 2.cbz", ch2Bytes)
+
+        val result = coverExtractor.extractCover(comicId)
+
+        assertTrue("When Chapter 1 has no valid cover entry, extractCover MUST return Unavailable (NO FALLBACK to Chapter 2)", result is CoverResult.Unavailable)
+    }
+
     private fun buildZipArchive(entries: Map<String, ByteArray>): ByteArray {
         val baos = ByteArrayOutputStream()
         ZipOutputStream(baos).use { zos ->

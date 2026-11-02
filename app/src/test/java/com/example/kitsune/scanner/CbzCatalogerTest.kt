@@ -271,6 +271,9 @@ class CbzCatalogerTest {
                 return StorageResult.Success(stream)
             }
             override fun openFileDescriptor(relativePath: String, mode: String) = StorageResult.NotFound(relativePath)
+            override fun createDirectory(parentRelativePath: String, directoryName: String) = StorageResult.Success(StorageEntry(directoryName, "$parentRelativePath/$directoryName", true))
+            override fun openOutputStream(relativePath: String) = StorageResult.Success(java.io.ByteArrayOutputStream())
+            override fun createFile(parentRelativePath: String, fileName: String, mimeType: String) = StorageResult.Success(StorageEntry(fileName, "$parentRelativePath/$fileName", false))
         }
 
         val cataloger = DefaultCbzCataloger(failingCloseGateway)
@@ -303,6 +306,9 @@ class CbzCatalogerTest {
                 return StorageResult.Success(stream)
             }
             override fun openFileDescriptor(relativePath: String, mode: String) = StorageResult.NotFound(relativePath)
+            override fun createDirectory(parentRelativePath: String, directoryName: String) = StorageResult.Success(StorageEntry(directoryName, "$parentRelativePath/$directoryName", true))
+            override fun openOutputStream(relativePath: String) = StorageResult.Success(java.io.ByteArrayOutputStream())
+            override fun createFile(parentRelativePath: String, fileName: String, mimeType: String) = StorageResult.Success(StorageEntry(fileName, "$parentRelativePath/$fileName", false))
         }
 
         val cataloger = DefaultCbzCataloger(failingStreamGateway)
@@ -350,6 +356,9 @@ class CbzCatalogerTest {
             override fun openInputStream(relativePath: String) =
                 StorageResult.Error(IOException("I/O failure reading file stream"))
             override fun openFileDescriptor(relativePath: String, mode: String) = StorageResult.NotFound(relativePath)
+            override fun createDirectory(parentRelativePath: String, directoryName: String) = StorageResult.Success(StorageEntry(directoryName, "$parentRelativePath/$directoryName", true))
+            override fun openOutputStream(relativePath: String) = StorageResult.Success(java.io.ByteArrayOutputStream())
+            override fun createFile(parentRelativePath: String, fileName: String, mimeType: String) = StorageResult.Success(StorageEntry(fileName, "$parentRelativePath/$fileName", false))
         }
 
         val cataloger = DefaultCbzCataloger(errorGateway)

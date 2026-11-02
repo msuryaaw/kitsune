@@ -132,6 +132,16 @@ data class ScannedComic(
     val title: String get() = folder.defaultTitle
 
     /**
+     * Optional classification type (e.g. "Manga", "Manhwa").
+     */
+    val type: String? get() = folder.type
+
+    /**
+     * Optional language (e.g. "Japanese", "English").
+     */
+    val language: String? get() = folder.language
+
+    /**
      * Relative path of the comic folder.
      */
     val relativePath: String get() = folder.relativePath

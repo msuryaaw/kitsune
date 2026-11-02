@@ -100,6 +100,15 @@ class DefaultLibraryScanner(
                                 }
                                 comicIssues.add(issue)
                             }
+                            is CbzCatalogResult.LimitExceeded -> {
+                                totalCorruptArchivesCount++
+                                val issue = if (discoveredChapter.chapterNumber == 1) {
+                                    ComicScanIssue.CorruptFirstChapter(discoveredChapter.relativePath, catalogResult.reason)
+                                } else {
+                                    ComicScanIssue.CorruptChapter(discoveredChapter.relativePath, catalogResult.reason)
+                                }
+                                comicIssues.add(issue)
+                            }
                             is CbzCatalogResult.Error -> {
                                 comicIssues.add(
                                     ComicScanIssue.ChapterCatalogError(

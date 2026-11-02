@@ -90,6 +90,11 @@ class DefaultLibraryRepository(
     // ── Scan and sync ─────────────────────────────────────────────────────────
 
     override suspend fun syncLibrary(rootUri: String): LibraryScanResult = syncMutex.withLock {
+        // Automatically ensure "Comics" directory exists under storage root before scanning
+        try {
+            ensureComicsDirectory()
+        } catch (_: Exception) {}
+
         // Prime the incremental cataloger with the current DB snapshot for this root.
         // The scanner's CbzCataloger calls will then bypass ZIP I/O for unchanged chapters.
         primeIncrementalIndex(rootUri)
@@ -306,6 +311,8 @@ class DefaultLibraryRepository(
         rootUriString = rootUri,
         relativePath = scannedComic.relativePath,
         title = scannedComic.title,
+        type = scannedComic.type,
+        language = scannedComic.language,
         coverEntryPath = scannedComic.coverEntryPath,
         lastScannedAt = nowMillis,
         // isBookmarked and lastReadAt are default-false/null here; upsertByRootAndPath
@@ -436,4 +443,7 @@ class DefaultLibraryRepository(
 
     override suspend fun openCbzArchive(chapterId: Long): com.example.kitsune.reader.CbzArchiveResult =
         cbzArchiveProvider.openArchive(chapterId)
+
+    override suspend fun ensureComicsDirectory(): com.example.kitsune.storage.StorageResult<com.example.kitsune.storage.StorageEntry> =
+        storageGateway.createDirectory("", "Comics")
 }

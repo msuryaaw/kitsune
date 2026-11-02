@@ -2,6 +2,8 @@ package com.example.kitsune.data
 
 import androidx.room.Database
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.example.kitsune.data.dao.ChapterDao
 import com.example.kitsune.data.dao.ComicDao
 import com.example.kitsune.data.dao.ReadingProgressDao
@@ -27,7 +29,7 @@ import com.example.kitsune.data.entity.SettingsEntity
         ReadingProgressEntity::class,
         SettingsEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = true
 )
 abstract class KitsuneDatabase : RoomDatabase() {
@@ -35,5 +37,14 @@ abstract class KitsuneDatabase : RoomDatabase() {
     abstract fun chapterDao(): ChapterDao
     abstract fun readingProgressDao(): ReadingProgressDao
     abstract fun settingsDao(): SettingsDao
+
+    companion object {
+        val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE comics ADD COLUMN type TEXT")
+                db.execSQL("ALTER TABLE comics ADD COLUMN language TEXT")
+            }
+        }
+    }
 }
 

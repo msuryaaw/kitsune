@@ -113,7 +113,11 @@ class Migration2To3Test {
 
         // 2. Open DB with Room V3 and execute MIGRATION_2_3
         val roomDb = Room.databaseBuilder(context, KitsuneDatabase::class.java, dbFile.absolutePath)
-            .addMigrations(KitsuneDatabase.MIGRATION_1_2, KitsuneDatabase.MIGRATION_2_3)
+            .addMigrations(
+                KitsuneDatabase.MIGRATION_1_2,
+                KitsuneDatabase.MIGRATION_2_3,
+                KitsuneDatabase.MIGRATION_3_4
+            )
             .allowMainThreadQueries()
             .build()
 

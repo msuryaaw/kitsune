@@ -98,6 +98,28 @@ interface LibraryRepository {
      */
     suspend fun setBookmarked(comicId: Long, bookmarked: Boolean)
 
+    // ── Bookmark Collections ──
+
+    fun observeAllBookmarkCollections(): Flow<List<com.example.kitsune.data.entity.BookmarkEntity>>
+
+    fun observeComicsInBookmarkCollection(bookmarkId: Long, rootUri: String): Flow<List<ComicEntity>>
+
+    fun observeCollectionsForComic(comicId: Long): Flow<List<com.example.kitsune.data.entity.BookmarkEntity>>
+
+    suspend fun getCollectionsForComic(comicId: Long): List<com.example.kitsune.data.entity.BookmarkEntity>
+
+    suspend fun createBookmarkCollection(name: String): Long
+
+    suspend fun renameBookmarkCollection(bookmarkId: Long, newName: String)
+
+    suspend fun deleteBookmarkCollection(bookmarkId: Long)
+
+    suspend fun addComicToCollection(bookmarkId: Long, comicId: Long)
+
+    suspend fun removeComicFromCollection(bookmarkId: Long, comicId: Long)
+
+    suspend fun toggleComicInCollection(bookmarkId: Long, comicId: Long)
+
     /**
      * Extracts the single cover image byte payload from Chapter 1.cbz for [comicId].
      */

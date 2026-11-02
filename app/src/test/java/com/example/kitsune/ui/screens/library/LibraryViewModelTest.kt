@@ -6,6 +6,7 @@ import com.example.kitsune.data.CoverCacheResult
 import com.example.kitsune.data.CoverResult
 import com.example.kitsune.data.LibraryRepository
 import com.example.kitsune.data.SettingsRepository
+import com.example.kitsune.data.entity.BookmarkEntity
 import com.example.kitsune.data.entity.ChapterEntity
 import com.example.kitsune.data.entity.ComicEntity
 import com.example.kitsune.data.entity.ReadingProgressEntity
@@ -118,6 +119,17 @@ class FakeLibraryRepository : LibraryRepository {
 
     override suspend fun ensureComicsDirectory(): StorageResult<StorageEntry> =
         StorageResult.Success(StorageEntry("Comics", "Comics", true))
+
+    override fun observeAllBookmarkCollections(): Flow<List<BookmarkEntity>> = flowOf(emptyList())
+    override fun observeComicsInBookmarkCollection(bookmarkId: Long, rootUri: String): Flow<List<ComicEntity>> = flowOf(emptyList())
+    override fun observeCollectionsForComic(comicId: Long): Flow<List<BookmarkEntity>> = flowOf(emptyList())
+    override suspend fun getCollectionsForComic(comicId: Long): List<BookmarkEntity> = emptyList()
+    override suspend fun createBookmarkCollection(name: String): Long = 1L
+    override suspend fun renameBookmarkCollection(bookmarkId: Long, newName: String) {}
+    override suspend fun deleteBookmarkCollection(bookmarkId: Long) {}
+    override suspend fun addComicToCollection(bookmarkId: Long, comicId: Long) {}
+    override suspend fun removeComicFromCollection(bookmarkId: Long, comicId: Long) {}
+    override suspend fun toggleComicInCollection(bookmarkId: Long, comicId: Long) {}
 
     override suspend fun getChapterById(chapterId: Long): ChapterEntity? = null
 

@@ -61,8 +61,8 @@ class DatabaseAndScanIntegrityTest {
     }
 
     @Test
-    fun databaseSchemaVersion3_andCreatesAllTablesAndIndices() {
-        assertEquals(3, db.openHelper.readableDatabase.version)
+    fun databaseSchemaVersion4_andCreatesAllTablesAndIndices() {
+        assertEquals(4, db.openHelper.readableDatabase.version)
 
         val cursor = db.openHelper.readableDatabase.query(
             "SELECT name FROM sqlite_master WHERE type='table'"
@@ -78,6 +78,8 @@ class DatabaseAndScanIntegrityTest {
         assertTrue("Table 'chapters' MUST exist in SQLite master", tables.contains("chapters"))
         assertTrue("Table 'reading_progress' MUST exist in SQLite master", tables.contains("reading_progress"))
         assertTrue("Table 'app_settings' MUST exist in SQLite master", tables.contains("app_settings"))
+        assertTrue("Table 'bookmarks' MUST exist in SQLite master", tables.contains("bookmarks"))
+        assertTrue("Table 'comic_bookmark_cross_ref' MUST exist in SQLite master", tables.contains("comic_bookmark_cross_ref"))
         assertTrue("Table 'room_master_table' MUST exist in SQLite master", tables.contains("room_master_table"))
     }
 

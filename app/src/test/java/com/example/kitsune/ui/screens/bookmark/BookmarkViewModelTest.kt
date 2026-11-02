@@ -5,6 +5,8 @@ import com.example.kitsune.data.CoverCacheResult
 import com.example.kitsune.data.CoverResult
 import com.example.kitsune.data.LibraryRepository
 import com.example.kitsune.data.SettingsRepository
+import com.example.kitsune.data.entity.BookmarkEntity
+import com.example.kitsune.data.entity.ComicBookmarkCrossRef
 import com.example.kitsune.data.entity.ChapterEntity
 import com.example.kitsune.data.entity.ComicEntity
 import com.example.kitsune.data.entity.ReadingProgressEntity
@@ -78,6 +80,28 @@ class FakeBookmarkLibraryRepository : LibraryRepository {
     override fun observeLastScanResult(): Flow<LibraryScanResult?> = flowOf(null)
     override suspend fun openCbzArchive(chapterId: Long) = com.example.kitsune.reader.CbzArchiveResult.ChapterMissing
     override suspend fun ensureComicsDirectory(): StorageResult<StorageEntry> = StorageResult.Success(StorageEntry("Comics", "Comics", true))
+
+    val collectionsFlow = MutableStateFlow<List<BookmarkEntity>>(listOf(BookmarkEntity(id = 1L, name = "Favorit")))
+
+    override fun observeAllBookmarkCollections(): Flow<List<BookmarkEntity>> = collectionsFlow
+    override fun observeComicsInBookmarkCollection(bookmarkId: Long, rootUri: String): Flow<List<ComicEntity>> = observeBookmarkedComicsByRoot(rootUri)
+    override fun observeCollectionsForComic(comicId: Long): Flow<List<BookmarkEntity>> = collectionsFlow
+    override suspend fun getCollectionsForComic(comicId: Long): List<BookmarkEntity> = collectionsFlow.value
+    override suspend fun createBookmarkCollection(name: String): Long {
+        val newId = (collectionsFlow.value.maxOfOrNull { it.id } ?: 0L) + 1L
+        val newCol = BookmarkEntity(id = newId, name = name)
+        collectionsFlow.value = collectionsFlow.value + newCol
+        return newId
+    }
+    override suspend fun renameBookmarkCollection(bookmarkId: Long, newName: String) {
+        collectionsFlow.value = collectionsFlow.value.map { if (it.id == bookmarkId) it.copy(name = newName) else it }
+    }
+    override suspend fun deleteBookmarkCollection(bookmarkId: Long) {
+        collectionsFlow.value = collectionsFlow.value.filterNot { it.id == bookmarkId }
+    }
+    override suspend fun addComicToCollection(bookmarkId: Long, comicId: Long) {}
+    override suspend fun removeComicFromCollection(bookmarkId: Long, comicId: Long) {}
+    override suspend fun toggleComicInCollection(bookmarkId: Long, comicId: Long) {}
 }
 
 class FakeBookmarkRootPrefs(initialRoot: String? = null) : RootFolderPreferences {

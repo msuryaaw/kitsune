@@ -1,5 +1,6 @@
 package com.example.kitsune.ui.screens.bookmark
 
+import com.example.kitsune.data.entity.BookmarkEntity
 import com.example.kitsune.data.entity.ComicEntity
 
 /**
@@ -12,6 +13,8 @@ sealed interface BookmarkUiState {
     object Empty : BookmarkUiState
     data class Success(
         val rootUriString: String,
+        val collections: List<BookmarkEntity>,
+        val selectedCollection: BookmarkEntity?,
         val bookmarkedComics: List<ComicEntity>,
         val gridColumns: Int
     ) : BookmarkUiState

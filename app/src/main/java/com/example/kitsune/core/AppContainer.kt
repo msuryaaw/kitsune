@@ -93,7 +93,8 @@ class DefaultAppContainer(
             "kitsune_db"
         ).addMigrations(
             KitsuneDatabase.MIGRATION_1_2,
-            KitsuneDatabase.MIGRATION_2_3
+            KitsuneDatabase.MIGRATION_2_3,
+            KitsuneDatabase.MIGRATION_3_4
         )
         .build()
     }

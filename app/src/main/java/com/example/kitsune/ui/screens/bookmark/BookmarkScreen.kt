@@ -21,12 +21,14 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.FolderOff
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -36,11 +38,16 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
@@ -98,8 +105,7 @@ fun BookmarkScreen(
             }
             is BookmarkUiState.Success -> {
                 BookmarkSuccessView(
-                    comics = state.bookmarkedComics,
-                    gridColumns = state.gridColumns,
+                    state = state,
                     viewModel = viewModel,
                     onComicClick = onComicClick,
                     onGridColumnsChange = { columns -> viewModel.setGridColumns(columns) }
@@ -117,50 +123,167 @@ fun BookmarkScreen(
 
 @Composable
 private fun BookmarkSuccessView(
-    comics: List<ComicEntity>,
-    gridColumns: Int,
+    state: BookmarkUiState.Success,
     viewModel: BookmarkViewModel,
     onComicClick: (Long) -> Unit,
     onGridColumnsChange: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var showCreateDialog by remember { mutableStateOf(false) }
+
+    if (showCreateDialog) {
+        CreateCollectionDialog(
+            onConfirm = { name ->
+                viewModel.createCollection(name)
+                showCreateDialog = false
+            },
+            onDismiss = { showCreateDialog = false }
+        )
+    }
+
     Column(modifier = modifier.fillMaxSize()) {
+        // Collections Filter Row & Add Collection Button
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                modifier = Modifier.weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                state.collections.forEach { collection ->
+                    FilterChip(
+                        selected = state.selectedCollection?.id == collection.id,
+                        onClick = { viewModel.selectCollection(collection.id) },
+                        label = { Text(collection.name) }
+                    )
+                }
+            }
+
+            IconButton(onClick = { showCreateDialog = true }) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "Buat Koleksi Bookmark Baru"
+                )
+            }
+        }
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "${comics.size} Komik Didepan",
+                text = "${state.bookmarkedComics.size} Komik di ${state.selectedCollection?.name ?: "Koleksi"}",
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.primary
             )
             BookmarkGridSelectorRow(
-                currentColumns = gridColumns,
+                currentColumns = state.gridColumns,
                 onColumnsSelected = onGridColumnsChange
             )
         }
+
         Spacer(modifier = Modifier.height(8.dp))
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(gridColumns.coerceIn(2, 4)),
-            modifier = Modifier.fillMaxSize(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            contentPadding = PaddingValues(bottom = 16.dp)
-        ) {
-            items(
-                items = comics,
-                key = { it.id }
-            ) { comic ->
-                BookmarkComicGridCard(
-                    comic = comic,
-                    viewModel = viewModel,
-                    onClick = { onComicClick(comic.id) },
-                    onBookmarkToggle = { viewModel.toggleBookmark(comic.id, comic.isBookmarked) }
+
+        if (state.bookmarkedComics.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Belum Ada Komik di Koleksi ${state.selectedCollection?.name ?: ""}",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.outline
                 )
+            }
+        } else {
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(state.gridColumns.coerceIn(2, 4)),
+                modifier = Modifier.fillMaxSize(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(bottom = 16.dp)
+            ) {
+                items(
+                    items = state.bookmarkedComics,
+                    key = { it.id }
+                ) { comic ->
+                    BookmarkComicGridCard(
+                        comic = comic,
+                        viewModel = viewModel,
+                        onClick = { onComicClick(comic.id) },
+                        onBookmarkToggle = {
+                            state.selectedCollection?.let { col ->
+                                viewModel.removeComicFromCollection(col.id, comic.id)
+                            }
+                        }
+                    )
+                }
             }
         }
     }
+}
+
+@Composable
+private fun CreateCollectionDialog(
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var nameText by remember { mutableStateOf("") }
+    var isError by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Buat Koleksi Bookmark") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = nameText,
+                    onValueChange = {
+                        nameText = it
+                        if (it.isNotBlank()) isError = false
+                    },
+                    label = { Text("Nama Koleksi") },
+                    isError = isError,
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (isError) {
+                    Text(
+                        text = "Nama koleksi tidak boleh kosong",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (nameText.isBlank()) {
+                        isError = true
+                    } else {
+                        onConfirm(nameText.trim())
+                    }
+                }
+            ) {
+                Text("Buat")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Batal")
+            }
+        }
+    )
 }
 
 @Composable

@@ -8,6 +8,7 @@ import com.example.kitsune.data.CoverCacheResult
 import com.example.kitsune.data.LibraryRepository
 import com.example.kitsune.data.SettingsRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
@@ -25,6 +26,8 @@ class BookmarkViewModel(
     private val settingsRepository: SettingsRepository
 ) : ViewModel() {
 
+    val selectedCollectionId = MutableStateFlow<Long?>(null)
+
     val uiState: StateFlow<BookmarkUiState> = rootFolderPreferences
         .observeRootUriString()
         .flatMapLatest { rootUri ->
@@ -32,31 +35,38 @@ class BookmarkViewModel(
                 flowOf(BookmarkUiState.RootNotConfigured)
             } else {
                 combine(
-                    libraryRepository.observeBookmarkedComicsByRoot(rootUri),
+                    libraryRepository.observeAllBookmarkCollections(),
+                    selectedCollectionId,
                     settingsRepository.observeSettings()
-                ) { bookmarkedComics, settings ->
-                    if (bookmarkedComics.isEmpty()) {
-                        BookmarkUiState.Empty
+                ) { collections, selectedId, settings ->
+                    Triple(collections, selectedId, settings)
+                }.flatMapLatest { (collections, selectedId, settings) ->
+                    if (collections.isEmpty()) {
+                        flowOf(BookmarkUiState.Empty)
                     } else {
-                        BookmarkUiState.Success(
-                            rootUriString = rootUri,
-                            bookmarkedComics = bookmarkedComics,
-                            gridColumns = settings.gridColumns.coerceIn(2, 4)
-                        )
+                        val activeCollection = collections.firstOrNull { it.id == selectedId } ?: collections.first()
+                        libraryRepository.observeComicsInBookmarkCollection(activeCollection.id, rootUri)
+                            .combine(flowOf(settings)) { comics, currentSettings ->
+                                if (collections.size == 1 && collections.first().name == "Favorit" && comics.isEmpty()) {
+                                    BookmarkUiState.Empty
+                                } else {
+                                    BookmarkUiState.Success(
+                                        rootUriString = rootUri,
+                                        collections = collections,
+                                        selectedCollection = activeCollection,
+                                        bookmarkedComics = comics,
+                                        gridColumns = currentSettings.gridColumns.coerceIn(2, 4)
+                                    )
+                                }
+                            }
                     }
-                }.catch { throwable ->
-                    emit(
-                        BookmarkUiState.Error(
-                            throwable.localizedMessage ?: "Gagal memuat daftar bookmark."
-                        )
-                    )
                 }
             }
         }
         .catch { throwable ->
             emit(
                 BookmarkUiState.Error(
-                    throwable.localizedMessage ?: "Terjadi kesalahan pada status root."
+                    throwable.localizedMessage ?: "Gagal memuat daftar bookmark."
                 )
             )
         }
@@ -65,6 +75,50 @@ class BookmarkViewModel(
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = BookmarkUiState.Loading
         )
+
+    fun selectCollection(bookmarkId: Long) {
+        selectedCollectionId.value = bookmarkId
+    }
+
+    fun createCollection(name: String) {
+        val trimmed = name.trim()
+        if (trimmed.isBlank()) return
+        viewModelScope.launch {
+            try {
+                val newId = libraryRepository.createBookmarkCollection(trimmed)
+                selectedCollectionId.value = newId
+            } catch (_: Exception) {}
+        }
+    }
+
+    fun renameCollection(bookmarkId: Long, newName: String) {
+        val trimmed = newName.trim()
+        if (trimmed.isBlank()) return
+        viewModelScope.launch {
+            try {
+                libraryRepository.renameBookmarkCollection(bookmarkId, trimmed)
+            } catch (_: Exception) {}
+        }
+    }
+
+    fun deleteCollection(bookmarkId: Long) {
+        viewModelScope.launch {
+            try {
+                libraryRepository.deleteBookmarkCollection(bookmarkId)
+                if (selectedCollectionId.value == bookmarkId) {
+                    selectedCollectionId.value = null
+                }
+            } catch (_: Exception) {}
+        }
+    }
+
+    fun removeComicFromCollection(bookmarkId: Long, comicId: Long) {
+        viewModelScope.launch {
+            try {
+                libraryRepository.removeComicFromCollection(bookmarkId, comicId)
+            } catch (_: Exception) {}
+        }
+    }
 
     fun toggleBookmark(comicId: Long, currentIsBookmarked: Boolean) {
         viewModelScope.launch {

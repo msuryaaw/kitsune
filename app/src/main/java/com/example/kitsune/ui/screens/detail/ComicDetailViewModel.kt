@@ -74,6 +74,33 @@ class ComicDetailViewModel(
         }
     }
 
+    fun observeAllBookmarkCollections(): Flow<List<com.example.kitsune.data.entity.BookmarkEntity>> =
+        libraryRepository.observeAllBookmarkCollections()
+
+    fun observeCollectionsForComic(): Flow<List<com.example.kitsune.data.entity.BookmarkEntity>> =
+        libraryRepository.observeCollectionsForComic(comicId)
+
+    fun updateComicCollections(selectedCollectionIds: Set<Long>) {
+        viewModelScope.launch {
+            try {
+                val currentCollections = libraryRepository.getCollectionsForComic(comicId)
+                val currentIds = currentCollections.map { it.id }.toSet()
+
+                // Add to newly selected collections
+                val toAdd = selectedCollectionIds - currentIds
+                for (colId in toAdd) {
+                    libraryRepository.addComicToCollection(colId, comicId)
+                }
+
+                // Remove from unselected collections
+                val toRemove = currentIds - selectedCollectionIds
+                for (colId in toRemove) {
+                    libraryRepository.removeComicFromCollection(colId, comicId)
+                }
+            } catch (_: Exception) {}
+        }
+    }
+
     fun onChapterSelected(chapterId: Long) {
         val currentState = uiState.value
         if (currentState !is ComicDetailUiState.Success) return

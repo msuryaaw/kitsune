@@ -23,7 +23,11 @@ sealed interface ReaderUiState {
         val pageFit: String = "fit_screen",
         val readingMode: String = "ltr",
         val currentPageIndex: Int = 0,
-        val scrollOffset: Int = 0
+        val scrollOffset: Int = 0,
+        val chapters: List<com.example.kitsune.data.entity.ChapterEntity> = emptyList(),
+        val currentChapterIndex: Int = -1,
+        val hasPreviousChapter: Boolean = false,
+        val hasNextChapter: Boolean = false
     ) : ReaderUiState {
         val effectiveReadingMode: String
             get() = when (readingMode) {

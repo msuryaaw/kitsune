@@ -21,6 +21,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicReference
 
@@ -38,6 +39,7 @@ class ReaderViewModel(
     @Volatile
     private var activeDecoder: CbzPageDecoder? = null
 
+    private val currentChapterIdState = MutableStateFlow(chapterId)
     private var activeChapter: ChapterEntity? = null
     private val timestampGenerator = MonotonicTimestampGenerator()
     private val latestProgressSnapshot = AtomicReference<ReadingProgressEntity?>(null)
@@ -45,21 +47,21 @@ class ReaderViewModel(
     private var requestGeneration = 0
 
     init {
-        loadChapterAndInitialize()
+        loadChapterAndInitialize(chapterId)
     }
 
-    private fun loadChapterAndInitialize() {
+    private fun loadChapterAndInitialize(targetChapterId: Long = currentChapterIdState.value) {
         val currentGen = ++requestGeneration
         viewModelScope.launch {
             _uiState.value = ReaderUiState.Loading
             var tempHandle: CbzArchiveHandle? = null
 
             try {
-                val chapter = libraryRepository.getChapterById(chapterId)
+                val chapter = libraryRepository.getChapterById(targetChapterId)
                 if (currentGen != requestGeneration) return@launch
                 activeChapter = chapter
 
-                when (val openResult = libraryRepository.openCbzArchive(chapterId)) {
+                when (val openResult = libraryRepository.openCbzArchive(targetChapterId)) {
                     is CbzArchiveResult.Success -> {
                         tempHandle = openResult.handle
                         if (currentGen != requestGeneration) {
@@ -67,7 +69,7 @@ class ReaderViewModel(
                             return@launch
                         }
 
-                        when (val indexResult = cbzPageIndexer.buildIndex(chapterId, tempHandle.file)) {
+                        when (val indexResult = cbzPageIndexer.buildIndex(targetChapterId, tempHandle.file)) {
                             is PageIndexResult.Success -> {
                                 if (currentGen != requestGeneration) {
                                     tempHandle.close()
@@ -84,7 +86,7 @@ class ReaderViewModel(
                                 var initialPageIndex = 0
                                 var initialScrollOffset = 0
 
-                                if (savedProgress != null && savedProgress.lastReadChapterId == chapterId) {
+                                if (savedProgress != null && savedProgress.lastReadChapterId == targetChapterId) {
                                     val totalPages = indexResult.pageIndex.totalPages
                                     if (totalPages > 0) {
                                         initialPageIndex = savedProgress.pageIndex.coerceIn(0, totalPages - 1)
@@ -93,22 +95,46 @@ class ReaderViewModel(
                                     timestampGenerator.seed(savedProgress.updatedAt)
                                 }
 
-                                // Observe settings for readerMode & readingDirection
-                                settingsRepository.observeSettings().collect { settings ->
+                                val chaptersFlow = if (comicId > 0L) {
+                                    libraryRepository.observeChaptersByComicId(comicId)
+                                } else {
+                                    kotlinx.coroutines.flow.flowOf(emptyList())
+                                }
+
+                                combine(
+                                    settingsRepository.observeSettings(),
+                                    chaptersFlow
+                                ) { settings: com.example.kitsune.data.entity.SettingsEntity, rawChapters: List<ChapterEntity> ->
+                                    Pair(settings, rawChapters)
+                                }.collect { (settings, rawChapters) ->
                                     if (currentGen != requestGeneration) return@collect
                                     val currentState = _uiState.value
-                                    val currentPos = if (currentState is ReaderUiState.Success) currentState.currentPageIndex else initialPageIndex
-                                    val currentOffset = if (currentState is ReaderUiState.Success) currentState.scrollOffset else initialScrollOffset
+                                    val currentPos = if (currentState is ReaderUiState.Success && currentState.chapterId == targetChapterId) currentState.currentPageIndex else initialPageIndex
+                                    val currentOffset = if (currentState is ReaderUiState.Success && currentState.chapterId == targetChapterId) currentState.scrollOffset else initialScrollOffset
+
+                                    val validChapters = rawChapters.filter { it.isValid }.sortedWith(
+                                        Comparator<ChapterEntity> { ch1, ch2 ->
+                                            com.example.kitsune.scanner.NaturalOrderComparator.compare(ch1.displayName, ch2.displayName)
+                                        }.thenBy { it.chapterNumber }
+                                    )
+
+                                    val chIndex = validChapters.indexOfFirst { it.id == targetChapterId }
+                                    val hasPrev = chIndex > 0
+                                    val hasNext = chIndex >= 0 && chIndex < validChapters.size - 1
 
                                     _uiState.value = ReaderUiState.Success(
-                                        chapterId = chapterId,
+                                        chapterId = targetChapterId,
                                         pageIndex = indexResult.pageIndex,
                                         readerMode = settings.readerMode,
                                         readingDirection = settings.readingDirection,
                                         pageFit = settings.pageFit,
                                         readingMode = settings.readingMode,
                                         currentPageIndex = currentPos,
-                                        scrollOffset = currentOffset
+                                        scrollOffset = currentOffset,
+                                        chapters = validChapters,
+                                        currentChapterIndex = chIndex,
+                                        hasPreviousChapter = hasPrev,
+                                        hasNextChapter = hasNext
                                     )
                                 }
                             }
@@ -203,6 +229,47 @@ class ReaderViewModel(
     fun setReadingMode(readingMode: String) {
         viewModelScope.launch {
             settingsRepository.setReadingMode(readingMode)
+        }
+    }
+
+    fun navigateToChapter(targetChapterId: Long) {
+        val currentState = _uiState.value
+        if (currentState is ReaderUiState.Success && currentState.chapterId == targetChapterId) {
+            return
+        }
+
+        viewModelScope.launch {
+            latestProgressSnapshot.get()?.let { snapshot ->
+                try {
+                    libraryRepository.saveReadingProgress(snapshot)
+                } catch (_: Exception) {}
+            }
+
+            activeDecoder?.close()
+            activeDecoder = null
+
+            currentChapterIdState.value = targetChapterId
+            loadChapterAndInitialize(targetChapterId)
+        }
+    }
+
+    fun navigateToPreviousChapter() {
+        val state = _uiState.value
+        if (state is ReaderUiState.Success && state.hasPreviousChapter) {
+            val prevChapter = state.chapters.getOrNull(state.currentChapterIndex - 1)
+            if (prevChapter != null) {
+                navigateToChapter(prevChapter.id)
+            }
+        }
+    }
+
+    fun navigateToNextChapter() {
+        val state = _uiState.value
+        if (state is ReaderUiState.Success && state.hasNextChapter) {
+            val nextChapter = state.chapters.getOrNull(state.currentChapterIndex + 1)
+            if (nextChapter != null) {
+                navigateToChapter(nextChapter.id)
+            }
         }
     }
 

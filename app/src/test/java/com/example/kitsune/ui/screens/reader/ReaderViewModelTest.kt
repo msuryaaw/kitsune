@@ -74,7 +74,8 @@ class FakeReaderLibraryRepository : LibraryRepository {
     override fun observeRecentlyReadWithProgressByRoot(rootUri: String): Flow<List<com.example.kitsune.data.model.ComicWithProgress>> = flowOf(emptyList())
     override suspend fun clearHistoryForComic(comicId: Long) {}
     override suspend fun clearAllHistoryByRoot(rootUri: String) {}
-    override fun observeChaptersByComicId(comicId: Long): Flow<List<ChapterEntity>> = flowOf(emptyList())
+    override fun observeChaptersByComicId(comicId: Long): Flow<List<ChapterEntity>> =
+        flowOf(chaptersById.values.filter { it.comicId == comicId })
     override fun observeComicById(comicId: Long): Flow<ComicEntity?> = flowOf(null)
     override suspend fun verifyChapterAvailable(chapterId: Long) = com.example.kitsune.data.ChapterAvailabilityResult.Missing
     override suspend fun setBookmarked(comicId: Long, bookmarked: Boolean) {}
@@ -1102,6 +1103,76 @@ class ReaderViewModelTest {
         // Test RTL Right Tap -> Previous (Page 2 -> 1)
         handleTap("rtl", isLeftZoneTap = false)
         assertEquals(1, (viewModel.uiState.value as ReaderUiState.Success).currentPageIndex)
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun readerViewModel_chapterNavigation_calculatesPrevAndNextBoundaries() = runTest {
+        val spooledFile = tempFolder.newFile("spool_nav.cbz")
+        val handle = CbzArchiveHandle(1L, spooledFile) {}
+        fakeRepo.openResult = CbzArchiveResult.Success(handle)
+
+        val samplePage = PageMetadata(pageIndex = 0, entryName = "p1.jpg", normalizedPath = "p1.jpg")
+        fakeIndexer.indexResult = PageIndexResult.Success(ChapterPageIndex(chapterId = 1L, pages = listOf(samplePage)))
+
+        val ch1 = ChapterEntity(id = 1L, comicId = 100L, relativePath = "Comics/OP/Ch1.cbz", chapterNumber = 1, displayName = "Chapter 1.cbz", pageCount = 1)
+        val ch2 = ChapterEntity(id = 2L, comicId = 100L, relativePath = "Comics/OP/Ch2.cbz", chapterNumber = 2, displayName = "Chapter 2.cbz", pageCount = 1)
+        val ch10 = ChapterEntity(id = 10L, comicId = 100L, relativePath = "Comics/OP/Ch10.cbz", chapterNumber = 10, displayName = "Chapter 10.cbz", pageCount = 1)
+
+        fakeRepo.chaptersById[1L] = ch1
+        fakeRepo.chaptersById[2L] = ch2
+        fakeRepo.chaptersById[10L] = ch10
+
+        val viewModel = ReaderViewModel(
+            chapterId = 1L,
+            libraryRepository = fakeRepo,
+            settingsRepository = fakeSettingsRepo,
+            cbzPageIndexer = fakeIndexer,
+            cbzPageDecoderFactory = fakeDecoderFactory
+        )
+
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+
+        val state1 = viewModel.uiState.value as ReaderUiState.Success
+        assertEquals(1L, state1.chapterId)
+        assertFalse("Chapter 1 MUST NOT have previous chapter", state1.hasPreviousChapter)
+        assertTrue("Chapter 1 MUST have next chapter", state1.hasNextChapter)
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun readerViewModel_navigateToChapter_flushesProgressAndClosesOldDecoder() = runTest {
+        val spooledFile = tempFolder.newFile("spool_switch.cbz")
+        val handle = CbzArchiveHandle(1L, spooledFile) {}
+        fakeRepo.openResult = CbzArchiveResult.Success(handle)
+
+        val samplePage = PageMetadata(pageIndex = 0, entryName = "p1.jpg", normalizedPath = "p1.jpg")
+        fakeIndexer.indexResult = PageIndexResult.Success(ChapterPageIndex(chapterId = 1L, pages = listOf(samplePage)))
+
+        val ch1 = ChapterEntity(id = 1L, comicId = 100L, relativePath = "Comics/OP/Ch1.cbz", chapterNumber = 1, displayName = "Chapter 1.cbz", pageCount = 1)
+        val ch2 = ChapterEntity(id = 2L, comicId = 100L, relativePath = "Comics/OP/Ch2.cbz", chapterNumber = 2, displayName = "Chapter 2.cbz", pageCount = 1)
+
+        fakeRepo.chaptersById[1L] = ch1
+        fakeRepo.chaptersById[2L] = ch2
+
+        val viewModel = ReaderViewModel(
+            chapterId = 1L,
+            libraryRepository = fakeRepo,
+            settingsRepository = fakeSettingsRepo,
+            cbzPageIndexer = fakeIndexer,
+            cbzPageDecoderFactory = fakeDecoderFactory
+        )
+
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+
+        // Switch to Chapter 2
+        viewModel.navigateToNextChapter()
+
+        val state2 = viewModel.uiState.value as ReaderUiState.Success
+        assertEquals(2L, state2.chapterId)
+        assertTrue("Old decoder MUST be closed on chapter switch", fakeDecoder.closed)
 
         collectJob.cancel()
     }

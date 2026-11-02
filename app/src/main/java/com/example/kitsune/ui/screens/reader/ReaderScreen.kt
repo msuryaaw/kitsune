@@ -1,5 +1,6 @@
 package com.example.kitsune.ui.screens.reader
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,12 +10,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.ViewArray
-import androidx.compose.material.icons.filled.ViewStream
+import androidx.compose.material.icons.automirrored.filled.NavigateBefore
+import androidx.compose.material.icons.automirrored.filled.NavigateNext
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -25,10 +30,15 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -43,6 +53,20 @@ fun ReaderScreen(
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    var showChapterSelector by remember { mutableStateOf(false) }
+
+    if (showChapterSelector && uiState is ReaderUiState.Success) {
+        val state = uiState as ReaderUiState.Success
+        ChapterSelectorDialog(
+            chapters = state.chapters,
+            currentChapterId = state.chapterId,
+            onChapterSelect = { targetChapterId ->
+                viewModel.navigateToChapter(targetChapterId)
+                showChapterSelector = false
+            },
+            onDismiss = { showChapterSelector = false }
+        )
+    }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -71,6 +95,39 @@ fun ReaderScreen(
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            item {
+                                IconButton(
+                                    onClick = { viewModel.navigateToPreviousChapter() },
+                                    enabled = state.hasPreviousChapter
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.NavigateBefore,
+                                        contentDescription = "Chapter Sebelumnya"
+                                    )
+                                }
+                            }
+                            item {
+                                IconButton(
+                                    onClick = { viewModel.navigateToNextChapter() },
+                                    enabled = state.hasNextChapter
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.NavigateNext,
+                                        contentDescription = "Chapter Berikutnya"
+                                    )
+                                }
+                            }
+                            item {
+                                IconButton(
+                                    onClick = { showChapterSelector = true },
+                                    enabled = state.chapters.isNotEmpty()
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Menu,
+                                        contentDescription = "Pilih Chapter"
+                                    )
+                                }
+                            }
                             item {
                                 ReaderPageFitToggleSelector(
                                     currentFit = state.pageFit,
@@ -223,7 +280,7 @@ private fun ReaderErrorView(
                 color = MaterialTheme.colorScheme.onErrorContainer
             )
             Spacer(modifier = Modifier.height(16.dp))
-            Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 when (errorState.errorType) {
                     ReaderErrorType.PERMISSION_DENIED, ReaderErrorType.ROOT_NOT_CONFIGURED -> {
                         Button(onClick = onSettingsClick) {
@@ -242,5 +299,71 @@ private fun ReaderErrorView(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ChapterSelectorDialog(
+    chapters: List<com.example.kitsune.data.entity.ChapterEntity>,
+    currentChapterId: Long,
+    onChapterSelect: (Long) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Pilih Chapter") },
+        text = {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(300.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                items(chapters, key = { it.id }) { chapter ->
+                    val isSelected = chapter.id == currentChapterId
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                onChapterSelect(chapter.id)
+                            },
+                        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+                        shape = MaterialTheme.shapes.small
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = chapter.displayName.removeSuffixCaseInsensitive(".cbz"),
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                            )
+                            if (isSelected) {
+                                Text(
+                                    text = "Aktif",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Tutup")
+            }
+        }
+    )
+}
+
+private fun String.removeSuffixCaseInsensitive(suffix: String): String {
+    return if (this.endsWith(suffix, ignoreCase = true)) {
+        this.substring(0, this.length - suffix.length)
+    } else {
+        this
     }
 }

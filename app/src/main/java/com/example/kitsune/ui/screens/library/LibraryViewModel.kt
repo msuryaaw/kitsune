@@ -71,7 +71,8 @@ class LibraryViewModel(
                     isRefreshing,
                     searchQuery,
                     sortOption,
-                    isBookmarkedOnly
+                    isBookmarkedOnly,
+                    libraryRepository.observeBookmarkedComicsByRoot(rootUri)
                 ) { flows: Array<Any?> ->
                     @Suppress("UNCHECKED_CAST")
                     val comics = flows[0] as List<com.example.kitsune.data.entity.ComicEntity>
@@ -81,6 +82,9 @@ class LibraryViewModel(
                     val query = flows[4] as String
                     val sort = flows[5] as SortOption
                     val bookmarkedOnly = flows[6] as Boolean
+                    @Suppress("UNCHECKED_CAST")
+                    val bookmarkedComics = flows[7] as List<com.example.kitsune.data.entity.ComicEntity>
+                    val bookmarkedIds = bookmarkedComics.map { it.id }.toSet()
 
                     if (refreshing) {
                         LibraryUiState.Loading
@@ -96,7 +100,7 @@ class LibraryViewModel(
 
                         // 2. Bookmark Filter
                         val bookmarkFiltered = if (bookmarkedOnly) {
-                            searchFiltered.filter { it.isBookmarked }
+                            searchFiltered.filter { bookmarkedIds.contains(it.id) }
                         } else {
                             searchFiltered
                         }
@@ -130,6 +134,7 @@ class LibraryViewModel(
                             LibraryUiState.Success(
                                 rootUriString = rootUri,
                                 comics = finalComics,
+                                bookmarkedComicIds = bookmarkedIds,
                                 gridColumns = settings.gridColumns.coerceIn(2, 4),
                                 issuesCount = issuesCount,
                                 searchQuery = query,
@@ -139,6 +144,7 @@ class LibraryViewModel(
                         } else {
                             LibraryUiState.SearchNoResults(
                                 rootUriString = rootUri,
+                                bookmarkedComicIds = bookmarkedIds,
                                 searchQuery = query,
                                 gridColumns = settings.gridColumns.coerceIn(2, 4),
                                 sortOption = sort,

@@ -48,6 +48,7 @@ sealed interface LibraryUiState {
     data class Success(
         val rootUriString: String,
         val comics: List<ComicEntity>,
+        val bookmarkedComicIds: Set<Long> = emptySet(),
         val gridColumns: Int = 3,
         val issuesCount: Int = 0,
         val searchQuery: String = "",
@@ -60,6 +61,7 @@ sealed interface LibraryUiState {
      */
     data class SearchNoResults(
         val rootUriString: String,
+        val bookmarkedComicIds: Set<Long> = emptySet(),
         val searchQuery: String = "",
         val gridColumns: Int = 3,
         val sortOption: SortOption = SortOption.TITLE_ASC,

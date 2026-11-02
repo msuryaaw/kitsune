@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.drawable.BitmapDrawable
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,9 +17,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Bookmark
@@ -51,11 +54,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -153,6 +159,7 @@ fun LibraryScreen(
             is LibraryUiState.Success -> {
                 LibrarySuccessView(
                     comics = state.comics,
+                    bookmarkedComicIds = state.bookmarkedComicIds,
                     gridColumns = state.gridColumns,
                     issuesCount = state.issuesCount,
                     searchQuery = state.searchQuery,
@@ -394,6 +401,7 @@ private fun NoValidChaptersView(
 @Composable
 private fun LibrarySuccessView(
     comics: List<ComicEntity>,
+    bookmarkedComicIds: Set<Long>,
     gridColumns: Int,
     issuesCount: Int,
     searchQuery: String,
@@ -458,6 +466,7 @@ private fun LibrarySuccessView(
             ) { comic ->
                 ComicGridItemCard(
                     comic = comic,
+                    isBookmarked = bookmarkedComicIds.contains(comic.id),
                     viewModel = viewModel,
                     onClick = { onComicClick(comic.id) },
                 )
@@ -476,27 +485,29 @@ private fun FilterAndSortControlBar(
     onResetClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Row(
+    LazyRow(
         modifier = modifier
             .fillMaxWidth()
             .padding(bottom = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        FilterChip(
-            selected = isBookmarkedOnly,
-            onClick = { onBookmarkedFilterChange(!isBookmarkedOnly) },
-            label = { Text("Favorit") },
-            leadingIcon = {
-                Icon(
-                    imageVector = if (isBookmarkedOnly) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                    contentDescription = null,
-                    tint = if (isBookmarkedOnly) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        )
+        item {
+            FilterChip(
+                selected = isBookmarkedOnly,
+                onClick = { onBookmarkedFilterChange(!isBookmarkedOnly) },
+                label = { Text("Favorit") },
+                leadingIcon = {
+                    Icon(
+                        imageVector = if (isBookmarkedOnly) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                        contentDescription = null,
+                        tint = if (isBookmarkedOnly) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            )
+        }
 
-        SortOption.entries.forEach { option ->
+        items(SortOption.entries.toTypedArray()) { option ->
             FilterChip(
                 selected = sortOption == option,
                 onClick = { onSortOptionChange(option) },
@@ -505,12 +516,14 @@ private fun FilterAndSortControlBar(
         }
 
         if (searchQuery.isNotBlank() || isBookmarkedOnly || sortOption != SortOption.TITLE_ASC) {
-            IconButton(onClick = onResetClick) {
-                Icon(
-                    imageVector = Icons.Default.RestartAlt,
-                    contentDescription = "Reset Filter & Sorting",
-                    tint = MaterialTheme.colorScheme.primary
-                )
+            item {
+                IconButton(onClick = onResetClick) {
+                    Icon(
+                        imageVector = Icons.Default.RestartAlt,
+                        contentDescription = "Reset Filter & Sorting",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
         }
     }
@@ -632,6 +645,7 @@ private fun GridSelectorRow(
 @Composable
 private fun ComicGridItemCard(
     comic: ComicEntity,
+    isBookmarked: Boolean,
     viewModel: LibraryViewModel,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -648,8 +662,8 @@ private fun ComicGridItemCard(
         Column {
             ComicCoverImage(
                 comic = comic,
-                viewModel = viewModel,
-                onBookmarkToggle = { viewModel.toggleBookmark(comic.id, comic.isBookmarked) }
+                isBookmarked = isBookmarked,
+                viewModel = viewModel
             )
             Column(modifier = Modifier.padding(8.dp)) {
                 Text(
@@ -674,8 +688,8 @@ private fun ComicGridItemCard(
 @Composable
 private fun ComicCoverImage(
     comic: ComicEntity,
+    isBookmarked: Boolean,
     viewModel: LibraryViewModel,
-    onBookmarkToggle: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -741,10 +755,19 @@ private fun ComicCoverImage(
         }
     }
 
+    val semanticsDesc = if (isBookmarked) {
+        "Komik terdaftar di koleksi Bookmark"
+    } else {
+        "Komik tidak terdaftar di koleksi Bookmark"
+    }
+
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .aspectRatio(0.7f),
+            .aspectRatio(0.7f)
+            .semantics {
+                contentDescription = semanticsDesc
+            },
         contentAlignment = Alignment.Center,
     ) {
         when (val state = coverState) {
@@ -761,14 +784,11 @@ private fun ComicCoverImage(
             }
         }
 
-        IconButton(
-            onClick = onBookmarkToggle,
-            modifier = Modifier.align(Alignment.TopEnd)
-        ) {
-            Icon(
-                imageVector = if (comic.isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                contentDescription = if (comic.isBookmarked) "Hapus dari Bookmark" else "Tambah ke Bookmark",
-                tint = if (comic.isBookmarked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+        if (isBookmarked) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.18f))
             )
         }
     }

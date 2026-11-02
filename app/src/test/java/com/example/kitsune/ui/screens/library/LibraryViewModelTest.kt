@@ -60,7 +60,9 @@ class FakeLibraryRepository : LibraryRepository {
     }
 
     override fun observeBookmarkedComicsByRoot(rootUri: String): Flow<List<ComicEntity>> {
-        return flowOf(emptyList())
+        return comicsByRoot.map { map ->
+            (map[rootUri] ?: emptyList()).filter { it.isBookmarked }
+        }
     }
 
     override fun observeRecentlyReadByRoot(rootUri: String): Flow<List<ComicEntity>> {

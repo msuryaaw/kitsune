@@ -18,6 +18,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.NavigateBefore
 import androidx.compose.material.icons.automirrored.filled.NavigateNext
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -54,6 +55,7 @@ fun ReaderScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showChapterSelector by remember { mutableStateOf(false) }
+    var showSettingsDialog by remember { mutableStateOf(false) }
 
     if (showChapterSelector && uiState is ReaderUiState.Success) {
         val state = uiState as ReaderUiState.Success
@@ -65,6 +67,17 @@ fun ReaderScreen(
                 showChapterSelector = false
             },
             onDismiss = { showChapterSelector = false }
+        )
+    }
+
+    if (showSettingsDialog && uiState is ReaderUiState.Success) {
+        val state = uiState as ReaderUiState.Success
+        ReaderSettingsDialog(
+            currentMode = state.effectiveReadingMode,
+            currentFit = state.pageFit,
+            onModeSelected = { newMode -> viewModel.setReadingMode(newMode) },
+            onFitSelected = { newFit -> viewModel.setPageFit(newFit) },
+            onDismiss = { showSettingsDialog = false }
         )
     }
 
@@ -91,57 +104,43 @@ fun ReaderScreen(
                 actions = {
                     val state = uiState
                     if (state is ReaderUiState.Success) {
-                        LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(2.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            item {
-                                IconButton(
-                                    onClick = { viewModel.navigateToPreviousChapter() },
-                                    enabled = state.hasPreviousChapter
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.NavigateBefore,
-                                        contentDescription = "Chapter Sebelumnya"
-                                    )
-                                }
-                            }
-                            item {
-                                IconButton(
-                                    onClick = { viewModel.navigateToNextChapter() },
-                                    enabled = state.hasNextChapter
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.NavigateNext,
-                                        contentDescription = "Chapter Berikutnya"
-                                    )
-                                }
-                            }
-                            item {
-                                IconButton(
-                                    onClick = { showChapterSelector = true },
-                                    enabled = state.chapters.isNotEmpty()
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Menu,
-                                        contentDescription = "Pilih Chapter"
-                                    )
-                                }
-                            }
-                            item {
-                                ReaderPageFitToggleSelector(
-                                    currentFit = state.pageFit,
-                                    onFitSelected = { newFit ->
-                                        viewModel.setPageFit(newFit)
-                                    }
+                            IconButton(
+                                onClick = { viewModel.navigateToPreviousChapter() },
+                                enabled = state.hasPreviousChapter
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.NavigateBefore,
+                                    contentDescription = "Chapter Sebelumnya"
                                 )
                             }
-                            item {
-                                ReadingModeSelector(
-                                    currentMode = state.effectiveReadingMode,
-                                    onModeSelected = { newMode ->
-                                        viewModel.setReadingMode(newMode)
-                                    }
+                            IconButton(
+                                onClick = { showChapterSelector = true },
+                                enabled = state.chapters.isNotEmpty()
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Menu,
+                                    contentDescription = "Pilih Chapter"
+                                )
+                            }
+                            IconButton(
+                                onClick = { viewModel.navigateToNextChapter() },
+                                enabled = state.hasNextChapter
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.NavigateNext,
+                                    contentDescription = "Chapter Berikutnya"
+                                )
+                            }
+                            IconButton(
+                                onClick = { showSettingsDialog = true }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Tune,
+                                    contentDescription = "Pengaturan Reader"
                                 )
                             }
                         }
@@ -195,43 +194,67 @@ fun ReaderScreen(
 }
 
 @Composable
-private fun ReaderPageFitToggleSelector(
-    currentFit: String,
-    onFitSelected: (String) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val (label, nextFit) = when (currentFit) {
-        "fit_width" -> "Width" to "fit_height"
-        "fit_height" -> "Height" to "fit_screen"
-        else -> "Fit" to "fit_width"
-    }
-    FilterChip(
-        selected = currentFit != "fit_screen",
-        onClick = { onFitSelected(nextFit) },
-        label = { Text(label) },
-        modifier = modifier.padding(end = 4.dp)
-    )
-}
-
-@Composable
-private fun ReadingModeSelector(
+private fun ReaderSettingsDialog(
     currentMode: String,
+    currentFit: String,
     onModeSelected: (String) -> Unit,
-    modifier: Modifier = Modifier
+    onFitSelected: (String) -> Unit,
+    onDismiss: () -> Unit
 ) {
-    Row(
-        modifier = modifier.padding(end = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        listOf("rtl" to "RTL", "ltr" to "LTR", "vertical" to "Vertical").forEach { (mode, label) ->
-            FilterChip(
-                selected = currentMode == mode,
-                onClick = { onModeSelected(mode) },
-                label = { Text(label) }
-            )
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Pengaturan Reader") },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Column {
+                    Text(
+                        text = "Mode Baca",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        listOf("rtl" to "RTL", "ltr" to "LTR", "vertical" to "Vertical").forEach { (mode, label) ->
+                            FilterChip(
+                                selected = currentMode == mode,
+                                onClick = { onModeSelected(mode) },
+                                label = { Text(label) }
+                            )
+                        }
+                    }
+                }
+
+                Column {
+                    Text(
+                        text = "Tampilan Halaman (Fit)",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        listOf("fit_screen" to "Fit", "fit_width" to "Width", "fit_height" to "Height").forEach { (fit, label) ->
+                            FilterChip(
+                                selected = currentFit == fit,
+                                onClick = { onFitSelected(fit) },
+                                label = { Text(label) }
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Tutup")
+            }
         }
-    }
+    )
 }
 
 @Composable

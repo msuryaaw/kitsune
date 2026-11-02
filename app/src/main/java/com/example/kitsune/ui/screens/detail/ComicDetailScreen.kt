@@ -262,6 +262,54 @@ private fun ComicHeaderCard(
                     overflow = TextOverflow.Ellipsis
                 )
 
+                val hasMetadata = !comic.type.isNullOrBlank() || !comic.language.isNullOrBlank() || !comic.author.isNullOrBlank()
+                if (hasMetadata) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        if (!comic.type.isNullOrBlank()) {
+                            Surface(
+                                shape = MaterialTheme.shapes.extraSmall,
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            ) {
+                                Text(
+                                    text = comic.type,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                        if (!comic.language.isNullOrBlank()) {
+                            Surface(
+                                shape = MaterialTheme.shapes.extraSmall,
+                                color = MaterialTheme.colorScheme.secondaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                            ) {
+                                Text(
+                                    text = comic.language,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                        if (!comic.author.isNullOrBlank()) {
+                            Surface(
+                                shape = MaterialTheme.shapes.extraSmall,
+                                color = MaterialTheme.colorScheme.tertiaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                            ) {
+                                Text(
+                                    text = comic.author,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
@@ -298,7 +346,7 @@ private fun ChapterItemCard(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = chapter.displayName,
+                    text = chapter.displayName.removeSuffixCaseInsensitive(".cbz"),
                     style = MaterialTheme.typography.titleSmall,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -537,5 +585,13 @@ private fun ComicDetailErrorView(
                 Text("Kembali ke Library")
             }
         }
+    }
+}
+
+fun String.removeSuffixCaseInsensitive(suffix: String): String {
+    return if (this.endsWith(suffix, ignoreCase = true)) {
+        this.substring(0, this.length - suffix.length)
+    } else {
+        this
     }
 }

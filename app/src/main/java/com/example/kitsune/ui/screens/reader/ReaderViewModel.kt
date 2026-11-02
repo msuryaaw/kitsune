@@ -106,6 +106,7 @@ class ReaderViewModel(
                                         readerMode = settings.readerMode,
                                         readingDirection = settings.readingDirection,
                                         pageFit = settings.pageFit,
+                                        readingMode = settings.readingMode,
                                         currentPageIndex = currentPos,
                                         scrollOffset = currentOffset
                                     )
@@ -196,6 +197,12 @@ class ReaderViewModel(
     fun setReadingDirection(direction: String) {
         viewModelScope.launch {
             settingsRepository.setReadingDirection(direction)
+        }
+    }
+
+    fun setReadingMode(readingMode: String) {
+        viewModelScope.launch {
+            settingsRepository.setReadingMode(readingMode)
         }
     }
 

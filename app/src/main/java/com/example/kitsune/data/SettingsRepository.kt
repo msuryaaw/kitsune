@@ -38,4 +38,9 @@ interface SettingsRepository {
      * Updates the app theme setting in DB ("system", "light", or "dark").
      */
     suspend fun setTheme(theme: String)
+
+    /**
+     * Updates the unified reading mode setting in DB ("rtl", "ltr", or "vertical").
+     */
+    suspend fun setReadingMode(readingMode: String)
 }

@@ -1,5 +1,6 @@
 package com.example.kitsune.ui.screens.reader
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -8,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ViewArray
@@ -65,25 +67,26 @@ fun ReaderScreen(
                 actions = {
                     val state = uiState
                     if (state is ReaderUiState.Success) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            ReaderPageFitToggleSelector(
-                                currentFit = state.pageFit,
-                                onFitSelected = { newFit ->
-                                    viewModel.setPageFit(newFit)
-                                }
-                            )
-                            ReaderDirectionToggleSelector(
-                                currentDirection = state.readingDirection,
-                                onDirectionSelected = { newDirection ->
-                                    viewModel.setReadingDirection(newDirection)
-                                }
-                            )
-                            ReaderModeToggleSelector(
-                                currentMode = state.readerMode,
-                                onModeSelected = { newMode ->
-                                    viewModel.setReaderMode(newMode)
-                                }
-                            )
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            item {
+                                ReaderPageFitToggleSelector(
+                                    currentFit = state.pageFit,
+                                    onFitSelected = { newFit ->
+                                        viewModel.setPageFit(newFit)
+                                    }
+                                )
+                            }
+                            item {
+                                ReadingModeSelector(
+                                    currentMode = state.effectiveReadingMode,
+                                    onModeSelected = { newMode ->
+                                        viewModel.setReadingMode(newMode)
+                                    }
+                                )
+                            }
                         }
                     }
                 }
@@ -100,7 +103,7 @@ fun ReaderScreen(
                     CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                 }
                 is ReaderUiState.Success -> {
-                    if (state.readerMode == "vertical_continuous") {
+                    if (state.effectiveReadingMode == "vertical") {
                         ContinuousVerticalView(
                             chapterPageIndex = state.pageIndex,
                             initialPageIndex = state.currentPageIndex,
@@ -114,7 +117,7 @@ fun ReaderScreen(
                     } else {
                         SinglePageView(
                             currentPageIndex = state.currentPageIndex,
-                            readingDirection = state.readingDirection,
+                            readingDirection = state.effectiveReadingMode,
                             pageFit = state.pageFit,
                             viewModel = viewModel
                         )
@@ -154,55 +157,23 @@ private fun ReaderPageFitToggleSelector(
 }
 
 @Composable
-private fun ReaderDirectionToggleSelector(
-    currentDirection: String,
-    onDirectionSelected: (String) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    FilterChip(
-        selected = currentDirection == "rtl",
-        onClick = {
-            val nextDir = if (currentDirection == "rtl") "ltr" else "rtl"
-            onDirectionSelected(nextDir)
-        },
-        label = { Text(if (currentDirection == "rtl") "RTL" else "LTR") },
-        modifier = modifier.padding(end = 4.dp)
-    )
-}
-
-@Composable
-private fun ReaderModeToggleSelector(
+private fun ReadingModeSelector(
     currentMode: String,
     onModeSelected: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Row(
         modifier = modifier.padding(end = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        FilterChip(
-            selected = currentMode == "single_page",
-            onClick = { onModeSelected("single_page") },
-            label = { Text("Single") },
-            leadingIcon = {
-                Icon(
-                    imageVector = Icons.Default.ViewArray,
-                    contentDescription = "Single Page Mode"
-                )
-            },
-            modifier = Modifier.padding(end = 4.dp)
-        )
-        FilterChip(
-            selected = currentMode == "vertical_continuous",
-            onClick = { onModeSelected("vertical_continuous") },
-            label = { Text("Vertical") },
-            leadingIcon = {
-                Icon(
-                    imageVector = Icons.Default.ViewStream,
-                    contentDescription = "Continuous Vertical Mode"
-                )
-            }
-        )
+        listOf("rtl" to "RTL", "ltr" to "LTR", "vertical" to "Vertical").forEach { (mode, label) ->
+            FilterChip(
+                selected = currentMode == mode,
+                onClick = { onModeSelected(mode) },
+                label = { Text(label) }
+            )
+        }
     }
 }
 

@@ -29,4 +29,10 @@ interface SettingsDao {
      */
     @Upsert
     suspend fun upsertSettings(settings: SettingsEntity)
+
+    /**
+     * Updates the single reading mode preference.
+     */
+    @Query("UPDATE app_settings SET readingMode = :readingMode WHERE id = 1")
+    suspend fun updateReadingMode(readingMode: String)
 }

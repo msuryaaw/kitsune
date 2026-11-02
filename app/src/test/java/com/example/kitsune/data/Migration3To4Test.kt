@@ -118,12 +118,13 @@ class Migration3To4Test {
         assertEquals(3, v3Db.version)
         v3Db.close()
 
-        // 2. Open DB with Room V4 and execute MIGRATION_3_4
+        // 2. Open DB with Room V5 and execute MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, and MIGRATION_4_5
         val roomDb = Room.databaseBuilder(context, KitsuneDatabase::class.java, dbFile.absolutePath)
             .addMigrations(
                 KitsuneDatabase.MIGRATION_1_2,
                 KitsuneDatabase.MIGRATION_2_3,
-                KitsuneDatabase.MIGRATION_3_4
+                KitsuneDatabase.MIGRATION_3_4,
+                KitsuneDatabase.MIGRATION_4_5
             )
             .allowMainThreadQueries()
             .build()

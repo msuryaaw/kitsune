@@ -24,6 +24,7 @@ data class SettingsEntity(
     val theme: String = "system",
     val readingDirection: String = "ltr",
     val readerMode: String = "single_page",
-    val pageFit: String = "fit_screen"
+    val pageFit: String = "fit_screen",
+    val readingMode: String = "ltr"
 )
 

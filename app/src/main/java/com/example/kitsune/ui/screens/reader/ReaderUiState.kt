@@ -21,9 +21,16 @@ sealed interface ReaderUiState {
         val readerMode: String,
         val readingDirection: String = "ltr",
         val pageFit: String = "fit_screen",
+        val readingMode: String = "ltr",
         val currentPageIndex: Int = 0,
         val scrollOffset: Int = 0
-    ) : ReaderUiState
+    ) : ReaderUiState {
+        val effectiveReadingMode: String
+            get() = when (readingMode) {
+                "rtl", "vertical" -> readingMode
+                else -> "ltr"
+            }
+    }
 
     /**
      * Error state when chapter cannot be opened or indexed.

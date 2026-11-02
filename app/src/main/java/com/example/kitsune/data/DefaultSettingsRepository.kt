@@ -56,4 +56,14 @@ class DefaultSettingsRepository(
         val updated = (existing ?: SettingsEntity()).copy(theme = sanitized)
         settingsDao.upsertSettings(updated)
     }
+
+    override suspend fun setReadingMode(readingMode: String) {
+        val sanitized = when (readingMode) {
+            "rtl", "vertical" -> readingMode
+            else -> "ltr"
+        }
+        val existing = settingsDao.getSettings()
+        val updated = (existing ?: SettingsEntity()).copy(readingMode = sanitized)
+        settingsDao.upsertSettings(updated)
+    }
 }

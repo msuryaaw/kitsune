@@ -175,6 +175,10 @@ class FakeSettingsRepository(
     override suspend fun setTheme(theme: String) {
         settingsFlow.value = settingsFlow.value.copy(theme = theme)
     }
+
+    override suspend fun setReadingMode(readingMode: String) {
+        settingsFlow.value = settingsFlow.value.copy(readingMode = readingMode)
+    }
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)

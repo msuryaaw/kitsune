@@ -34,7 +34,7 @@ import com.example.kitsune.data.entity.SettingsEntity
         BookmarkEntity::class,
         ComicBookmarkCrossRef::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = true
 )
 abstract class KitsuneDatabase : RoomDatabase() {
@@ -97,6 +97,23 @@ abstract class KitsuneDatabase : RoomDatabase() {
                         `id`
                     FROM `comics`
                     WHERE `isBookmarked` = 1
+                    """.trimIndent()
+                )
+            }
+        }
+
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE app_settings ADD COLUMN readingMode TEXT NOT NULL DEFAULT 'ltr'")
+                db.execSQL(
+                    """
+                    UPDATE app_settings
+                    SET readingMode = CASE
+                        WHEN readerMode = 'vertical_continuous' THEN 'vertical'
+                        WHEN readerMode = 'single_page' AND readingDirection = 'rtl' THEN 'rtl'
+                        WHEN readerMode = 'single_page' AND readingDirection = 'ltr' THEN 'ltr'
+                        ELSE 'ltr'
+                    END
                     """.trimIndent()
                 )
             }

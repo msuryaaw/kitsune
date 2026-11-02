@@ -81,7 +81,7 @@ fun ContinuousVerticalView(
         LazyColumn(
             state = lazyListState,
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(vertical = 16.dp)
+            contentPadding = PaddingValues(vertical = 4.dp)
         ) {
             items(
                 items = chapterPageIndex.pages,
@@ -114,13 +114,14 @@ private fun ContinuousPageItem(
     val contentScale = when (pageFit) {
         "fit_height" -> ContentScale.FillHeight
         "fit_screen" -> ContentScale.Fit
+        "fit_width" -> ContentScale.FillWidth
         else -> ContentScale.FillWidth
     }
 
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
+            .padding(vertical = 2.dp),
         contentAlignment = Alignment.Center
     ) {
         val retryTrigger = androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(0) }

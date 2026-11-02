@@ -19,8 +19,14 @@ interface BookmarkDao {
 
     // ── Bookmark Collections ──
 
-    @Query("SELECT * FROM bookmarks ORDER BY createdAt ASC")
+    @Query("SELECT * FROM bookmarks ORDER BY displayOrder ASC, id ASC")
     fun observeAllCollections(): Flow<List<BookmarkEntity>>
+
+    @Query("SELECT * FROM bookmarks ORDER BY displayOrder ASC, id ASC")
+    suspend fun getAllCollections(): List<BookmarkEntity>
+
+    @Query("UPDATE bookmarks SET displayOrder = :displayOrder, updatedAt = :updatedAt WHERE id = :id")
+    suspend fun updateCollectionOrder(id: Long, displayOrder: Int, updatedAt: Long = System.currentTimeMillis())
 
     @Query("SELECT * FROM bookmarks WHERE id = :id")
     suspend fun getCollectionById(id: Long): BookmarkEntity?

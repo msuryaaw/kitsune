@@ -34,7 +34,7 @@ import com.example.kitsune.data.entity.SettingsEntity
         BookmarkEntity::class,
         ComicBookmarkCrossRef::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = true
 )
 abstract class KitsuneDatabase : RoomDatabase() {
@@ -114,6 +114,24 @@ abstract class KitsuneDatabase : RoomDatabase() {
                         WHEN readerMode = 'single_page' AND readingDirection = 'ltr' THEN 'ltr'
                         ELSE 'ltr'
                     END
+                    """.trimIndent()
+                )
+            }
+        }
+
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `bookmarks` ADD COLUMN `displayOrder` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("UPDATE `bookmarks` SET `displayOrder` = 0 WHERE `name` = 'Favorit'")
+                db.execSQL(
+                    """
+                    UPDATE `bookmarks`
+                    SET `displayOrder` = (
+                        SELECT COUNT(*) + 1
+                        FROM `bookmarks` b2
+                        WHERE b2.`name` != 'Favorit' AND (b2.`createdAt` < `bookmarks`.`createdAt` OR (b2.`createdAt` = `bookmarks`.`createdAt` AND b2.`id` < `bookmarks`.`id`))
+                    )
+                    WHERE `name` != 'Favorit'
                     """.trimIndent()
                 )
             }

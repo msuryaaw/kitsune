@@ -118,6 +118,9 @@ interface LibraryRepository {
 
     suspend fun removeComicFromCollection(bookmarkId: Long, comicId: Long)
 
+    suspend fun reorderBookmarkCollections(collectionsInOrder: List<com.example.kitsune.data.entity.BookmarkEntity>)
+
+
     suspend fun toggleComicInCollection(bookmarkId: Long, comicId: Long)
 
     /**

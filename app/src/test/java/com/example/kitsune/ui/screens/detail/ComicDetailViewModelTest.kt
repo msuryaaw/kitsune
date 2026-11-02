@@ -106,6 +106,7 @@ class FakeComicDetailLibraryRepository : LibraryRepository {
     override suspend fun addComicToCollection(bookmarkId: Long, comicId: Long) {}
     override suspend fun removeComicFromCollection(bookmarkId: Long, comicId: Long) {}
     override suspend fun toggleComicInCollection(bookmarkId: Long, comicId: Long) {}
+    override suspend fun reorderBookmarkCollections(collectionsInOrder: List<BookmarkEntity>) {}
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)

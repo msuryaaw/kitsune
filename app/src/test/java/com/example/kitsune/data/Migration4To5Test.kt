@@ -54,7 +54,8 @@ class Migration4To5Test {
                 KitsuneDatabase.MIGRATION_1_2,
                 KitsuneDatabase.MIGRATION_2_3,
                 KitsuneDatabase.MIGRATION_3_4,
-                KitsuneDatabase.MIGRATION_4_5
+                KitsuneDatabase.MIGRATION_4_5,
+                KitsuneDatabase.MIGRATION_5_6
             )
             .allowMainThreadQueries()
             .build()
@@ -97,7 +98,8 @@ class Migration4To5Test {
                 KitsuneDatabase.MIGRATION_1_2,
                 KitsuneDatabase.MIGRATION_2_3,
                 KitsuneDatabase.MIGRATION_3_4,
-                KitsuneDatabase.MIGRATION_4_5
+                KitsuneDatabase.MIGRATION_4_5,
+                KitsuneDatabase.MIGRATION_5_6
             )
             .allowMainThreadQueries()
             .build()
@@ -141,7 +143,8 @@ class Migration4To5Test {
                 KitsuneDatabase.MIGRATION_1_2,
                 KitsuneDatabase.MIGRATION_2_3,
                 KitsuneDatabase.MIGRATION_3_4,
-                KitsuneDatabase.MIGRATION_4_5
+                KitsuneDatabase.MIGRATION_4_5,
+                KitsuneDatabase.MIGRATION_5_6
             )
             .allowMainThreadQueries()
             .build()

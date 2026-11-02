@@ -61,8 +61,8 @@ class DatabaseAndScanIntegrityTest {
     }
 
     @Test
-    fun databaseSchemaVersion5_andCreatesAllTablesAndIndices() {
-        assertEquals(5, db.openHelper.readableDatabase.version)
+    fun databaseSchemaVersion6_andCreatesAllTablesAndIndices() {
+        assertEquals(6, db.openHelper.readableDatabase.version)
 
         val cursor = db.openHelper.readableDatabase.query(
             "SELECT name FROM sqlite_master WHERE type='table'"

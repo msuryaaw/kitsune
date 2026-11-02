@@ -669,6 +669,7 @@ class LibraryRepositoryTest {
 
         // Asynchronous flush
         testRepo.flushReadingProgress(progress)
+        testScheduler.advanceUntilIdle()
 
         val retrieved = realProgressDao.getByComicId(comicId)
         assertNotNull(retrieved)

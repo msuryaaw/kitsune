@@ -421,38 +421,33 @@ private fun LibrarySuccessView(
             sortOption = sortOption,
             isBookmarkedOnly = isBookmarkedOnly,
             searchQuery = searchQuery,
+            gridColumns = gridColumns,
             onSortOptionChange = { viewModel.setSortOption(it) },
             onBookmarkedFilterChange = { viewModel.setBookmarkedFilter(it) },
+            onGridColumnsChange = onGridColumnsChange,
             onResetClick = { viewModel.resetFiltersAndSorting() }
         )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (issuesCount > 0) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.Info,
-                        contentDescription = "Diagnostik Scan",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(end = 4.dp)
-                    )
-                    Text(
-                        text = "$issuesCount masalah scan",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-            } else {
-                Spacer(modifier = Modifier.height(1.dp))
+        if (issuesCount > 0) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Info,
+                    contentDescription = "Diagnostik Scan",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(end = 4.dp)
+                )
+                Text(
+                    text = "$issuesCount masalah scan",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
             }
-            GridSelectorRow(
-                currentColumns = gridColumns,
-                onColumnsSelected = onGridColumnsChange,
-            )
         }
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(2.dp))
         LazyVerticalGrid(
             columns = GridCells.Fixed(gridColumns.coerceIn(2, 4)),
             modifier = Modifier.fillMaxSize(),
@@ -480,8 +475,10 @@ private fun FilterAndSortControlBar(
     sortOption: SortOption,
     isBookmarkedOnly: Boolean,
     searchQuery: String,
+    gridColumns: Int,
     onSortOptionChange: (SortOption) -> Unit,
     onBookmarkedFilterChange: (Boolean) -> Unit,
+    onGridColumnsChange: (Int) -> Unit,
     onResetClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -513,6 +510,16 @@ private fun FilterAndSortControlBar(
                 onClick = { onSortOptionChange(option) },
                 label = { Text(option.displayName) }
             )
+        }
+
+        listOf(2, 3, 4).forEach { columns ->
+            item {
+                FilterChip(
+                    selected = gridColumns == columns,
+                    onClick = { onGridColumnsChange(columns) },
+                    label = { Text("${columns}x") }
+                )
+            }
         }
 
         if (searchQuery.isNotBlank() || isBookmarkedOnly || sortOption != SortOption.TITLE_ASC) {
@@ -582,8 +589,10 @@ private fun SearchNoResultsView(
             sortOption = sortOption,
             isBookmarkedOnly = isBookmarkedOnly,
             searchQuery = searchQuery,
+            gridColumns = 3,
             onSortOptionChange = { viewModel.setSortOption(it) },
             onBookmarkedFilterChange = { viewModel.setBookmarkedFilter(it) },
+            onGridColumnsChange = { viewModel.setGridColumns(it) },
             onResetClick = { viewModel.resetFiltersAndSorting() }
         )
         Spacer(modifier = Modifier.height(24.dp))
@@ -610,34 +619,6 @@ private fun SearchNoResultsView(
         Spacer(modifier = Modifier.height(16.dp))
         Button(onClick = { viewModel.resetFiltersAndSorting() }) {
             Text("Reset Filter & Pencarian")
-        }
-    }
-}
-
-@Composable
-private fun GridSelectorRow(
-    currentColumns: Int,
-    onColumnsSelected: (Int) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.End,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            imageVector = Icons.Default.GridView,
-            contentDescription = "Pilihan Kolom Grid",
-            tint = MaterialTheme.colorScheme.outline,
-            modifier = Modifier.padding(end = 8.dp),
-        )
-        listOf(2, 3, 4).forEach { columns ->
-            FilterChip(
-                selected = currentColumns == columns,
-                onClick = { onColumnsSelected(columns) },
-                label = { Text("${columns}x") },
-                modifier = Modifier.padding(horizontal = 2.dp),
-            )
         }
     }
 }
@@ -670,14 +651,6 @@ private fun ComicGridItemCard(
                     text = comic.title,
                     style = MaterialTheme.typography.titleSmall,
                     maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = comic.relativePath,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.outline,
-                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
             }

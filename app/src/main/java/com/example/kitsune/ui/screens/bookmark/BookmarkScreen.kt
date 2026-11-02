@@ -218,12 +218,7 @@ private fun BookmarkSuccessView(
                     BookmarkComicGridCard(
                         comic = comic,
                         viewModel = viewModel,
-                        onClick = { onComicClick(comic.id) },
-                        onBookmarkToggle = {
-                            state.selectedCollection?.let { col ->
-                                viewModel.removeComicFromCollection(col.id, comic.id)
-                            }
-                        }
+                        onClick = { onComicClick(comic.id) }
                     )
                 }
             }
@@ -319,7 +314,6 @@ private fun BookmarkComicGridCard(
     comic: ComicEntity,
     viewModel: BookmarkViewModel,
     onClick: () -> Unit,
-    onBookmarkToggle: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -334,22 +328,13 @@ private fun BookmarkComicGridCard(
         Column {
             BookmarkCoverImage(
                 comic = comic,
-                viewModel = viewModel,
-                onBookmarkToggle = onBookmarkToggle
+                viewModel = viewModel
             )
             Column(modifier = Modifier.padding(8.dp)) {
                 Text(
                     text = comic.title,
                     style = MaterialTheme.typography.titleSmall,
                     maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = comic.relativePath,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.outline,
-                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
             }
@@ -361,7 +346,6 @@ private fun BookmarkComicGridCard(
 private fun BookmarkCoverImage(
     comic: ComicEntity,
     viewModel: BookmarkViewModel,
-    onBookmarkToggle: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -455,17 +439,6 @@ private fun BookmarkCoverImage(
                     }
                 }
             }
-        }
-
-        IconButton(
-            onClick = onBookmarkToggle,
-            modifier = Modifier.align(Alignment.TopEnd)
-        ) {
-            Icon(
-                imageVector = if (comic.isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                contentDescription = if (comic.isBookmarked) "Hapus dari Bookmark" else "Tambah ke Bookmark",
-                tint = MaterialTheme.colorScheme.primary
-            )
         }
     }
 }

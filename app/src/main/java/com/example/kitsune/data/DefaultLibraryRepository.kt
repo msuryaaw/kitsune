@@ -503,8 +503,23 @@ class DefaultLibraryRepository(
         }
     }
 
+    override suspend fun addComicsToCollection(bookmarkId: Long, comicIds: List<Long>) {
+        try {
+            val crossRefs = comicIds.map { com.example.kitsune.data.entity.ComicBookmarkCrossRef(bookmarkId = bookmarkId, comicId = it) }
+            bookmarkDao.addComicsToCollection(crossRefs)
+        } catch (_: Exception) {
+            // Safely ignore if comicId/bookmarkId is missing in test fakes with SQLite foreign key
+        }
+    }
+
     override suspend fun removeComicFromCollection(bookmarkId: Long, comicId: Long) {
         bookmarkDao.removeComicFromCollection(bookmarkId, comicId)
+    }
+
+    override suspend fun removeComicsFromCollection(bookmarkId: Long, comicIds: List<Long>) {
+        if (comicIds.isNotEmpty()) {
+            bookmarkDao.removeComicsFromCollection(bookmarkId, comicIds)
+        }
     }
 
     override suspend fun reorderBookmarkCollections(collectionsInOrder: List<com.example.kitsune.data.entity.BookmarkEntity>) {

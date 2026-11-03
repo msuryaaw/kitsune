@@ -16,7 +16,9 @@ sealed interface BookmarkUiState {
         val collections: List<BookmarkEntity>,
         val selectedCollection: BookmarkEntity?,
         val bookmarkedComics: List<ComicEntity>,
-        val gridColumns: Int
+        val gridColumns: Int,
+        val selectedComicIds: Set<Long> = emptySet(),
+        val isSelectionMode: Boolean = false
     ) : BookmarkUiState
     data class Error(val message: String) : BookmarkUiState
 }

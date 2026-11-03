@@ -109,7 +109,9 @@ class FakeHistoryLibraryRepository : LibraryRepository {
     override suspend fun renameBookmarkCollection(bookmarkId: Long, newName: String) {}
     override suspend fun deleteBookmarkCollection(bookmarkId: Long) {}
     override suspend fun addComicToCollection(bookmarkId: Long, comicId: Long) {}
+    override suspend fun addComicsToCollection(bookmarkId: Long, comicIds: List<Long>) {}
     override suspend fun removeComicFromCollection(bookmarkId: Long, comicId: Long) {}
+    override suspend fun removeComicsFromCollection(bookmarkId: Long, comicIds: List<Long>) {}
     override suspend fun toggleComicInCollection(bookmarkId: Long, comicId: Long) {}
     override suspend fun reorderBookmarkCollections(collectionsInOrder: List<BookmarkEntity>) {}
 }

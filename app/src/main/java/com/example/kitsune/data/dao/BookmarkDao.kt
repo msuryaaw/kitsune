@@ -48,8 +48,14 @@ interface BookmarkDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun addComicToCollection(crossRef: ComicBookmarkCrossRef)
 
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun addComicsToCollection(crossRefs: List<ComicBookmarkCrossRef>)
+
     @Query("DELETE FROM comic_bookmark_cross_ref WHERE bookmarkId = :bookmarkId AND comicId = :comicId")
     suspend fun removeComicFromCollection(bookmarkId: Long, comicId: Long)
+
+    @Query("DELETE FROM comic_bookmark_cross_ref WHERE bookmarkId = :bookmarkId AND comicId IN (:comicIds)")
+    suspend fun removeComicsFromCollection(bookmarkId: Long, comicIds: List<Long>)
 
     @Query("""
         SELECT c.* FROM comics c

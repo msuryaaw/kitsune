@@ -116,7 +116,11 @@ interface LibraryRepository {
 
     suspend fun addComicToCollection(bookmarkId: Long, comicId: Long)
 
+    suspend fun addComicsToCollection(bookmarkId: Long, comicIds: List<Long>)
+
     suspend fun removeComicFromCollection(bookmarkId: Long, comicId: Long)
+
+    suspend fun removeComicsFromCollection(bookmarkId: Long, comicIds: List<Long>)
 
     suspend fun reorderBookmarkCollections(collectionsInOrder: List<com.example.kitsune.data.entity.BookmarkEntity>)
 

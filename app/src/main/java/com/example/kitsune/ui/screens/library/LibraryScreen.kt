@@ -3,9 +3,11 @@ package com.example.kitsune.ui.screens.library
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.drawable.BitmapDrawable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -26,6 +29,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOff
@@ -38,6 +42,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -49,9 +54,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -165,6 +174,8 @@ fun LibraryScreen(
                     searchQuery = state.searchQuery,
                     sortOption = state.sortOption,
                     isBookmarkedOnly = state.isBookmarkedOnly,
+                    selectedComicIds = state.selectedComicIds,
+                    isSelectionMode = state.isSelectionMode,
                     viewModel = viewModel,
                     onComicClick = onComicClick,
                     onGridColumnsChange = { columns -> viewModel.setGridColumns(columns) },
@@ -407,26 +418,54 @@ private fun LibrarySuccessView(
     searchQuery: String,
     sortOption: SortOption,
     isBookmarkedOnly: Boolean,
+    selectedComicIds: Set<Long>,
+    isSelectionMode: Boolean,
     viewModel: LibraryViewModel,
     onComicClick: (Long) -> Unit,
     onGridColumnsChange: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var showAddToCollectionDialog by remember { mutableStateOf(false) }
+
+    if (showAddToCollectionDialog) {
+        val collections by viewModel.observeAllBookmarkCollections().collectAsStateWithLifecycle(initialValue = emptyList())
+        AddToBookmarkCollectionDialog(
+            collections = collections,
+            onCollectionSelect = { colId ->
+                viewModel.bulkAddToCollection(colId)
+                showAddToCollectionDialog = false
+            },
+            onDismiss = { showAddToCollectionDialog = false }
+        )
+    }
+
     Column(modifier = modifier.fillMaxSize()) {
-        LibrarySearchBar(
-            searchQuery = searchQuery,
-            onSearchQueryChange = { viewModel.onSearchQueryChanged(it) }
-        )
-        FilterAndSortControlBar(
-            sortOption = sortOption,
-            isBookmarkedOnly = isBookmarkedOnly,
-            searchQuery = searchQuery,
-            gridColumns = gridColumns,
-            onSortOptionChange = { viewModel.setSortOption(it) },
-            onBookmarkedFilterChange = { viewModel.setBookmarkedFilter(it) },
-            onGridColumnsChange = onGridColumnsChange,
-            onResetClick = { viewModel.resetFiltersAndSorting() }
-        )
+        if (isSelectionMode) {
+            SelectionActionBar(
+                selectedCount = selectedComicIds.size,
+                allCount = comics.size,
+                onSelectAll = { viewModel.selectAllComics(comics.map { it.id }) },
+                onClear = { viewModel.clearSelection() },
+                onAddToCollection = { showAddToCollectionDialog = true }
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+        } else {
+            LibrarySearchBar(
+                searchQuery = searchQuery,
+                onSearchQueryChange = { viewModel.onSearchQueryChanged(it) }
+            )
+            FilterAndSortControlBar(
+                sortOption = sortOption,
+                isBookmarkedOnly = isBookmarkedOnly,
+                searchQuery = searchQuery,
+                gridColumns = gridColumns,
+                onSortOptionChange = { viewModel.setSortOption(it) },
+                onBookmarkedFilterChange = { viewModel.setBookmarkedFilter(it) },
+                onGridColumnsChange = onGridColumnsChange,
+                onResetClick = { viewModel.resetFiltersAndSorting() }
+            )
+        }
+
         if (issuesCount > 0) {
             Row(
                 modifier = Modifier
@@ -462,6 +501,8 @@ private fun LibrarySuccessView(
                 ComicGridItemCard(
                     comic = comic,
                     isBookmarked = bookmarkedComicIds.contains(comic.id),
+                    isSelected = selectedComicIds.contains(comic.id),
+                    isSelectionMode = isSelectionMode,
                     viewModel = viewModel,
                     onClick = { onComicClick(comic.id) },
                 )
@@ -623,10 +664,13 @@ private fun SearchNoResultsView(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ComicGridItemCard(
     comic: ComicEntity,
     isBookmarked: Boolean,
+    isSelected: Boolean,
+    isSelectionMode: Boolean,
     viewModel: LibraryViewModel,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -634,24 +678,47 @@ private fun ComicGridItemCard(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
+            .combinedClickable(
+                onClick = {
+                    if (isSelectionMode) {
+                        viewModel.toggleComicSelection(comic.id)
+                    } else {
+                        onClick()
+                    }
+                },
+                onLongClick = {
+                    viewModel.toggleComicSelection(comic.id)
+                }
+            ),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface,
+            containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
-        Column {
-            ComicCoverImage(
-                comic = comic,
-                isBookmarked = isBookmarked,
-                viewModel = viewModel
-            )
-            Column(modifier = Modifier.padding(8.dp)) {
-                Text(
-                    text = comic.title,
-                    style = MaterialTheme.typography.titleSmall,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
+        Box {
+            Column {
+                ComicCoverImage(
+                    comic = comic,
+                    isBookmarked = isBookmarked,
+                    viewModel = viewModel
+                )
+                Column(modifier = Modifier.padding(8.dp)) {
+                    Text(
+                        text = comic.title,
+                        style = MaterialTheme.typography.titleSmall,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            if (isSelected) {
+                Icon(
+                    imageVector = Icons.Default.CheckCircle,
+                    contentDescription = "Terpilih",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(8.dp)
                 )
             }
         }
@@ -829,4 +896,107 @@ private fun LibraryErrorView(
             }
         }
     }
+}
+
+@Composable
+private fun SelectionActionBar(
+    selectedCount: Int,
+    allCount: Int,
+    onSelectAll: () -> Unit,
+    onClear: () -> Unit,
+    onAddToCollection: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "$selectedCount / $allCount Dipilih",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(onClick = onSelectAll) {
+                    Text("Pilih Semua")
+                }
+                Button(
+                    onClick = onAddToCollection,
+                    enabled = selectedCount > 0
+                ) {
+                    Text("Tambah ke Koleksi")
+                }
+                IconButton(onClick = onClear) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Batal Pilihan",
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AddToBookmarkCollectionDialog(
+    collections: List<com.example.kitsune.data.entity.BookmarkEntity>,
+    onCollectionSelect: (Long) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Tambah ke Koleksi Bookmark") },
+        text = {
+            if (collections.isEmpty()) {
+                Text("Belum ada koleksi Bookmark. Buat koleksi di halaman Bookmark terlebih dahulu.")
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(260.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    items(collections, key = { it.id }) { collection ->
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onCollectionSelect(collection.id) },
+                            shape = MaterialTheme.shapes.small,
+                            color = MaterialTheme.colorScheme.surfaceVariant
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = collection.name,
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Batal")
+            }
+        }
+    )
 }

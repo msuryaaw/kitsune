@@ -10,6 +10,7 @@ import com.example.kitsune.scanner.ComicsDirectoryDetector
 import com.example.kitsune.scanner.ComicsDirectoryState
 import com.example.kitsune.scanner.LibraryScanResult
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -33,6 +34,50 @@ class LibraryViewModel(
     val searchQuery = MutableStateFlow("")
     val sortOption = MutableStateFlow(SortOption.TITLE_ASC)
     val isBookmarkedOnly = MutableStateFlow(false)
+
+    val selectedComicIds = MutableStateFlow<Set<Long>>(emptySet())
+    val isSelectionMode = MutableStateFlow(false)
+
+    fun toggleComicSelection(comicId: Long) {
+        val current = selectedComicIds.value
+        if (current.contains(comicId)) {
+            val updated = current - comicId
+            selectedComicIds.value = updated
+            if (updated.isEmpty()) {
+                isSelectionMode.value = false
+            }
+        } else {
+            selectedComicIds.value = current + comicId
+            isSelectionMode.value = true
+        }
+    }
+
+    fun selectAllComics(allComicIds: List<Long>) {
+        selectedComicIds.value = allComicIds.toSet()
+        if (allComicIds.isNotEmpty()) {
+            isSelectionMode.value = true
+        }
+    }
+
+    fun clearSelection() {
+        selectedComicIds.value = emptySet()
+        isSelectionMode.value = false
+    }
+
+    fun bulkAddToCollection(bookmarkId: Long) {
+        val idsToTarget = selectedComicIds.value.toList()
+        if (idsToTarget.isEmpty()) return
+        viewModelScope.launch {
+            try {
+                libraryRepository.addComicsToCollection(bookmarkId, idsToTarget)
+            } catch (_: Exception) {} finally {
+                clearSelection()
+            }
+        }
+    }
+
+    fun observeAllBookmarkCollections(): Flow<List<com.example.kitsune.data.entity.BookmarkEntity>> =
+        libraryRepository.observeAllBookmarkCollections()
 
     init {
         viewModelScope.launch {
@@ -72,7 +117,9 @@ class LibraryViewModel(
                     searchQuery,
                     sortOption,
                     isBookmarkedOnly,
-                    libraryRepository.observeBookmarkedComicsByRoot(rootUri)
+                    libraryRepository.observeBookmarkedComicsByRoot(rootUri),
+                    selectedComicIds,
+                    isSelectionMode
                 ) { flows: Array<Any?> ->
                     @Suppress("UNCHECKED_CAST")
                     val comics = flows[0] as List<com.example.kitsune.data.entity.ComicEntity>
@@ -85,6 +132,9 @@ class LibraryViewModel(
                     @Suppress("UNCHECKED_CAST")
                     val bookmarkedComics = flows[7] as List<com.example.kitsune.data.entity.ComicEntity>
                     val bookmarkedIds = bookmarkedComics.map { it.id }.toSet()
+                    @Suppress("UNCHECKED_CAST")
+                    val selIds = flows[8] as Set<Long>
+                    val selMode = flows[9] as Boolean
 
                     if (refreshing) {
                         LibraryUiState.Loading
@@ -139,7 +189,9 @@ class LibraryViewModel(
                                 issuesCount = issuesCount,
                                 searchQuery = query,
                                 sortOption = sort,
-                                isBookmarkedOnly = bookmarkedOnly
+                                isBookmarkedOnly = bookmarkedOnly,
+                                selectedComicIds = selIds,
+                                isSelectionMode = selMode
                             )
                         } else {
                             LibraryUiState.SearchNoResults(

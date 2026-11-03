@@ -15,9 +15,12 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.io.File
+
+data class Quint<A, B, C, D, E>(val first: A, val second: B, val third: C, val fourth: D, val fifth: E)
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class BookmarkViewModel(
@@ -27,6 +30,8 @@ class BookmarkViewModel(
 ) : ViewModel() {
 
     val selectedCollectionId = MutableStateFlow<Long?>(null)
+    val selectedComicIds = MutableStateFlow<Set<Long>>(emptySet())
+    val isSelectionMode = MutableStateFlow(false)
 
     val uiState: StateFlow<BookmarkUiState> = rootFolderPreferences
         .observeRootUriString()
@@ -37,16 +42,18 @@ class BookmarkViewModel(
                 combine(
                     libraryRepository.observeAllBookmarkCollections(),
                     selectedCollectionId,
-                    settingsRepository.observeSettings()
-                ) { collections, selectedId, settings ->
-                    Triple(collections, selectedId, settings)
-                }.flatMapLatest { (collections, selectedId, settings) ->
+                    settingsRepository.observeSettings(),
+                    selectedComicIds,
+                    isSelectionMode
+                ) { collections, selectedId, settings, selIds, selMode ->
+                    Quint(collections, selectedId, settings, selIds, selMode)
+                }.flatMapLatest { (collections, selectedId, settings, selIds, selMode) ->
                     if (collections.isEmpty()) {
                         flowOf(BookmarkUiState.Empty)
                     } else {
                         val activeCollection = collections.firstOrNull { it.id == selectedId } ?: collections.first()
                         libraryRepository.observeComicsInBookmarkCollection(activeCollection.id, rootUri)
-                            .combine(flowOf(settings)) { comics, currentSettings ->
+                            .map { comics ->
                                 if (collections.size == 1 && collections.first().name == "Favorit" && comics.isEmpty()) {
                                     BookmarkUiState.Empty
                                 } else {
@@ -55,7 +62,9 @@ class BookmarkViewModel(
                                         collections = collections,
                                         selectedCollection = activeCollection,
                                         bookmarkedComics = comics,
-                                        gridColumns = currentSettings.gridColumns.coerceIn(2, 4)
+                                        gridColumns = settings.gridColumns.coerceIn(2, 4),
+                                        selectedComicIds = selIds,
+                                        isSelectionMode = selMode
                                     )
                                 }
                             }
@@ -77,7 +86,48 @@ class BookmarkViewModel(
         )
 
     fun selectCollection(bookmarkId: Long) {
-        selectedCollectionId.value = bookmarkId
+        if (selectedCollectionId.value != bookmarkId) {
+            clearSelection()
+            selectedCollectionId.value = bookmarkId
+        }
+    }
+
+    fun toggleComicSelection(comicId: Long) {
+        val current = selectedComicIds.value
+        if (current.contains(comicId)) {
+            val updated = current - comicId
+            selectedComicIds.value = updated
+            if (updated.isEmpty()) {
+                isSelectionMode.value = false
+            }
+        } else {
+            selectedComicIds.value = current + comicId
+            isSelectionMode.value = true
+        }
+    }
+
+    fun selectAllComics(allComicIds: List<Long>) {
+        selectedComicIds.value = allComicIds.toSet()
+        if (allComicIds.isNotEmpty()) {
+            isSelectionMode.value = true
+        }
+    }
+
+    fun clearSelection() {
+        selectedComicIds.value = emptySet()
+        isSelectionMode.value = false
+    }
+
+    fun bulkRemoveFromCollection(activeBookmarkId: Long) {
+        val idsToRemove = selectedComicIds.value.toList()
+        if (idsToRemove.isEmpty()) return
+        viewModelScope.launch {
+            try {
+                libraryRepository.removeComicsFromCollection(activeBookmarkId, idsToRemove)
+            } catch (_: Exception) {} finally {
+                clearSelection()
+            }
+        }
     }
 
     fun createCollection(name: String) {

@@ -53,7 +53,9 @@ sealed interface LibraryUiState {
         val issuesCount: Int = 0,
         val searchQuery: String = "",
         val sortOption: SortOption = SortOption.TITLE_ASC,
-        val isBookmarkedOnly: Boolean = false
+        val isBookmarkedOnly: Boolean = false,
+        val selectedComicIds: Set<Long> = emptySet(),
+        val isSelectionMode: Boolean = false
     ) : LibraryUiState
 
     /**

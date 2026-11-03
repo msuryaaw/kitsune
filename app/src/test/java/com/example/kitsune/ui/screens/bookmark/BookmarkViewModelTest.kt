@@ -100,7 +100,9 @@ class FakeBookmarkLibraryRepository : LibraryRepository {
         collectionsFlow.value = collectionsFlow.value.filterNot { it.id == bookmarkId }
     }
     override suspend fun addComicToCollection(bookmarkId: Long, comicId: Long) {}
+    override suspend fun addComicsToCollection(bookmarkId: Long, comicIds: List<Long>) {}
     override suspend fun removeComicFromCollection(bookmarkId: Long, comicId: Long) {}
+    override suspend fun removeComicsFromCollection(bookmarkId: Long, comicIds: List<Long>) {}
     override suspend fun toggleComicInCollection(bookmarkId: Long, comicId: Long) {}
     override suspend fun reorderBookmarkCollections(collectionsInOrder: List<BookmarkEntity>) {}
 }

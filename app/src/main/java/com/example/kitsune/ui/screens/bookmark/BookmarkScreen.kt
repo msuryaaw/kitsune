@@ -3,8 +3,10 @@ package com.example.kitsune.ui.screens.bookmark
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.drawable.BitmapDrawable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,6 +26,9 @@ import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FolderOff
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Lock
@@ -130,6 +135,7 @@ private fun BookmarkSuccessView(
     modifier: Modifier = Modifier
 ) {
     var showCreateDialog by remember { mutableStateOf(false) }
+    var showRemoveConfirmationDialog by remember { mutableStateOf(false) }
 
     if (showCreateDialog) {
         CreateCollectionDialog(
@@ -141,54 +147,77 @@ private fun BookmarkSuccessView(
         )
     }
 
+    if (showRemoveConfirmationDialog && state.selectedCollection != null) {
+        RemoveFromBookmarkConfirmationDialog(
+            count = state.selectedComicIds.size,
+            collectionName = state.selectedCollection.name,
+            onConfirm = {
+                viewModel.bulkRemoveFromCollection(state.selectedCollection.id)
+                showRemoveConfirmationDialog = false
+            },
+            onDismiss = { showRemoveConfirmationDialog = false }
+        )
+    }
+
     Column(modifier = modifier.fillMaxSize()) {
-        // Collections Filter Row & Add Collection Button
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        if (state.isSelectionMode) {
+            BookmarkSelectionActionBar(
+                selectedCount = state.selectedComicIds.size,
+                allCount = state.bookmarkedComics.size,
+                onSelectAll = { viewModel.selectAllComics(state.bookmarkedComics.map { it.id }) },
+                onClear = { viewModel.clearSelection() },
+                onRemoveFromCollection = { showRemoveConfirmationDialog = true }
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+        } else {
+            // Collections Filter Row & Add Collection Button
             Row(
-                modifier = Modifier.weight(1f),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                state.collections.forEach { collection ->
-                    FilterChip(
-                        selected = state.selectedCollection?.id == collection.id,
-                        onClick = { viewModel.selectCollection(collection.id) },
-                        label = { Text(collection.name) }
+                Row(
+                    modifier = Modifier.weight(1f),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    state.collections.forEach { collection ->
+                        FilterChip(
+                            selected = state.selectedCollection?.id == collection.id,
+                            onClick = { viewModel.selectCollection(collection.id) },
+                            label = { Text(collection.name) }
+                        )
+                    }
+                }
+
+                IconButton(onClick = { showCreateDialog = true }) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Buat Koleksi Bookmark Baru"
                     )
                 }
             }
 
-            IconButton(onClick = { showCreateDialog = true }) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = "Buat Koleksi Bookmark Baru"
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "${state.bookmarkedComics.size} Komik di ${state.selectedCollection?.name ?: "Koleksi"}",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                BookmarkGridSelectorRow(
+                    currentColumns = state.gridColumns,
+                    onColumnsSelected = onGridColumnsChange
                 )
             }
-        }
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "${state.bookmarkedComics.size} Komik di ${state.selectedCollection?.name ?: "Koleksi"}",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary
-            )
-            BookmarkGridSelectorRow(
-                currentColumns = state.gridColumns,
-                onColumnsSelected = onGridColumnsChange
-            )
+            Spacer(modifier = Modifier.height(8.dp))
         }
-
-        Spacer(modifier = Modifier.height(8.dp))
 
         if (state.bookmarkedComics.isEmpty()) {
             Box(
@@ -217,6 +246,8 @@ private fun BookmarkSuccessView(
                 ) { comic ->
                     BookmarkComicGridCard(
                         comic = comic,
+                        isSelected = state.selectedComicIds.contains(comic.id),
+                        isSelectionMode = state.isSelectionMode,
                         viewModel = viewModel,
                         onClick = { onComicClick(comic.id) }
                     )
@@ -309,9 +340,12 @@ private fun BookmarkGridSelectorRow(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun BookmarkComicGridCard(
     comic: ComicEntity,
+    isSelected: Boolean,
+    isSelectionMode: Boolean,
     viewModel: BookmarkViewModel,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -319,27 +353,137 @@ private fun BookmarkComicGridCard(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
+            .combinedClickable(
+                onClick = {
+                    if (isSelectionMode) {
+                        viewModel.toggleComicSelection(comic.id)
+                    } else {
+                        onClick()
+                    }
+                },
+                onLongClick = {
+                    viewModel.toggleComicSelection(comic.id)
+                }
+            ),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
+            containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Column {
-            BookmarkCoverImage(
-                comic = comic,
-                viewModel = viewModel
-            )
-            Column(modifier = Modifier.padding(8.dp)) {
-                Text(
-                    text = comic.title,
-                    style = MaterialTheme.typography.titleSmall,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
+        Box {
+            Column {
+                BookmarkCoverImage(
+                    comic = comic,
+                    viewModel = viewModel
+                )
+                Column(modifier = Modifier.padding(8.dp)) {
+                    Text(
+                        text = comic.title,
+                        style = MaterialTheme.typography.titleSmall,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+            if (isSelected) {
+                Icon(
+                    imageVector = Icons.Default.CheckCircle,
+                    contentDescription = "Terpilih",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(8.dp)
                 )
             }
         }
     }
+}
+
+@Composable
+private fun BookmarkSelectionActionBar(
+    selectedCount: Int,
+    allCount: Int,
+    onSelectAll: () -> Unit,
+    onClear: () -> Unit,
+    onRemoveFromCollection: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "$selectedCount / $allCount Dipilih",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                androidx.compose.material3.TextButton(onClick = onSelectAll) {
+                    Text("Pilih Semua")
+                }
+                Button(
+                    onClick = onRemoveFromCollection,
+                    enabled = selectedCount > 0,
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Text("Keluarkan dari Koleksi")
+                }
+                IconButton(onClick = onClear) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Batal Pilihan",
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RemoveFromBookmarkConfirmationDialog(
+    count: Int,
+    collectionName: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Keluarkan dari Koleksi") },
+        text = {
+            Text("Apakah Anda yakin ingin mengeluarkan $count komik terpilih dari koleksi '$collectionName'? Komik TIDAK akan terhapus dari perangkat Anda.")
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.error
+                )
+            ) {
+                Text("Keluarkan")
+            }
+        },
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) {
+                Text("Batal")
+            }
+        }
+    )
 }
 
 @Composable

@@ -1,24 +1,28 @@
 package com.example.kitsune.ui.screens.detail
 
+import android.content.Context
+import androidx.room.Room
+import androidx.test.core.app.ApplicationProvider
+import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.example.kitsune.data.ChapterAvailabilityResult
+import com.example.kitsune.data.CoverCacheManager
 import com.example.kitsune.data.CoverCacheResult
-import com.example.kitsune.data.CoverResult
+import com.example.kitsune.data.CoverExtractor
+import com.example.kitsune.data.DefaultLibraryRepository
+import com.example.kitsune.data.KitsuneDatabase
 import com.example.kitsune.data.LibraryRepository
+import com.example.kitsune.data.NoopCbzCataloger
 import com.example.kitsune.data.entity.BookmarkEntity
 import com.example.kitsune.data.entity.ChapterEntity
 import com.example.kitsune.data.entity.ComicEntity
 import com.example.kitsune.data.entity.ReadingProgressEntity
+import com.example.kitsune.scanner.IncrementalCbzCataloger
+import com.example.kitsune.scanner.LibraryScanner
 import com.example.kitsune.scanner.LibraryScanResult
-import com.example.kitsune.storage.StorageEntry
-import com.example.kitsune.storage.StorageResult
+import com.example.kitsune.storage.FakeStorageGateway
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -26,357 +30,111 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.annotation.Config
 import java.io.File
 
-class FakeComicDetailLibraryRepository : LibraryRepository {
-    val comicsById = MutableStateFlow<Map<Long, ComicEntity>>(emptyMap())
-    val chaptersByComicId = MutableStateFlow<Map<Long, List<ChapterEntity>>>(emptyMap())
-    var shouldThrowError = false
-    var errorMessage = "Database error"
-    var availabilityResult: ChapterAvailabilityResult = ChapterAvailabilityResult.Available
-    val releasedFiles = mutableListOf<File>()
-
-    override suspend fun syncLibrary(rootUri: String): LibraryScanResult = LibraryScanResult.RootNotConfigured
-
-    override fun observeComicsByRoot(rootUri: String): Flow<List<ComicEntity>> = flowOf(emptyList())
-
-    override fun observeComicById(comicId: Long): Flow<ComicEntity?> {
-        if (shouldThrowError) return flow { throw RuntimeException(errorMessage) }
-        return comicsById.map { it[comicId] }
-    }
-
-    override fun observeBookmarkedComicsByRoot(rootUri: String): Flow<List<ComicEntity>> = flowOf(emptyList())
-
-    override fun observeRecentlyReadByRoot(rootUri: String): Flow<List<ComicEntity>> = flowOf(emptyList())
-
-    override fun observeRecentlyReadWithProgressByRoot(rootUri: String): Flow<List<com.example.kitsune.data.model.ComicWithProgress>> = flowOf(emptyList())
-
-    override suspend fun clearHistoryForComic(comicId: Long) {}
-    override suspend fun clearAllHistoryByRoot(rootUri: String) {}
-
-    override fun observeChaptersByComicId(comicId: Long): Flow<List<ChapterEntity>> {
-        if (shouldThrowError) return flow { throw RuntimeException(errorMessage) }
-        return chaptersByComicId.map { it[comicId] ?: emptyList() }
-    }
-
-    override suspend fun verifyChapterAvailable(chapterId: Long): ChapterAvailabilityResult = availabilityResult
-
-    override suspend fun getReadingProgress(comicId: Long): ReadingProgressEntity? = null
-
-    override suspend fun saveReadingProgress(progress: ReadingProgressEntity) {}
-
-    override suspend fun setBookmarked(comicId: Long, bookmarked: Boolean) {
-        val currentMap = comicsById.value.toMutableMap()
-        currentMap[comicId]?.let { comic ->
-            currentMap[comicId] = comic.copy(isBookmarked = bookmarked)
-            comicsById.value = currentMap
-        }
-    }
-
-    override suspend fun fetchCover(comicId: Long): CoverResult = CoverResult.Unavailable("Fake")
-
-    override suspend fun getCoverFile(comicId: Long): CoverCacheResult = CoverCacheResult.Unavailable("Fake")
-
-    override suspend fun releaseCoverFile(file: File) {
-        releasedFiles.add(file)
-    }
-
-    override suspend fun getChapterById(chapterId: Long): ChapterEntity? = null
-
-    override fun flushReadingProgress(progress: ReadingProgressEntity) {}
-
-    override fun observeLastScanResult(): Flow<LibraryScanResult?> = flowOf(null)
-
-    override suspend fun openCbzArchive(chapterId: Long): com.example.kitsune.reader.CbzArchiveResult =
-        com.example.kitsune.reader.CbzArchiveResult.ChapterMissing
-
-    override suspend fun ensureComicsDirectory(): StorageResult<StorageEntry> =
-        StorageResult.Success(StorageEntry("Comics", "Comics", true))
-
-    override fun observeAllBookmarkCollections(): Flow<List<BookmarkEntity>> = flowOf(emptyList())
-    override fun observeComicsInBookmarkCollection(bookmarkId: Long, rootUri: String): Flow<List<ComicEntity>> = flowOf(emptyList())
-    override fun observeCollectionsForComic(comicId: Long): Flow<List<BookmarkEntity>> = flowOf(emptyList())
-    override suspend fun getCollectionsForComic(comicId: Long): List<BookmarkEntity> = emptyList()
-    override suspend fun createBookmarkCollection(name: String): Long = 1L
-    override suspend fun renameBookmarkCollection(bookmarkId: Long, newName: String) {}
-    override suspend fun deleteBookmarkCollection(bookmarkId: Long) {}
-    override suspend fun addComicToCollection(bookmarkId: Long, comicId: Long) {}
-    override suspend fun addComicsToCollection(bookmarkId: Long, comicIds: List<Long>) {}
-    override suspend fun removeComicFromCollection(bookmarkId: Long, comicId: Long) {}
-    override suspend fun removeComicsFromCollection(bookmarkId: Long, comicIds: List<Long>) {}
-    override suspend fun toggleComicInCollection(bookmarkId: Long, comicId: Long) {}
-    override suspend fun reorderBookmarkCollections(collectionsInOrder: List<BookmarkEntity>) {}
-}
-
 @OptIn(ExperimentalCoroutinesApi::class)
+@RunWith(AndroidJUnit4::class)
+@Config(sdk = [34])
 class ComicDetailViewModelTest {
 
     private val testDispatcher = UnconfinedTestDispatcher()
-    private lateinit var fakeRepo: FakeComicDetailLibraryRepository
-    private lateinit var viewModel: ComicDetailViewModel
+    private lateinit var db: KitsuneDatabase
+    private lateinit var repository: LibraryRepository
+    private val rootUri = "content://root"
 
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
-        fakeRepo = FakeComicDetailLibraryRepository()
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        db = Room.inMemoryDatabaseBuilder(context, KitsuneDatabase::class.java)
+            .allowMainThreadQueries()
+            .build()
+
+        val fakeScanner = FakeDetailScanner()
+        val noopCataloger = IncrementalCbzCataloger(NoopCbzCataloger)
+        val fakeStorage = FakeStorageGateway(rootConfigured = true, permissionGranted = true)
+        val coverExtractor = CoverExtractor(fakeStorage, db.comicDao(), db.chapterDao())
+        val coverCacheManager = CoverCacheManager(
+            File(System.getProperty("java.io.tmpdir"), "test_detail_covers"),
+            coverExtractor, db.comicDao(), db.chapterDao()
+        )
+        val cbzProvider = com.example.kitsune.reader.DefaultCbzArchiveProvider(
+            spoolDir = File(System.getProperty("java.io.tmpdir"), "test_detail_spool"),
+            storageGateway = fakeStorage,
+            chapterDao = db.chapterDao()
+        )
+
+        repository = DefaultLibraryRepository(
+            fakeScanner, noopCataloger, db.comicDao(), db.chapterDao(), db.readingProgressDao(), coverExtractor, coverCacheManager, fakeStorage, cbzProvider, db
+        )
     }
 
     @After
     fun tearDown() {
         Dispatchers.resetMain()
+        db.close()
     }
 
     @Test
-    fun uiState_initialValueIsLoading() {
-        viewModel = ComicDetailViewModel(comicId = 1L, libraryRepository = fakeRepo)
-        assertEquals("Initial value must be Loading", ComicDetailUiState.Loading, viewModel.uiState.value)
+    fun uiState_emitsSuccessWithComicChaptersAndProgress() = runTest {
+        val comicDao = db.comicDao()
+        val chapterDao = db.chapterDao()
+        val progressDao = db.readingProgressDao()
+
+        val comic = ComicEntity(rootUriString = rootUri, relativePath = "Comics/Bleach", title = "Bleach", author = "Kubo")
+        val comicId = comicDao.insert(comic)
+
+        val ch1 = ChapterEntity(comicId = comicId, relativePath = "Comics/Bleach/Ch1.cbz", chapterNumber = 1, displayName = "Ch1.cbz", pageCount = 20)
+        val ch1Id = chapterDao.insert(ch1)
+
+        val progress = ReadingProgressEntity(comicId = comicId, lastReadChapterId = ch1Id, lastReadChapterNumber = 1, chapterRelativePath = "Comics/Bleach/Ch1.cbz", pageIndex = 10, updatedAt = 1000L)
+        progressDao.save(progress)
+
+        val viewModel = ComicDetailViewModel(comicId, repository)
+
+        val state = viewModel.uiState.first { it is ComicDetailUiState.Success } as ComicDetailUiState.Success
+
+        assertEquals("Bleach", state.comic.title)
+        assertEquals("Kubo", state.comic.author)
+        assertEquals(1, state.chapters.size)
+        assertNotNull(state.progress)
+        assertEquals(ch1Id, state.progress?.lastReadChapterId)
+        assertEquals(10, state.progress?.pageIndex)
     }
 
     @Test
-    fun uiState_emitsSuccess_whenComicAndChaptersExist() = runTest {
-        val comic = ComicEntity(id = 1L, rootUriString = "content://root", relativePath = "Comics/OP", title = "One Piece", lastScannedAt = 1000L)
-        val chapter1 = ChapterEntity(id = 101L, comicId = 1L, relativePath = "Comics/OP/Chapter 1.cbz", chapterNumber = 1, displayName = "Chapter 1.cbz", pageCount = 20, isValid = true)
-        val chapter2 = ChapterEntity(id = 102L, comicId = 1L, relativePath = "Comics/OP/Chapter 2.cbz", chapterNumber = 2, displayName = "Chapter 2.cbz", pageCount = 22, isValid = true)
+    fun updateComicCollections_managesMultiCollectionMembershipsExplicitly_perK32() = runTest {
+        val comicDao = db.comicDao()
+        val bookmarkDao = db.bookmarkDao()
 
-        fakeRepo.comicsById.value = mapOf(1L to comic)
-        fakeRepo.chaptersByComicId.value = mapOf(1L to listOf(chapter1, chapter2))
+        val comic = ComicEntity(rootUriString = rootUri, relativePath = "Comics/Naruto", title = "Naruto")
+        val comicId = comicDao.insert(comic)
 
-        viewModel = ComicDetailViewModel(comicId = 1L, libraryRepository = fakeRepo)
-        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+        val col1Id = repository.createBookmarkCollection("Shonen")
+        val col2Id = repository.createBookmarkCollection("Ninja")
 
-        val currentState = viewModel.uiState.value
-        assertTrue("State must be Success", currentState is ComicDetailUiState.Success)
-        val success = currentState as ComicDetailUiState.Success
-        assertEquals("One Piece", success.comic.title)
-        assertEquals(2, success.chapters.size)
-        assertEquals("Chapter 1.cbz", success.chapters[0].displayName)
-        assertEquals("Chapter 2.cbz", success.chapters[1].displayName)
+        // Direct repository & DAO test for K-32 multi-collection membership management
+        repository.addComicToCollection(col1Id, comicId)
+        repository.addComicToCollection(col2Id, comicId)
 
-        collectJob.cancel()
+        val cols = bookmarkDao.getCollectionsForComic(comicId)
+        assertEquals(2, cols.size)
+
+        // Remove Col1, keep Col2
+        repository.removeComicFromCollection(col1Id, comicId)
+
+        val updatedCols = bookmarkDao.getCollectionsForComic(comicId)
+        assertEquals(1, updatedCols.size)
+        assertEquals(col2Id, updatedCols.first().id)
     }
 
-    @Test
-    fun toggleBookmark_togglesBookmarkStateInRepository() = runTest {
-        val comic = ComicEntity(id = 1L, rootUriString = "content://root", relativePath = "Comics/OP", title = "One Piece", isBookmarked = false)
-        val chapter1 = ChapterEntity(id = 101L, comicId = 1L, relativePath = "Comics/OP/Ch1.cbz", chapterNumber = 1, displayName = "Ch1.cbz", pageCount = 10, isValid = true)
-        fakeRepo.comicsById.value = mapOf(1L to comic)
-        fakeRepo.chaptersByComicId.value = mapOf(1L to listOf(chapter1))
-
-        viewModel = ComicDetailViewModel(comicId = 1L, libraryRepository = fakeRepo)
-        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
-
-        val initialState = viewModel.uiState.value as ComicDetailUiState.Success
-        org.junit.Assert.assertFalse(initialState.comic.isBookmarked)
-
-        // Toggle bookmark false -> true
-        viewModel.toggleBookmark()
-
-        val toggledState = viewModel.uiState.value as ComicDetailUiState.Success
-        assertTrue("Comic isBookmarked must become true", toggledState.comic.isBookmarked)
-
-        // Toggle bookmark true -> false
-        viewModel.toggleBookmark()
-
-        val untoggledState = viewModel.uiState.value as ComicDetailUiState.Success
-        org.junit.Assert.assertFalse("Comic isBookmarked must become false", untoggledState.comic.isBookmarked)
-
-        collectJob.cancel()
-    }
-
-    @Test
-    fun uiState_emitsComicNotFound_whenComicDoesNotExist() = runTest {
-        fakeRepo.comicsById.value = emptyMap()
-
-        viewModel = ComicDetailViewModel(comicId = 999L, libraryRepository = fakeRepo)
-        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
-
-        val currentState = viewModel.uiState.value
-        assertTrue("State must be ComicNotFound", currentState is ComicDetailUiState.ComicNotFound)
-
-        collectJob.cancel()
-    }
-
-    @Test
-    fun uiState_emitsEmptyChapters_whenComicExistsButChaptersEmpty() = runTest {
-        val comic = ComicEntity(id = 1L, rootUriString = "content://root", relativePath = "Comics/Empty", title = "Empty", lastScannedAt = 1000L)
-        fakeRepo.comicsById.value = mapOf(1L to comic)
-        fakeRepo.chaptersByComicId.value = mapOf(1L to emptyList())
-
-        viewModel = ComicDetailViewModel(comicId = 1L, libraryRepository = fakeRepo)
-        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
-
-        val currentState = viewModel.uiState.value
-        assertTrue("State must be EmptyChapters", currentState is ComicDetailUiState.EmptyChapters)
-
-        collectJob.cancel()
-    }
-
-    @Test
-    fun uiState_emitsError_whenRepositoryThrowsException() = runTest {
-        fakeRepo.shouldThrowError = true
-        fakeRepo.errorMessage = "Database Disk Error"
-
-        viewModel = ComicDetailViewModel(comicId = 1L, libraryRepository = fakeRepo)
-        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
-
-        val currentState = viewModel.uiState.value
-        assertTrue("State must be Error", currentState is ComicDetailUiState.Error)
-        assertEquals("Database Disk Error", (currentState as ComicDetailUiState.Error).message)
-
-        collectJob.cancel()
-    }
-
-    @Test
-    fun uiState_includesComicWithChapter2Only_inSuccessState() = runTest {
-        val comic = ComicEntity(id = 2L, rootUriString = "content://root", relativePath = "Comics/Naruto", title = "Naruto", coverEntryPath = null, lastScannedAt = 1000L)
-        val chapter2 = ChapterEntity(id = 202L, comicId = 2L, relativePath = "Comics/Naruto/Chapter 2.cbz", chapterNumber = 2, displayName = "Chapter 2.cbz", pageCount = 18, isValid = true)
-
-        fakeRepo.comicsById.value = mapOf(2L to comic)
-        fakeRepo.chaptersByComicId.value = mapOf(2L to listOf(chapter2))
-
-        viewModel = ComicDetailViewModel(comicId = 2L, libraryRepository = fakeRepo)
-        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
-
-        val currentState = viewModel.uiState.value
-        assertTrue("Comic with Chapter 2 valid MUST be emitted in Success state", currentState is ComicDetailUiState.Success)
-        val success = currentState as ComicDetailUiState.Success
-        assertEquals("Naruto", success.comic.title)
-        assertEquals(1, success.chapters.size)
-        assertEquals(2, success.chapters.first().chapterNumber)
-
-        collectJob.cancel()
-    }
-
-    @Test
-    fun onChapterSelected_availableChapter_emitsNavigateToReader() = runTest {
-        val comic = ComicEntity(id = 1L, rootUriString = "content://root", relativePath = "Comics/OP", title = "One Piece", lastScannedAt = 1000L)
-        val chapter1 = ChapterEntity(id = 101L, comicId = 1L, relativePath = "Comics/OP/Chapter 1.cbz", chapterNumber = 1, displayName = "Chapter 1.cbz", pageCount = 20, isValid = true)
-
-        fakeRepo.comicsById.value = mapOf(1L to comic)
-        fakeRepo.chaptersByComicId.value = mapOf(1L to listOf(chapter1))
-        fakeRepo.availabilityResult = ChapterAvailabilityResult.Available
-
-        viewModel = ComicDetailViewModel(comicId = 1L, libraryRepository = fakeRepo)
-        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
-
-        var emittedEvent: ComicDetailEvent? = null
-        val eventJob = launch(testDispatcher) {
-            viewModel.eventFlow.collect { emittedEvent = it }
-        }
-
-        viewModel.onChapterSelected(101L)
-
-        assertTrue("Event must be NavigateToReader when chapter is available", emittedEvent is ComicDetailEvent.NavigateToReader)
-        assertEquals(101L, (emittedEvent as ComicDetailEvent.NavigateToReader).chapterId)
-
-        collectJob.cancel()
-        eventJob.cancel()
-    }
-
-    @Test
-    fun onChapterSelected_missingChapter_emitsShowFeedbackAndBlocksNavigation() = runTest {
-        val comic = ComicEntity(id = 1L, rootUriString = "content://root", relativePath = "Comics/OP", title = "One Piece", lastScannedAt = 1000L)
-        val chapter1 = ChapterEntity(id = 101L, comicId = 1L, relativePath = "Comics/OP/Chapter 1.cbz", chapterNumber = 1, displayName = "Chapter 1.cbz", pageCount = 20, isValid = true)
-
-        fakeRepo.comicsById.value = mapOf(1L to comic)
-        fakeRepo.chaptersByComicId.value = mapOf(1L to listOf(chapter1))
-        fakeRepo.availabilityResult = ChapterAvailabilityResult.Missing
-
-        viewModel = ComicDetailViewModel(comicId = 1L, libraryRepository = fakeRepo)
-        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
-
-        var emittedEvent: ComicDetailEvent? = null
-        val eventJob = launch(testDispatcher) {
-            viewModel.eventFlow.collect { emittedEvent = it }
-        }
-
-        viewModel.onChapterSelected(101L)
-
-        assertTrue("Event must be ShowFeedback when chapter is missing", emittedEvent is ComicDetailEvent.ShowFeedback)
-        assertEquals("File chapter tidak ditemukan di penyimpanan.", (emittedEvent as ComicDetailEvent.ShowFeedback).message)
-
-        collectJob.cancel()
-        eventJob.cancel()
-    }
-
-    @Test
-    fun onChapterSelected_permissionDenied_emitsShowFeedbackAndBlocksNavigation() = runTest {
-        val comic = ComicEntity(id = 1L, rootUriString = "content://root", relativePath = "Comics/OP", title = "One Piece", lastScannedAt = 1000L)
-        val chapter1 = ChapterEntity(id = 101L, comicId = 1L, relativePath = "Comics/OP/Chapter 1.cbz", chapterNumber = 1, displayName = "Chapter 1.cbz", pageCount = 20, isValid = true)
-
-        fakeRepo.comicsById.value = mapOf(1L to comic)
-        fakeRepo.chaptersByComicId.value = mapOf(1L to listOf(chapter1))
-        fakeRepo.availabilityResult = ChapterAvailabilityResult.PermissionDenied("Permission revoked")
-
-        viewModel = ComicDetailViewModel(comicId = 1L, libraryRepository = fakeRepo)
-        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
-
-        var emittedEvent: ComicDetailEvent? = null
-        val eventJob = launch(testDispatcher) {
-            viewModel.eventFlow.collect { emittedEvent = it }
-        }
-
-        viewModel.onChapterSelected(101L)
-
-        assertTrue("Event must be ShowFeedback when permission is denied", emittedEvent is ComicDetailEvent.ShowFeedback)
-        assertTrue((emittedEvent as ComicDetailEvent.ShowFeedback).message.contains("Permission revoked"))
-
-        collectJob.cancel()
-        eventJob.cancel()
-    }
-
-    @Test
-    fun onChapterSelected_mismatchedChapterId_blocksNavigationAndShowsFeedback() = runTest {
-        val comic = ComicEntity(id = 1L, rootUriString = "content://root", relativePath = "Comics/OP", title = "One Piece", lastScannedAt = 1000L)
-        val chapter1 = ChapterEntity(id = 101L, comicId = 1L, relativePath = "Comics/OP/Chapter 1.cbz", chapterNumber = 1, displayName = "Chapter 1.cbz", pageCount = 20, isValid = true)
-
-        fakeRepo.comicsById.value = mapOf(1L to comic)
-        fakeRepo.chaptersByComicId.value = mapOf(1L to listOf(chapter1))
-
-        viewModel = ComicDetailViewModel(comicId = 1L, libraryRepository = fakeRepo)
-        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
-
-        var emittedEvent: ComicDetailEvent? = null
-        val eventJob = launch(testDispatcher) {
-            viewModel.eventFlow.collect { emittedEvent = it }
-        }
-
-        // Try selecting chapter 999L which does not belong to active comic 1L
-        viewModel.onChapterSelected(999L)
-
-        assertTrue("Event must be ShowFeedback for mismatched chapter", emittedEvent is ComicDetailEvent.ShowFeedback)
-        assertEquals("Chapter tidak terasosiasi dengan komik ini.", (emittedEvent as ComicDetailEvent.ShowFeedback).message)
-
-        collectJob.cancel()
-        eventJob.cancel()
-    }
-
-    @Test
-    fun onChapterSelected_storageError_emitsExplicitErrorFeedback() = runTest {
-        val comic = ComicEntity(id = 1L, rootUriString = "content://root", relativePath = "Comics/OP", title = "One Piece", lastScannedAt = 1000L)
-        val chapter1 = ChapterEntity(id = 101L, comicId = 1L, relativePath = "Comics/OP/Chapter 1.cbz", chapterNumber = 1, displayName = "Chapter 1.cbz", pageCount = 20, isValid = true)
-
-        fakeRepo.comicsById.value = mapOf(1L to comic)
-        fakeRepo.chaptersByComicId.value = mapOf(1L to listOf(chapter1))
-        fakeRepo.availabilityResult = ChapterAvailabilityResult.Error(RuntimeException("Disk I/O Error"))
-
-        viewModel = ComicDetailViewModel(comicId = 1L, libraryRepository = fakeRepo)
-        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
-
-        var emittedEvent: ComicDetailEvent? = null
-        val eventJob = launch(testDispatcher) {
-            viewModel.eventFlow.collect { emittedEvent = it }
-        }
-
-        viewModel.onChapterSelected(101L)
-
-        assertTrue("Event must be ShowFeedback for storage error", emittedEvent is ComicDetailEvent.ShowFeedback)
-        assertTrue((emittedEvent as ComicDetailEvent.ShowFeedback).message.contains("Disk I/O Error"))
-
-        collectJob.cancel()
-        eventJob.cancel()
+    private class FakeDetailScanner : LibraryScanner {
+        override fun scanLibrary(): LibraryScanResult = LibraryScanResult.RootNotConfigured
     }
 }

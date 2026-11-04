@@ -491,8 +491,10 @@ class DefaultLibraryRepository(
         try {
             val crossRef = com.example.kitsune.data.entity.ComicBookmarkCrossRef(bookmarkId = bookmarkId, comicId = comicId)
             bookmarkDao.addComicToCollection(crossRef)
-        } catch (_: Exception) {
-            // Safely ignore if comicId/bookmarkId is missing in test fakes with SQLite foreign key
+            comicDao.setBookmarked(comicId, true)
+        } catch (e: Exception) {
+            println("DEBUG_EXCEPTION: ${e.message}")
+            e.printStackTrace()
         }
     }
 
@@ -500,6 +502,9 @@ class DefaultLibraryRepository(
         try {
             val crossRefs = comicIds.map { com.example.kitsune.data.entity.ComicBookmarkCrossRef(bookmarkId = bookmarkId, comicId = it) }
             bookmarkDao.addComicsToCollection(crossRefs)
+            for (cId in comicIds) {
+                comicDao.setBookmarked(cId, true)
+            }
         } catch (_: Exception) {
             // Safely ignore if comicId/bookmarkId is missing in test fakes with SQLite foreign key
         }
@@ -507,11 +512,19 @@ class DefaultLibraryRepository(
 
     override suspend fun removeComicFromCollection(bookmarkId: Long, comicId: Long) {
         bookmarkDao.removeComicFromCollection(bookmarkId, comicId)
+        if (bookmarkDao.getBookmarkCountForComic(comicId) == 0) {
+            comicDao.setBookmarked(comicId, false)
+        }
     }
 
     override suspend fun removeComicsFromCollection(bookmarkId: Long, comicIds: List<Long>) {
         if (comicIds.isNotEmpty()) {
             bookmarkDao.removeComicsFromCollection(bookmarkId, comicIds)
+            for (cId in comicIds) {
+                if (bookmarkDao.getBookmarkCountForComic(cId) == 0) {
+                    comicDao.setBookmarked(cId, false)
+                }
+            }
         }
     }
 

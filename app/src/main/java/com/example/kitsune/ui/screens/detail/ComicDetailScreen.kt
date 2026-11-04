@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.FolderOff
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -68,6 +69,8 @@ import coil.request.SuccessResult
 import com.example.kitsune.data.CoverCacheResult
 import com.example.kitsune.data.entity.ChapterEntity
 import com.example.kitsune.data.entity.ComicEntity
+import com.example.kitsune.data.entity.ReadingProgressEntity
+import com.example.kitsune.ui.screens.library.CoverUiState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
@@ -124,13 +127,13 @@ fun ComicDetailScreen(
         modifier = modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
-                title = { Text("Detail Komik") },
+                title = { Text("Comic Detail") },
                 windowInsets = WindowInsets(0, 0, 0, 0),
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Kembali ke Library"
+                            contentDescription = "Back"
                         )
                     }
                 },
@@ -141,7 +144,7 @@ fun ComicDetailScreen(
                         IconButton(onClick = { showCollectionPicker = true }) {
                             Icon(
                                 imageVector = if (isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                                contentDescription = if (isBookmarked) "Kelola Koleksi Bookmark" else "Tambah ke Koleksi Bookmark",
+                                contentDescription = if (isBookmarked) "Manage Bookmark Collections" else "Add to Bookmark Collection",
                                 tint = if (isBookmarked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
@@ -176,6 +179,7 @@ fun ComicDetailScreen(
                     ComicDetailSuccessView(
                         comic = state.comic,
                         chapters = state.chapters,
+                        progress = state.progress,
                         viewModel = viewModel,
                         onChapterSelect = { chapterId ->
                             viewModel.onChapterSelected(chapterId)
@@ -198,6 +202,7 @@ fun ComicDetailScreen(
 private fun ComicDetailSuccessView(
     comic: ComicEntity,
     chapters: List<ChapterEntity>,
+    progress: ReadingProgressEntity?,
     viewModel: ComicDetailViewModel,
     onChapterSelect: (Long) -> Unit,
     modifier: Modifier = Modifier
@@ -210,14 +215,16 @@ private fun ComicDetailSuccessView(
         item {
             ComicHeaderCard(
                 comic = comic,
-                chapterCount = chapters.size,
-                viewModel = viewModel
+                chapters = chapters,
+                progress = progress,
+                viewModel = viewModel,
+                onChapterSelect = onChapterSelect
             )
         }
 
         item {
             Text(
-                text = "Daftar Chapter (${chapters.size})",
+                text = "Chapters (${chapters.size})",
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onBackground
             )
@@ -238,8 +245,10 @@ private fun ComicDetailSuccessView(
 @Composable
 private fun ComicHeaderCard(
     comic: ComicEntity,
-    chapterCount: Int,
+    chapters: List<ChapterEntity>,
+    progress: ReadingProgressEntity?,
     viewModel: ComicDetailViewModel,
+    onChapterSelect: (Long) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -248,89 +257,110 @@ private fun ComicHeaderCard(
             containerColor = MaterialTheme.colorScheme.surfaceVariant
         )
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .width(100.dp)
-                    .aspectRatio(0.7f)
-            ) {
-                ComicCoverDetailImage(
-                    comic = comic,
-                    viewModel = viewModel
-                )
-            }
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(modifier = Modifier.fillMaxWidth()) {
+                Box(
+                    modifier = Modifier
+                        .width(100.dp)
+                        .aspectRatio(0.7f)
+                ) {
+                    ComicCoverDetailImage(
+                        comic = comic,
+                        viewModel = viewModel
+                    )
+                }
 
-            Spacer(modifier = Modifier.width(16.dp))
+                Spacer(modifier = Modifier.width(16.dp))
 
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
-                Text(
-                    text = comic.title,
-                    style = MaterialTheme.typography.titleLarge,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = comic.title,
+                        style = MaterialTheme.typography.titleLarge,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
 
-                val hasMetadata = !comic.type.isNullOrBlank() || !comic.language.isNullOrBlank() || !comic.author.isNullOrBlank()
-                if (hasMetadata) {
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        if (!comic.type.isNullOrBlank()) {
-                            Surface(
-                                shape = MaterialTheme.shapes.extraSmall,
-                                color = MaterialTheme.colorScheme.primaryContainer,
-                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                            ) {
-                                Text(
-                                    text = comic.type,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                )
+                    val hasMetadata = !comic.type.isNullOrBlank() || !comic.language.isNullOrBlank() || !comic.author.isNullOrBlank()
+                    if (hasMetadata) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            if (!comic.type.isNullOrBlank()) {
+                                Surface(
+                                    shape = MaterialTheme.shapes.extraSmall,
+                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                ) {
+                                    Text(
+                                        text = comic.type ?: "",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
                             }
-                        }
-                        if (!comic.language.isNullOrBlank()) {
-                            Surface(
-                                shape = MaterialTheme.shapes.extraSmall,
-                                color = MaterialTheme.colorScheme.secondaryContainer,
-                                contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                            ) {
-                                Text(
-                                    text = comic.language,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                )
+                            if (!comic.language.isNullOrBlank()) {
+                                Surface(
+                                    shape = MaterialTheme.shapes.extraSmall,
+                                    color = MaterialTheme.colorScheme.secondaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                                ) {
+                                    Text(
+                                        text = comic.language ?: "",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
                             }
-                        }
-                        if (!comic.author.isNullOrBlank()) {
-                            Surface(
-                                shape = MaterialTheme.shapes.extraSmall,
-                                color = MaterialTheme.colorScheme.tertiaryContainer,
-                                contentColor = MaterialTheme.colorScheme.onTertiaryContainer
-                            ) {
-                                Text(
-                                    text = comic.author,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                )
+                            if (!comic.author.isNullOrBlank()) {
+                                Surface(
+                                    shape = MaterialTheme.shapes.extraSmall,
+                                    color = MaterialTheme.colorScheme.tertiaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                                ) {
+                                    Text(
+                                        text = comic.author ?: "",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
                             }
                         }
                     }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Text(
+                        text = "${chapters.size} Chapters",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
                 }
+            }
 
-                Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-                Text(
-                    text = "$chapterCount Chapter",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
+            // Primary Reading Action CTA Button
+            val lastChapterId = progress?.lastReadChapterId
+            if (progress != null && lastChapterId != null && lastChapterId > 0L) {
+                Button(
+                    onClick = { onChapterSelect(lastChapterId) },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(imageVector = Icons.Default.PlayArrow, contentDescription = null)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Continue · Chapter ${progress.lastReadChapterNumber}")
+                }
+            } else {
+                Button(
+                    onClick = {
+                        chapters.firstOrNull()?.let { onChapterSelect(it.id) }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = chapters.isNotEmpty()
+                ) {
+                    Icon(imageVector = Icons.Default.PlayArrow, contentDescription = null)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Start Reading")
+                }
             }
         }
     }
@@ -368,7 +398,7 @@ private fun ChapterItemCard(
                 if (chapter.pageCount > 0) {
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "${chapter.pageCount} Halaman",
+                        text = "${chapter.pageCount} pages",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.outline
                     )
@@ -377,7 +407,7 @@ private fun ChapterItemCard(
 
             Icon(
                 imageVector = Icons.Default.ChevronRight,
-                contentDescription = "Buka Chapter",
+                contentDescription = "Open Chapter",
                 tint = MaterialTheme.colorScheme.outline
             )
         }
@@ -460,7 +490,7 @@ private fun ComicCoverDetailImage(
             is CoverDetailUiState.Loaded -> {
                 Image(
                     painter = BitmapPainter(state.imageBitmap),
-                    contentDescription = "Cover untuk ${comic.title}",
+                    contentDescription = "Cover for ${comic.title}",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
                 )
@@ -501,11 +531,11 @@ private fun ComicNotFoundView(
             Icon(
                 imageVector = Icons.Default.FolderOff,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.error,
+                tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(bottom = 12.dp)
             )
             Text(
-                text = "Komik Tidak Ditemukan",
+                text = "Comic Not Found",
                 style = MaterialTheme.typography.titleLarge
             )
             Spacer(modifier = Modifier.height(8.dp))
@@ -617,16 +647,17 @@ private fun BookmarkCollectionPickerDialog(
     onConfirm: (Set<Long>) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val initialSelectedIds = remember(currentComicCollections) { currentComicCollections.map { it.id }.toSet() }
-    var selectedIds by remember(initialSelectedIds) { mutableStateOf(initialSelectedIds) }
+    var selectedIds by remember(currentComicCollections) {
+        mutableStateOf(currentComicCollections.map { it.id }.toSet())
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Kelola Koleksi Bookmark") },
+        title = { Text("Manage Bookmark Collections") },
         text = {
             if (allCollections.isEmpty()) {
                 Text(
-                    text = "Belum ada koleksi Bookmark. Buat koleksi di halaman Bookmark terlebih dahulu.",
+                    text = "No Bookmark collections created yet. Create a collection on the Bookmarks page first.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

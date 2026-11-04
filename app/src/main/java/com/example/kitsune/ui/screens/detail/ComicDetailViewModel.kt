@@ -12,8 +12,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
@@ -37,14 +37,20 @@ class ComicDetailViewModel(
                 flowOf(ComicDetailUiState.ComicNotFound)
             } else {
                 libraryRepository.observeChaptersByComicId(comicId)
-                    .combine(flowOf(comic)) { chapters, activeComic ->
-                        if (chapters.isEmpty()) {
-                            ComicDetailUiState.EmptyChapters
-                        } else {
-                            ComicDetailUiState.Success(
-                                comic = activeComic,
-                                chapters = chapters
-                            )
+                    .flatMapLatest { chapters ->
+                        flow<ComicDetailUiState> {
+                            if (chapters.isEmpty()) {
+                                emit(ComicDetailUiState.EmptyChapters)
+                            } else {
+                                val progress = libraryRepository.getReadingProgress(comicId)
+                                emit(
+                                    ComicDetailUiState.Success(
+                                        comic = comic,
+                                        chapters = chapters,
+                                        progress = progress
+                                    )
+                                )
+                            }
                         }
                     }
             }
@@ -52,7 +58,7 @@ class ComicDetailViewModel(
         .catch { throwable ->
             emit(
                 ComicDetailUiState.Error(
-                    throwable.localizedMessage ?: "Gagal memuat detail komik."
+                    throwable.localizedMessage ?: "Failed to load comic detail."
                 )
             )
         }
@@ -108,7 +114,7 @@ class ComicDetailViewModel(
         val targetChapter = currentState.chapters.firstOrNull { it.id == chapterId && it.comicId == comicId }
         if (targetChapter == null) {
             viewModelScope.launch {
-                eventChannel.send(ComicDetailEvent.ShowFeedback("Chapter tidak terasosiasi dengan komik ini."))
+                eventChannel.send(ComicDetailEvent.ShowFeedback("Chapter is not associated with this comic."))
             }
             return
         }
@@ -121,17 +127,17 @@ class ComicDetailViewModel(
                     }
                     is ChapterAvailabilityResult.Missing -> {
                         eventChannel.send(
-                            ComicDetailEvent.ShowFeedback("File chapter tidak ditemukan di penyimpanan.")
+                            ComicDetailEvent.ShowFeedback("Chapter file not found in storage.")
                         )
                     }
                     is ChapterAvailabilityResult.PermissionDenied -> {
                         eventChannel.send(
-                            ComicDetailEvent.ShowFeedback("Izin akses penyimpanan terputus: ${availability.message}")
+                            ComicDetailEvent.ShowFeedback("Storage permission disconnected: ${availability.message}")
                         )
                     }
                     is ChapterAvailabilityResult.Error -> {
                         eventChannel.send(
-                            ComicDetailEvent.ShowFeedback("Gagal mengakses chapter: ${availability.exception.localizedMessage}")
+                            ComicDetailEvent.ShowFeedback("Failed to access chapter: ${availability.exception.localizedMessage}")
                         )
                     }
                 }
@@ -139,7 +145,7 @@ class ComicDetailViewModel(
                 throw ce
             } catch (e: Exception) {
                 eventChannel.send(
-                    ComicDetailEvent.ShowFeedback("Gagal memeriksa ketersediaan chapter: ${e.localizedMessage}")
+                    ComicDetailEvent.ShowFeedback("Failed to check chapter availability: ${e.localizedMessage}")
                 )
             }
         }

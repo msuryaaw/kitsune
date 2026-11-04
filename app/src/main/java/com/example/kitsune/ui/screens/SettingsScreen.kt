@@ -87,7 +87,7 @@ fun SettingsScreen(
             }
 
             if (parsedUri == null) {
-                folderState = RootFolderState.Inaccessible(uriStr, "Format URI tidak valid.")
+                folderState = RootFolderState.Inaccessible(uriStr, "Invalid URI format.")
             } else {
                 folderState = SafStorageHelper.checkRootAccess(context, parsedUri)
             }
@@ -108,7 +108,7 @@ fun SettingsScreen(
             val pickedUri = intent?.data
 
             if (pickedUri == null) {
-                operationError = "Gagal membaca folder yang dipilih: URI tidak tersedia."
+                operationError = "Failed to read selected folder: URI unavailable."
                 return@rememberLauncherForActivityResult
             }
 
@@ -133,12 +133,11 @@ fun SettingsScreen(
                         } catch (_: Exception) {}
                     }
                 } else {
-                    operationError = "Izin berhasil diminta tetapi folder tidak dapat diakses."
+                    operationError = "Permission granted but folder remains inaccessible."
                     folderState = verifiedAccess
                 }
             }.onFailure { err ->
-                operationError = "Gagal memperoleh izin akses folder: ${err.localizedMessage ?: "Akses ditolak"}. Folder aktif tidak diubah."
-                // Do not update rootFolderPreferences; existing root remains intact
+                operationError = "Failed to acquire folder read permission: ${err.localizedMessage ?: "Access denied"}. Active folder unchanged."
             }
         }
     }
@@ -156,6 +155,7 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        // Storage Management Card
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(
@@ -194,11 +194,6 @@ fun SettingsScreen(
                             color = MaterialTheme.colorScheme.error
                         )
                         Text(
-                            text = "URI: ${state.uriString}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.outline
-                        )
-                        Text(
                             text = "Please select the folder again to update permission.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.outline
@@ -215,11 +210,6 @@ fun SettingsScreen(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.error
                         )
-                        Text(
-                            text = "URI: ${state.uriString}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.outline
-                        )
                     }
                     is RootFolderState.Ready -> {
                         Text(
@@ -228,7 +218,7 @@ fun SettingsScreen(
                             color = MaterialTheme.colorScheme.primary
                         )
                         Text(
-                            text = "URI: ${state.uriString}",
+                            text = "Folder configured in device storage",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.outline
                         )
@@ -353,7 +343,7 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Mode Reader
+                // Reading Mode
                 Text(
                     text = "Reading Mode",
                     style = MaterialTheme.typography.labelMedium,
@@ -379,7 +369,7 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Arah Baca
+                // Reading Direction
                 Text(
                     text = "Reading Direction",
                     style = MaterialTheme.typography.labelMedium,
@@ -435,6 +425,25 @@ fun SettingsScreen(
                         label = { Text("Fit Height") }
                     )
                 }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Keep Screen Awake
+                Text(
+                    text = "Keep Screen Awake",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = settingsState.keepScreenAwake,
+                        onClick = {
+                            scope.launch { settingsRepository?.setKeepScreenAwake(!settingsState.keepScreenAwake) }
+                        },
+                        label = { Text(if (settingsState.keepScreenAwake) "Enabled" else "Disabled") }
+                    )
+                }
             }
         }
 
@@ -455,7 +464,7 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Tema Aplikasi
+                // App Theme
                 Text(
                     text = "App Theme",
                     style = MaterialTheme.typography.labelMedium,
@@ -488,7 +497,7 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Jumlah Kolom Grid Library
+                // Library Grid Columns
                 Text(
                     text = "Library Grid Columns",
                     style = MaterialTheme.typography.labelMedium,
@@ -654,50 +663,45 @@ private fun BookmarkManagerDialog(
                     )
                 }
 
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(280.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    itemsIndexed(collections, key = { _, col -> col.id }) { index, col ->
-                        val isFavorit = col.name.equals("Favorit", ignoreCase = true)
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(
-                                containerColor = if (isFavorit) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
-                            )
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                if (collections.isEmpty()) {
+                    Text(
+                        text = "No Bookmark collections created yet.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(280.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        itemsIndexed(collections, key = { _, col -> col.id }) { index, col ->
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surface
+                                )
                             ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
                                         Text(
                                             text = col.name,
                                             style = MaterialTheme.typography.titleMedium,
-                                            color = if (isFavorit) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                                            color = MaterialTheme.colorScheme.onSurface
                                         )
-                                        if (isFavorit) {
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Text(
-                                                text = "(Default)",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.primary
-                                            )
-                                        }
                                     }
-                                }
 
-                                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                                    if (!isFavorit) {
+                                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                                         IconButton(
                                             onClick = {
-                                                if (index > 1) {
+                                                if (index > 0) {
                                                     val mutable = collections.toMutableList()
                                                     val temp = mutable[index]
                                                     mutable[index] = mutable[index - 1]
@@ -707,7 +711,7 @@ private fun BookmarkManagerDialog(
                                                     }
                                                 }
                                             },
-                                            enabled = index > 1
+                                            enabled = index > 0
                                         ) {
                                             Icon(
                                                 imageVector = Icons.Default.KeyboardArrowUp,
@@ -820,8 +824,6 @@ private fun CreateBookmarkCollectionDialog(
                     val trimmed = nameText.trim()
                     if (trimmed.isBlank()) {
                         errorText = "Collection name cannot be empty"
-                    } else if (trimmed.equals("Favorit", ignoreCase = true)) {
-                        errorText = "Name 'Favorit' is already used as default collection"
                     } else {
                         onConfirm(trimmed)
                     }
@@ -879,8 +881,6 @@ private fun RenameBookmarkCollectionDialog(
                     val trimmed = nameText.trim()
                     if (trimmed.isBlank()) {
                         errorText = "Collection name cannot be empty"
-                    } else if (trimmed.equals("Favorit", ignoreCase = true)) {
-                        errorText = "Name 'Favorit' is default system collection"
                     } else {
                         onConfirm(trimmed)
                     }

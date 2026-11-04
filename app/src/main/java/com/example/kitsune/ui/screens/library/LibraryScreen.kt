@@ -223,18 +223,18 @@ private fun RootNotConfiguredView(
                 modifier = Modifier.padding(bottom = 12.dp),
             )
             Text(
-                text = "Root Folder Belum Dipilih",
+                text = "Root Folder Not Configured",
                 style = MaterialTheme.typography.titleLarge,
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Pilih folder 'Kitsune' di penyimpanan perangkat yang berisi subfolder 'Comics' untuk memuat koleksi komik.",
+                text = "Select a 'Kitsune' folder in device storage containing a 'Comics' subfolder to load comics.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(modifier = Modifier.height(16.dp))
             Button(onClick = onNavigateToSettings) {
-                Text("Buka Pengaturan")
+                Text("Open Settings")
             }
         }
     }
@@ -263,19 +263,19 @@ private fun PermissionDeniedView(
                 modifier = Modifier.padding(bottom = 12.dp),
             )
             Text(
-                text = "Akses Folder Terputus",
+                text = "Folder Access Disconnected",
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.onErrorContainer,
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Izin akses ke folder 'Kitsune' terputus atau dicabut. $message",
+                text = "Folder read permission lost: $message",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onErrorContainer,
             )
             Spacer(modifier = Modifier.height(16.dp))
             Button(onClick = onNavigateToSettings) {
-                Text("Pulihkan Akses Folder")
+                Text("Recheck Access")
             }
         }
     }
@@ -304,22 +304,22 @@ private fun ComicsDirectoryNotFoundView(
                 modifier = Modifier.padding(bottom = 12.dp),
             )
             Text(
-                text = "Folder 'Comics' Tidak Ditemukan",
+                text = "Comics Directory Not Found",
                 style = MaterialTheme.typography.titleLarge,
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Subfolder 'Comics' tidak ditemukan di dalam folder root terpilih. Buat direktori 'Comics' dan tempatkan folder komik di dalamnya.",
+                text = "Subfolder 'Comics' was not found inside selected root folder. Create 'Comics' directory and place comic folders inside.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(modifier = Modifier.height(16.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = onCreateComicsDirectory) {
-                    Text("Buat Folder 'Comics'")
+                    Text("Create 'Comics' Folder")
                 }
                 OutlinedButton(onClick = onNavigateToSettings) {
-                    Text("Periksa Root")
+                    Text("Check Root")
                 }
             }
         }
@@ -343,22 +343,22 @@ private fun EmptyComicsDirectoryView(
             modifier = Modifier.padding(bottom = 12.dp),
         )
         Text(
-            text = "Koleksi Kosong",
+            text = "No Comics Found",
             style = MaterialTheme.typography.titleLarge,
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Direktori 'Comics' ditemukan tetapi belum berisi folder komik. Tempatkan folder komik di dalam 'Comics/'.",
+            text = "The 'Comics' directory exists but contains no comic folders yet. Place comic folders inside 'Comics/'.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.outline,
         )
         Spacer(modifier = Modifier.height(16.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = onRefresh) {
-                Text("Pindai Koleksi")
+                Text("Scan Library")
             }
             OutlinedButton(onClick = onNavigateToSettings) {
-                Text("Periksa Root")
+                Text("Check Root")
             }
         }
     }
@@ -387,23 +387,59 @@ private fun NoValidChaptersView(
                 modifier = Modifier.padding(bottom = 12.dp),
             )
             Text(
-                text = "Tidak Ada Chapter Valid",
+                text = "No Valid Chapters Available",
                 style = MaterialTheme.typography.titleLarge,
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Folder komik ditemukan, tetapi tidak ada chapter CBZ yang dapat dibaca. Pastikan file berformat 'Chapter <angka>.cbz'.",
+                text = "Comic folders found but none contain readable 'Chapter <number>.cbz' files yet.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(modifier = Modifier.height(16.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = onRefresh) {
-                    Text("Pindai Ulang")
+                    Text("Rescan")
                 }
                 OutlinedButton(onClick = onNavigateToSettings) {
-                    Text("Periksa Root")
+                    Text("Check Root")
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StorageRootCard(
+    itemCount: Int,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(bottom = 8.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Storage Root",
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "On this device: $itemCount local manga",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
@@ -440,6 +476,8 @@ private fun LibrarySuccessView(
     }
 
     Column(modifier = modifier.fillMaxSize()) {
+        StorageRootCard(itemCount = comics.size)
+
         if (isSelectionMode) {
             SelectionActionBar(
                 selectedCount = selectedComicIds.size,
@@ -644,22 +682,22 @@ private fun SearchNoResultsView(
             modifier = Modifier.padding(bottom = 12.dp)
         )
         Text(
-            text = "Tidak Ada Hasil",
+            text = "No Matching Comics",
             style = MaterialTheme.typography.titleLarge
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = if (searchQuery.isNotBlank()) {
-                "Tidak ditemukan komik dengan judul yang cocok dengan \"$searchQuery\"."
+                "No comics found matching \"$searchQuery\"."
             } else {
-                "Tidak ditemukan komik yang cocok dengan filter aktif."
+                "No comics found matching current filter."
             },
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.outline
         )
         Spacer(modifier = Modifier.height(16.dp))
         Button(onClick = { viewModel.resetFiltersAndSorting() }) {
-            Text("Reset Filter & Pencarian")
+            Text("Reset Filters")
         }
     }
 }

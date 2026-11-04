@@ -3,9 +3,9 @@ package com.example.kitsune.ui.screens.library
 import com.example.kitsune.data.entity.ComicEntity
 
 enum class SortOption(val displayName: String) {
-    TITLE_ASC("Nama (A-Z)"),
-    TITLE_DESC("Nama (Z-A)"),
-    LAST_READ_DESC("Terakhir Dibaca")
+    TITLE_ASC("Title (A-Z)"),
+    TITLE_DESC("Title (Z-A)"),
+    LAST_READ_DESC("Recently Read")
 }
 
 /**

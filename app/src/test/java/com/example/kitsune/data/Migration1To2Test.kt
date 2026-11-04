@@ -108,14 +108,15 @@ class Migration1To2Test {
         assertEquals(1, v1Db.version)
         v1Db.close()
 
-        // 2. Open DB with Room V6 and execute MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6
+        // 2. Open DB with Room V7 and execute migrations
         val roomDb = Room.databaseBuilder(context, KitsuneDatabase::class.java, dbFile.absolutePath)
             .addMigrations(
                 KitsuneDatabase.MIGRATION_1_2,
                 KitsuneDatabase.MIGRATION_2_3,
                 KitsuneDatabase.MIGRATION_3_4,
                 KitsuneDatabase.MIGRATION_4_5,
-                KitsuneDatabase.MIGRATION_5_6
+                KitsuneDatabase.MIGRATION_5_6,
+                KitsuneDatabase.MIGRATION_6_7
             )
             .allowMainThreadQueries()
             .build()

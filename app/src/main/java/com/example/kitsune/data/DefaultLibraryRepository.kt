@@ -476,21 +476,14 @@ class DefaultLibraryRepository(
 
     override suspend fun renameBookmarkCollection(bookmarkId: Long, newName: String) {
         val existing = bookmarkDao.getCollectionById(bookmarkId) ?: return
-        if (existing.name.equals("Favorit", ignoreCase = true)) {
-            throw IllegalArgumentException("Koleksi 'Favorit' adalah koleksi sistem dan tidak dapat diubah namanya.")
-        }
         val trimmed = newName.trim()
         if (trimmed.isBlank()) {
-            throw IllegalArgumentException("Nama koleksi Bookmark tidak boleh kosong")
+            throw IllegalArgumentException("Bookmark collection name cannot be empty")
         }
         bookmarkDao.updateCollection(existing.copy(name = trimmed, updatedAt = System.currentTimeMillis()))
     }
 
     override suspend fun deleteBookmarkCollection(bookmarkId: Long) {
-        val existing = bookmarkDao.getCollectionById(bookmarkId) ?: return
-        if (existing.name.equals("Favorit", ignoreCase = true)) {
-            throw IllegalArgumentException("Koleksi 'Favorit' adalah koleksi sistem dan tidak dapat dihapus.")
-        }
         bookmarkDao.deleteCollectionById(bookmarkId)
     }
 
@@ -524,10 +517,8 @@ class DefaultLibraryRepository(
 
     override suspend fun reorderBookmarkCollections(collectionsInOrder: List<com.example.kitsune.data.entity.BookmarkEntity>) {
         val now = System.currentTimeMillis()
-        var order = 0
-        for (col in collectionsInOrder) {
-            val targetOrder = if (col.name.equals("Favorit", ignoreCase = true)) 0 else ++order
-            bookmarkDao.updateCollectionOrder(col.id, targetOrder, now)
+        for ((index, col) in collectionsInOrder.withIndex()) {
+            bookmarkDao.updateCollectionOrder(col.id, index, now)
         }
     }
 

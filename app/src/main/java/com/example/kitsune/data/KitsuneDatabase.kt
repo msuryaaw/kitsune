@@ -34,7 +34,7 @@ import com.example.kitsune.data.entity.SettingsEntity
         BookmarkEntity::class,
         ComicBookmarkCrossRef::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = true
 )
 abstract class KitsuneDatabase : RoomDatabase() {
@@ -134,6 +134,12 @@ abstract class KitsuneDatabase : RoomDatabase() {
                     WHERE `name` != 'Favorit'
                     """.trimIndent()
                 )
+            }
+        }
+
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `app_settings` ADD COLUMN `keepScreenAwake` INTEGER NOT NULL DEFAULT 0")
             }
         }
     }

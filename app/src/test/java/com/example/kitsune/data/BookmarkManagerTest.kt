@@ -63,32 +63,22 @@ class BookmarkManagerTest {
     }
 
     @Test
-    fun favoritCollection_isProtected_fromRenameAndDelete() = runTest {
+    fun legacyFavoritCollection_canBeRenamedAndDeleted_asOrdinaryUserCollection() = runTest {
         val bookmarkDao = db.bookmarkDao()
 
         val favoritId = bookmarkDao.insertCollection(BookmarkEntity(name = "Favorit", displayOrder = 0))
         assertTrue(favoritId > 0)
 
-        // 1. Verify rename of Favorit throws IllegalArgumentException
-        try {
-            repository.renameBookmarkCollection(favoritId, "Koleksi Utama")
-            fail("Renaming 'Favorit' MUST throw IllegalArgumentException")
-        } catch (e: IllegalArgumentException) {
-            assertTrue(e.message?.contains("Favorit") == true)
-        }
+        // 1. Per K-25, legacy Favorit collection can now be renamed
+        repository.renameBookmarkCollection(favoritId, "My Favorites")
+        val renamedCol = bookmarkDao.getCollectionById(favoritId)
+        assertNotNull(renamedCol)
+        assertEquals("My Favorites", renamedCol?.name)
 
-        // 2. Verify deletion of Favorit throws IllegalArgumentException
-        try {
-            repository.deleteBookmarkCollection(favoritId)
-            fail("Deleting 'Favorit' MUST throw IllegalArgumentException")
-        } catch (e: IllegalArgumentException) {
-            assertTrue(e.message?.contains("Favorit") == true)
-        }
-
-        // Favorit collection must still exist
-        val favoritCol = bookmarkDao.getCollectionById(favoritId)
-        assertNotNull(favoritCol)
-        assertEquals("Favorit", favoritCol?.name)
+        // 2. Per K-25, legacy Favorit collection can now be deleted by the user
+        repository.deleteBookmarkCollection(favoritId)
+        val deletedCol = bookmarkDao.getCollectionById(favoritId)
+        assertEquals(null, deletedCol)
     }
 
     @Test

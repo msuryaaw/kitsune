@@ -53,7 +53,8 @@ class Migration5To6Test {
                 KitsuneDatabase.MIGRATION_2_3,
                 KitsuneDatabase.MIGRATION_3_4,
                 KitsuneDatabase.MIGRATION_4_5,
-                KitsuneDatabase.MIGRATION_5_6
+                KitsuneDatabase.MIGRATION_5_6,
+                KitsuneDatabase.MIGRATION_6_7
             )
             .allowMainThreadQueries()
             .build()
@@ -105,7 +106,8 @@ class Migration5To6Test {
                 KitsuneDatabase.MIGRATION_2_3,
                 KitsuneDatabase.MIGRATION_3_4,
                 KitsuneDatabase.MIGRATION_4_5,
-                KitsuneDatabase.MIGRATION_5_6
+                KitsuneDatabase.MIGRATION_5_6,
+                KitsuneDatabase.MIGRATION_6_7
             )
             .allowMainThreadQueries()
             .build()

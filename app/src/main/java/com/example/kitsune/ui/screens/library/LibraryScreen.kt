@@ -589,11 +589,11 @@ private fun LibrarySearchBar(
         modifier = modifier
             .fillMaxWidth()
             .padding(bottom = 8.dp),
-        placeholder = { Text("Cari judul komik...") },
+        placeholder = { Text("Search local manga") },
         leadingIcon = {
             Icon(
                 imageVector = Icons.Default.Search,
-                contentDescription = "Cari"
+                contentDescription = "Search"
             )
         },
         trailingIcon = {
@@ -601,7 +601,7 @@ private fun LibrarySearchBar(
                 IconButton(onClick = { onSearchQueryChange("") }) {
                     Icon(
                         imageVector = Icons.Default.Close,
-                        contentDescription = "Hapus Pencarian"
+                        contentDescription = "Clear Search"
                     )
                 }
             }
@@ -921,7 +921,7 @@ private fun SelectionActionBar(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "$selectedCount / $allCount Dipilih",
+                text = "$selectedCount / $allCount Selected",
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onPrimaryContainer
             )
@@ -931,18 +931,18 @@ private fun SelectionActionBar(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 TextButton(onClick = onSelectAll) {
-                    Text("Pilih Semua")
+                    Text("Select All")
                 }
                 Button(
                     onClick = onAddToCollection,
                     enabled = selectedCount > 0
                 ) {
-                    Text("Tambah ke Koleksi")
+                    Text("Add to Collection")
                 }
                 IconButton(onClick = onClear) {
                     Icon(
                         imageVector = Icons.Default.Close,
-                        contentDescription = "Batal Pilihan",
+                        contentDescription = "Clear Selection",
                         tint = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 }
@@ -959,10 +959,10 @@ private fun AddToBookmarkCollectionDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Tambah ke Koleksi Bookmark") },
+        title = { Text("Add to Bookmark Collection") },
         text = {
             if (collections.isEmpty()) {
-                Text("Belum ada koleksi Bookmark. Buat koleksi di halaman Bookmark terlebih dahulu.")
+                Text("No Bookmark collections available yet. Create a collection on the Bookmarks page first.")
             } else {
                 LazyColumn(
                     modifier = Modifier
@@ -995,7 +995,7 @@ private fun AddToBookmarkCollectionDialog(
         confirmButton = {},
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Batal")
+                Text("Cancel")
             }
         }
     )

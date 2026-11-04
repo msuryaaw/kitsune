@@ -206,7 +206,7 @@ private fun ContinuousErrorCard(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "Gagal Memuat Halaman",
+                text = "Failed to Load Page",
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onErrorContainer
             )

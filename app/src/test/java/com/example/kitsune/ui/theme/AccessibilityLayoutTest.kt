@@ -21,7 +21,7 @@ class AccessibilityLayoutTest {
     // ── Helper: Calculates relative luminance per WCAG 2.1 specs ──
     private fun calculateLuminance(color: Color): Double {
         fun convertComponent(c: Float): Double {
-            return if (c <= 0.03928f) {
+            return if (c <= 0.04045f) {
                 (c / 12.92).toDouble()
             } else {
                 Math.pow(((c + 0.055) / 1.055).toDouble(), 2.4)
@@ -78,16 +78,40 @@ class AccessibilityLayoutTest {
 
     @Test
     fun colorContrast_actualThemeColors_meetsWcagAaStandard() {
-        val darkBg = Color(0xFF1C1B1F)
-        val lightBg = Color(0xFFFFFBFE)
+        val bg = KitsuneBackground
+        val surface = KitsuneSurface
 
-        // Purple80 on Dark Background
-        val ratio80 = calculateContrastRatio(Purple80, darkBg)
-        assertTrue("Purple80 on Dark background ratio $ratio80 must exceed 4.5:1", ratio80 >= 4.5)
+        // 1. Primary Text on Background & Surface
+        val ratioTextPrimaryBg = calculateContrastRatio(KitsuneTextPrimary, bg)
+        assertTrue("KitsuneTextPrimary on Background ratio $ratioTextPrimaryBg must exceed WCAG AAA 7:1", ratioTextPrimaryBg >= 7.0)
+        assertEquals(16.49, ratioTextPrimaryBg, 0.1)
 
-        // Purple40 on Light Background
-        val ratio40 = calculateContrastRatio(Purple40, lightBg)
-        assertTrue("Purple40 on Light background ratio $ratio40 must exceed 4.5:1", ratio40 >= 4.5)
+        val ratioTextPrimarySurface = calculateContrastRatio(KitsuneTextPrimary, surface)
+        assertTrue("KitsuneTextPrimary on Surface ratio $ratioTextPrimarySurface must exceed WCAG AAA 7:1", ratioTextPrimarySurface >= 7.0)
+        assertEquals(14.59, ratioTextPrimarySurface, 0.1)
+
+        // 2. Secondary Text on Background & Surface
+        val ratioTextSecondaryBg = calculateContrastRatio(KitsuneTextSecondary, bg)
+        assertTrue("KitsuneTextSecondary on Background ratio $ratioTextSecondaryBg must exceed WCAG AA 4.5:1", ratioTextSecondaryBg >= 4.5)
+        assertEquals(8.31, ratioTextSecondaryBg, 0.1)
+
+        val ratioTextSecondarySurface = calculateContrastRatio(KitsuneTextSecondary, surface)
+        assertTrue("KitsuneTextSecondary on Surface ratio $ratioTextSecondarySurface must exceed WCAG AA 4.5:1", ratioTextSecondarySurface >= 4.5)
+        assertEquals(7.35, ratioTextSecondarySurface, 0.1)
+
+        // 3. Primary Accent on Background & Surface
+        val ratioAccentBg = calculateContrastRatio(KitsuneOrangeAccent, bg)
+        assertTrue("KitsuneOrangeAccent on Background ratio $ratioAccentBg must exceed WCAG AA 4.5:1", ratioAccentBg >= 4.5)
+        assertEquals(10.53, ratioAccentBg, 0.1)
+
+        val ratioAccentSurface = calculateContrastRatio(KitsuneOrangeAccent, surface)
+        assertTrue("KitsuneOrangeAccent on Surface ratio $ratioAccentSurface must exceed WCAG AA 4.5:1", ratioAccentSurface >= 4.5)
+        assertEquals(9.32, ratioAccentSurface, 0.1)
+
+        // 4. OnError on Error
+        val ratioError = calculateContrastRatio(KitsuneOnError, KitsuneError)
+        assertTrue("KitsuneOnError on KitsuneError ratio $ratioError must exceed WCAG AA 4.5:1", ratioError >= 4.5)
+        assertEquals(5.83, ratioError, 0.1)
     }
 
     @Test

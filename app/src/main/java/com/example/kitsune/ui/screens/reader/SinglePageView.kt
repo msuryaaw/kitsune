@@ -197,7 +197,7 @@ private fun PageErrorCard(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "Gagal Memuat Halaman",
+                text = "Failed to Load Page",
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onErrorContainer
             )
@@ -210,7 +210,7 @@ private fun PageErrorCard(
             Spacer(modifier = Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 androidx.compose.material3.Button(onClick = onRetry) {
-                    Text("Coba Lagi")
+                    Text("Retry")
                 }
                 androidx.compose.material3.OutlinedButton(onClick = onSkip) {
                     Text("Halaman Berikutnya")

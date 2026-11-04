@@ -195,10 +195,10 @@ private fun HistorySuccessView(
                 ) {
                     Icon(
                         imageVector = Icons.Default.DeleteSweep,
-                        contentDescription = "Hapus Semua Riwayat",
+                        contentDescription = "Clear All History",
                         modifier = Modifier.padding(end = 4.dp)
                     )
-                    Text("Hapus Semua", style = MaterialTheme.typography.labelMedium)
+                    Text("Clear All", style = MaterialTheme.typography.labelMedium)
                 }
             }
         }
@@ -328,18 +328,18 @@ private fun SingleDeleteConfirmationDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Hapus Riwayat Komik") },
+        title = { Text("Delete Comic History") },
         text = {
-            Text("Apakah Anda yakin ingin menghapus \"$comicTitle\" dari riwayat membaca? Posisi membaca Anda di Library tetap tersimpan.")
+            Text("Are you sure you want to remove \"$comicTitle\" from your reading history? Your reading progress in Library will remain intact.")
         },
         confirmButton = {
             Button(onClick = onConfirm) {
-                Text("Hapus")
+                Text("Delete")
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Batal")
+                Text("Cancel")
             }
         }
     )
@@ -352,18 +352,18 @@ private fun ClearAllConfirmationDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Hapus Semua Riwayat") },
+        title = { Text("Clear All History") },
         text = {
-            Text("Apakah Anda yakin ingin menghapus seluruh riwayat membaca untuk folder aktif ini? Posisi membaca Anda di Library tetap tersimpan.")
+            Text("Are you sure you want to clear all reading history for this active folder? Your reading progress in Library will remain intact.")
         },
         confirmButton = {
             Button(onClick = onConfirm) {
-                Text("Hapus Semua")
+                Text("Clear All")
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Batal")
+                Text("Cancel")
             }
         }
     )
@@ -517,18 +517,18 @@ private fun HistoryRootNotConfiguredView(
                 modifier = Modifier.padding(bottom = 12.dp)
             )
             Text(
-                text = "Root Folder Belum Dipilih",
+                text = "Root Folder Not Configured",
                 style = MaterialTheme.typography.titleLarge
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Pilih folder 'Kitsune' di penyimpanan perangkat untuk memuat riwayat membaca.",
+                text = "Select a 'Kitsune' folder in device storage to load reading history.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(modifier = Modifier.height(16.dp))
             Button(onClick = onNavigateToSettings) {
-                Text("Buka Pengaturan")
+                Text("Open Settings")
             }
         }
     }
@@ -557,19 +557,19 @@ private fun HistoryPermissionDeniedView(
                 modifier = Modifier.padding(bottom = 12.dp)
             )
             Text(
-                text = "Akses Folder Terputus",
+                text = "Folder Access Disconnected",
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.onErrorContainer
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Izin akses ke folder terputus: $message",
+                text = "Folder read permission lost: $message",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onErrorContainer
             )
             Spacer(modifier = Modifier.height(16.dp))
             Button(onClick = onNavigateToSettings) {
-                Text("Pulihkan Akses Folder")
+                Text("Recheck Access")
             }
         }
     }
@@ -597,7 +597,7 @@ private fun HistoryErrorView(
                 modifier = Modifier.padding(bottom = 12.dp)
             )
             Text(
-                text = "Gagal Memuat Riwayat",
+                text = "Failed to Load History",
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onErrorContainer
             )

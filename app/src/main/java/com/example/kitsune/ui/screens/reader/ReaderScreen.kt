@@ -205,14 +205,14 @@ private fun ReaderSettingsDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Pengaturan Reader") },
+        title = { Text("Reader Settings") },
         text = {
             Column(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Column {
                     Text(
-                        text = "Mode Baca",
+                        text = "Reading Mode",
                         style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -232,7 +232,7 @@ private fun ReaderSettingsDialog(
 
                 Column {
                     Text(
-                        text = "Tampilan Halaman (Fit)",
+                        text = "Page Fit",
                         style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -240,7 +240,7 @@ private fun ReaderSettingsDialog(
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        listOf("fit_screen" to "Fit", "fit_width" to "Width", "fit_height" to "Height").forEach { (fit, label) ->
+                        listOf("fit_screen" to "Fit Screen", "fit_width" to "Fit Width", "fit_height" to "Fit Height").forEach { (fit, label) ->
                             FilterChip(
                                 selected = currentFit == fit,
                                 onClick = { onFitSelected(fit) },
@@ -253,7 +253,7 @@ private fun ReaderSettingsDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("Tutup")
+                Text("Close")
             }
         }
     )
@@ -287,13 +287,13 @@ private fun ReaderErrorView(
             )
             Text(
                 text = when (errorState.errorType) {
-                    ReaderErrorType.PERMISSION_DENIED -> "Izin Akses Terputus"
-                    ReaderErrorType.ROOT_NOT_CONFIGURED -> "Root SAF Belum Dipilih"
-                    ReaderErrorType.CORRUPT_ARCHIVE -> "Arsip CBZ Rusak"
-                    ReaderErrorType.UNSUPPORTED_ARCHIVE -> "Format Tidak Didukung / Melebihi Batas"
-                    ReaderErrorType.NO_IMAGES -> "Tidak Ada Gambar"
-                    ReaderErrorType.CHAPTER_MISSING -> "Chapter Tidak Ditemukan"
-                    else -> "Gagal Membuka Reader"
+                    ReaderErrorType.PERMISSION_DENIED -> "Access Permission Lost"
+                    ReaderErrorType.ROOT_NOT_CONFIGURED -> "Root SAF Not Configured"
+                    ReaderErrorType.CORRUPT_ARCHIVE -> "Corrupt CBZ Archive"
+                    ReaderErrorType.UNSUPPORTED_ARCHIVE -> "Unsupported Format / Limit Exceeded"
+                    ReaderErrorType.NO_IMAGES -> "No Image Pages Found"
+                    ReaderErrorType.CHAPTER_MISSING -> "Chapter Not Found"
+                    else -> "Failed to Open Reader"
                 },
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onErrorContainer
@@ -309,18 +309,18 @@ private fun ReaderErrorView(
                 when (errorState.errorType) {
                     ReaderErrorType.PERMISSION_DENIED, ReaderErrorType.ROOT_NOT_CONFIGURED -> {
                         Button(onClick = onSettingsClick) {
-                            Text("Atur Root SAF")
+                            Text("Configure Root SAF")
                         }
                     }
                     ReaderErrorType.STORAGE_ERROR -> {
                         Button(onClick = onRetryClick) {
-                            Text("Coba Lagi")
+                            Text("Retry")
                         }
                     }
                     else -> {}
                 }
                 Button(onClick = onBackClick) {
-                    Text("Kembali")
+                    Text("Back")
                 }
             }
         }
@@ -336,7 +336,7 @@ private fun ChapterSelectorDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Pilih Chapter") },
+        title = { Text("Select Chapter") },
         text = {
             LazyColumn(
                 modifier = Modifier
@@ -367,7 +367,7 @@ private fun ChapterSelectorDialog(
                             )
                             if (isSelected) {
                                 Text(
-                                    text = "Aktif",
+                                    text = "Active",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.primary
                                 )
@@ -379,7 +379,7 @@ private fun ChapterSelectorDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("Tutup")
+                Text("Close")
             }
         }
     )

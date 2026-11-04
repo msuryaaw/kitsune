@@ -150,7 +150,7 @@ fun SettingsScreen(
             .padding(16.dp)
     ) {
         Text(
-            text = "Pengaturan",
+            text = "Settings",
             style = MaterialTheme.typography.headlineMedium
         )
 
@@ -164,7 +164,7 @@ fun SettingsScreen(
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
-                    text = "Root Folder Penyimpanan",
+                    text = "Storage Management",
                     style = MaterialTheme.typography.titleMedium
                 )
                 Spacer(modifier = Modifier.height(8.dp))
@@ -172,24 +172,24 @@ fun SettingsScreen(
                 when (val state = folderState) {
                     is RootFolderState.NotConfigured -> {
                         Text(
-                            text = "Status: Belum memilih folder root.",
+                            text = "Status: Root folder not selected.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            text = "Pilih folder 'Kitsune' yang berisi folder 'Comics'.",
+                            text = "Select a 'Kitsune' folder containing a 'Comics' subfolder.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.outline
                         )
                     }
                     is RootFolderState.PermissionLost -> {
                         Text(
-                            text = "Status: Izin baca dicabut atau hilang.",
+                            text = "Status: Read permission lost or revoked.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.error
                         )
                         Text(
-                            text = "Keterangan: ${state.reason}",
+                            text = "Reason: ${state.reason}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.error
                         )
@@ -199,19 +199,19 @@ fun SettingsScreen(
                             color = MaterialTheme.colorScheme.outline
                         )
                         Text(
-                            text = "Silakan pilih kembali folder untuk memperbarui izin.",
+                            text = "Please select the folder again to update permission.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.outline
                         )
                     }
                     is RootFolderState.Inaccessible -> {
                         Text(
-                            text = "Status: Akses folder bermasalah.",
+                            text = "Status: Folder access error.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.error
                         )
                         Text(
-                            text = "Keterangan: ${state.error}",
+                            text = "Reason: ${state.error}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.error
                         )
@@ -223,7 +223,7 @@ fun SettingsScreen(
                     }
                     is RootFolderState.Ready -> {
                         Text(
-                            text = "Status: Siap (Akses aktif terverifikasi)",
+                            text = "Status: Ready (Active access verified)",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.primary
                         )
@@ -267,9 +267,9 @@ fun SettingsScreen(
                     ) {
                         Text(
                             text = if (folderState is RootFolderState.Ready) {
-                                "Ubah Folder Root"
+                                "Change Root Folder"
                             } else {
-                                "Pilih Folder Root"
+                                "Select Root Folder"
                             }
                         )
                     }
@@ -291,7 +291,7 @@ fun SettingsScreen(
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                             }
-                            Text("Periksa Ulang Akses")
+                            Text("Recheck Access")
                         }
                     }
                 }
@@ -311,7 +311,7 @@ fun SettingsScreen(
                                     )
                                     releaseResult.onFailure { err ->
                                         releaseFailed = true
-                                        operationError = "Peringatan: Gagal melepas izin sistem: ${err.localizedMessage ?: "Unknown error"}"
+                                        operationError = "Warning: Failed to release system permission: ${err.localizedMessage ?: "Unknown error"}"
                                     }
                                 } catch (_: Exception) {}
                             }
@@ -330,7 +330,7 @@ fun SettingsScreen(
                     OutlinedButton(
                         onClick = { showReleaseRootDialog = true }
                     ) {
-                        Text("Lepas Folder Root")
+                        Text("Release Root Folder")
                     }
                 }
             }
@@ -347,7 +347,7 @@ fun SettingsScreen(
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
-                    text = "Preferensi Reader",
+                    text = "Reader Preferences",
                     style = MaterialTheme.typography.titleMedium
                 )
 
@@ -355,7 +355,7 @@ fun SettingsScreen(
 
                 // Mode Reader
                 Text(
-                    text = "Mode Tampilan Reader",
+                    text = "Reading Mode",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -381,7 +381,7 @@ fun SettingsScreen(
 
                 // Arah Baca
                 Text(
-                    text = "Arah Membaca Halaman",
+                    text = "Reading Direction",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -392,14 +392,14 @@ fun SettingsScreen(
                         onClick = {
                             scope.launch { settingsRepository?.setReadingDirection("ltr") }
                         },
-                        label = { Text("LTR (Kiri ke Kanan)") }
+                        label = { Text("LTR") }
                     )
                     FilterChip(
                         selected = settingsState.readingDirection == "rtl",
                         onClick = {
                             scope.launch { settingsRepository?.setReadingDirection("rtl") }
                         },
-                        label = { Text("RTL (Kanan ke Kiri)") }
+                        label = { Text("RTL") }
                     )
                 }
 
@@ -407,7 +407,7 @@ fun SettingsScreen(
 
                 // Page Fit
                 Text(
-                    text = "Ukuran Halaman (Page Fit)",
+                    text = "Page Fit",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -418,21 +418,21 @@ fun SettingsScreen(
                         onClick = {
                             scope.launch { settingsRepository?.setPageFit("fit_screen") }
                         },
-                        label = { Text("Pas Layar") }
+                        label = { Text("Fit Screen") }
                     )
                     FilterChip(
                         selected = settingsState.pageFit == "fit_width",
                         onClick = {
                             scope.launch { settingsRepository?.setPageFit("fit_width") }
                         },
-                        label = { Text("Pas Lebar") }
+                        label = { Text("Fit Width") }
                     )
                     FilterChip(
                         selected = settingsState.pageFit == "fit_height",
                         onClick = {
                             scope.launch { settingsRepository?.setPageFit("fit_height") }
                         },
-                        label = { Text("Pas Tinggi") }
+                        label = { Text("Fit Height") }
                     )
                 }
             }
@@ -449,7 +449,7 @@ fun SettingsScreen(
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
-                    text = "Tampilan & Grid",
+                    text = "Display & Grid",
                     style = MaterialTheme.typography.titleMedium
                 )
 
@@ -457,7 +457,7 @@ fun SettingsScreen(
 
                 // Tema Aplikasi
                 Text(
-                    text = "Tema Tampilan",
+                    text = "App Theme",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -468,21 +468,21 @@ fun SettingsScreen(
                         onClick = {
                             scope.launch { settingsRepository?.setTheme("system") }
                         },
-                        label = { Text("Sistem") }
+                        label = { Text("System") }
                     )
                     FilterChip(
                         selected = settingsState.theme == "light",
                         onClick = {
                             scope.launch { settingsRepository?.setTheme("light") }
                         },
-                        label = { Text("Terang") }
+                        label = { Text("Light") }
                     )
                     FilterChip(
                         selected = settingsState.theme == "dark",
                         onClick = {
                             scope.launch { settingsRepository?.setTheme("dark") }
                         },
-                        label = { Text("Gelap") }
+                        label = { Text("Dark") }
                     )
                 }
 
@@ -490,7 +490,7 @@ fun SettingsScreen(
 
                 // Jumlah Kolom Grid Library
                 Text(
-                    text = "Jumlah Kolom Grid Library",
+                    text = "Library Grid Columns",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -520,12 +520,12 @@ fun SettingsScreen(
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
-                    text = "Pengelola Koleksi Bookmark",
+                    text = "Bookmark Manager",
                     style = MaterialTheme.typography.titleMedium
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Kelola, buat, dan atur urutan koleksi Bookmark Anda.",
+                    text = "Manage, create, and reorder your Bookmark collections.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -533,7 +533,7 @@ fun SettingsScreen(
                 Button(
                     onClick = { showBookmarkManagerDialog = true }
                 ) {
-                    Text("Buka Bookmark Manager")
+                    Text("Open Bookmark Manager")
                 }
             }
         }
@@ -554,18 +554,18 @@ private fun ReleaseRootConfirmationDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Lepas Folder Root") },
+        title = { Text("Release Root Folder") },
         text = {
-            Text("Apakah Anda yakin ingin melepas folder root aktif? Aplikasi tidak dapat memuat komik sampai folder root dipilih kembali.")
+            Text("Are you sure you want to release the active root folder? Comics cannot be loaded until a root folder is selected again.")
         },
         confirmButton = {
             Button(onClick = onConfirm) {
-                Text("Lepas")
+                Text("Release")
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Batal")
+                Text("Cancel")
             }
         }
     )
@@ -594,7 +594,7 @@ private fun BookmarkManagerDialog(
                         showCreateDialog = false
                         errorMessage = null
                     } catch (e: Exception) {
-                        errorMessage = e.localizedMessage ?: "Gagal membuat koleksi"
+                        errorMessage = e.localizedMessage ?: "Failed to create collection"
                     }
                 }
             },
@@ -612,7 +612,7 @@ private fun BookmarkManagerDialog(
                         collectionToRename = null
                         errorMessage = null
                     } catch (e: Exception) {
-                        errorMessage = e.localizedMessage ?: "Gagal mengubah nama koleksi"
+                        errorMessage = e.localizedMessage ?: "Failed to rename collection"
                     }
                 }
             },
@@ -630,7 +630,7 @@ private fun BookmarkManagerDialog(
                         collectionToDelete = null
                         errorMessage = null
                     } catch (e: Exception) {
-                        errorMessage = e.localizedMessage ?: "Gagal menghapus koleksi"
+                        errorMessage = e.localizedMessage ?: "Failed to delete collection"
                     }
                 }
             },
@@ -640,7 +640,7 @@ private fun BookmarkManagerDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Pengelola Koleksi Bookmark") },
+        title = { Text("Bookmark Manager") },
         text = {
             Column(
                 modifier = Modifier.fillMaxWidth(),
@@ -711,7 +711,7 @@ private fun BookmarkManagerDialog(
                                         ) {
                                             Icon(
                                                 imageVector = Icons.Default.KeyboardArrowUp,
-                                                contentDescription = "Naikkan Urutan"
+                                                contentDescription = "Move Up"
                                             )
                                         }
 
@@ -731,7 +731,7 @@ private fun BookmarkManagerDialog(
                                         ) {
                                             Icon(
                                                 imageVector = Icons.Default.KeyboardArrowDown,
-                                                contentDescription = "Turunkan Urutan"
+                                                contentDescription = "Move Down"
                                             )
                                         }
 
@@ -740,7 +740,7 @@ private fun BookmarkManagerDialog(
                                         ) {
                                             Icon(
                                                 imageVector = Icons.Default.Edit,
-                                                contentDescription = "Ubah Nama Koleksi"
+                                                contentDescription = "Rename Collection"
                                             )
                                         }
 
@@ -749,7 +749,7 @@ private fun BookmarkManagerDialog(
                                         ) {
                                             Icon(
                                                 imageVector = Icons.Default.Delete,
-                                                contentDescription = "Hapus Koleksi",
+                                                contentDescription = "Delete Collection",
                                                 tint = MaterialTheme.colorScheme.error
                                             )
                                         }
@@ -768,13 +768,13 @@ private fun BookmarkManagerDialog(
                 ) {
                     Icon(imageVector = Icons.Default.Add, contentDescription = null)
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Buat Koleksi Baru")
+                    Text("Create New Collection")
                 }
             }
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("Tutup")
+                Text("Close")
             }
         }
     )
@@ -790,7 +790,7 @@ private fun CreateBookmarkCollectionDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Buat Koleksi Bookmark") },
+        title = { Text("Create Bookmark Collection") },
         text = {
             Column {
                 OutlinedTextField(
@@ -799,7 +799,7 @@ private fun CreateBookmarkCollectionDialog(
                         nameText = it
                         errorText = null
                     },
-                    label = { Text("Nama Koleksi") },
+                    label = { Text("Collection Name") },
                     singleLine = true,
                     isError = errorText != null,
                     modifier = Modifier.fillMaxWidth()
@@ -819,20 +819,20 @@ private fun CreateBookmarkCollectionDialog(
                 onClick = {
                     val trimmed = nameText.trim()
                     if (trimmed.isBlank()) {
-                        errorText = "Nama koleksi tidak boleh kosong"
+                        errorText = "Collection name cannot be empty"
                     } else if (trimmed.equals("Favorit", ignoreCase = true)) {
-                        errorText = "Nama 'Favorit' sudah digunakan sebagai koleksi default"
+                        errorText = "Name 'Favorit' is already used as default collection"
                     } else {
                         onConfirm(trimmed)
                     }
                 }
             ) {
-                Text("Buat")
+                Text("Create")
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Batal")
+                Text("Cancel")
             }
         }
     )
@@ -849,7 +849,7 @@ private fun RenameBookmarkCollectionDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Ubah Nama Koleksi") },
+        title = { Text("Rename Collection") },
         text = {
             Column {
                 OutlinedTextField(
@@ -858,7 +858,7 @@ private fun RenameBookmarkCollectionDialog(
                         nameText = it
                         errorText = null
                     },
-                    label = { Text("Nama Koleksi Baru") },
+                    label = { Text("New Collection Name") },
                     singleLine = true,
                     isError = errorText != null,
                     modifier = Modifier.fillMaxWidth()
@@ -878,20 +878,20 @@ private fun RenameBookmarkCollectionDialog(
                 onClick = {
                     val trimmed = nameText.trim()
                     if (trimmed.isBlank()) {
-                        errorText = "Nama koleksi tidak boleh kosong"
+                        errorText = "Collection name cannot be empty"
                     } else if (trimmed.equals("Favorit", ignoreCase = true)) {
-                        errorText = "Nama 'Favorit' adalah koleksi sistem default"
+                        errorText = "Name 'Favorit' is default system collection"
                     } else {
                         onConfirm(trimmed)
                     }
                 }
             ) {
-                Text("Simpan")
+                Text("Save")
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Batal")
+                Text("Cancel")
             }
         }
     )
@@ -905,9 +905,9 @@ private fun DeleteBookmarkCollectionConfirmationDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Hapus Koleksi") },
+        title = { Text("Delete Collection") },
         text = {
-            Text("Apakah Anda yakin ingin menghapus koleksi '${collection.name}'? Komik di dalam koleksi ini TIDAK akan terhapus dari perangkat Anda.")
+            Text("Are you sure you want to delete collection '${collection.name}'? Comics inside this collection will NOT be deleted from your device storage.")
         },
         confirmButton = {
             Button(
@@ -916,12 +916,12 @@ private fun DeleteBookmarkCollectionConfirmationDialog(
                     containerColor = MaterialTheme.colorScheme.error
                 )
             ) {
-                Text("Hapus")
+                Text("Delete")
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Batal")
+                Text("Cancel")
             }
         }
     )

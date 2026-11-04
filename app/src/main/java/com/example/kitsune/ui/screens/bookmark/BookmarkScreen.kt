@@ -208,7 +208,7 @@ private fun BookmarkSuccessView(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "${state.bookmarkedComics.size} Komik di ${state.selectedCollection?.name ?: "Koleksi"}",
+                    text = "${state.bookmarkedComics.size} Comics in ${state.selectedCollection?.name ?: "Collection"}",
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -229,7 +229,7 @@ private fun BookmarkSuccessView(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "Belum Ada Komik di Koleksi ${state.selectedCollection?.name ?: ""}",
+                    text = "No Comics in Collection ${state.selectedCollection?.name ?: ""}",
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.outline
                 )
@@ -424,7 +424,7 @@ private fun BookmarkSelectionActionBar(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "$selectedCount / $allCount Dipilih",
+                text = "$selectedCount / $allCount Selected",
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onPrimaryContainer
             )
@@ -434,7 +434,7 @@ private fun BookmarkSelectionActionBar(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 androidx.compose.material3.TextButton(onClick = onSelectAll) {
-                    Text("Pilih Semua")
+                    Text("Select All")
                 }
                 Button(
                     onClick = onRemoveFromCollection,
@@ -443,12 +443,12 @@ private fun BookmarkSelectionActionBar(
                         containerColor = MaterialTheme.colorScheme.error
                     )
                 ) {
-                    Text("Keluarkan dari Koleksi")
+                    Text("Remove from Collection")
                 }
                 IconButton(onClick = onClear) {
                     Icon(
                         imageVector = Icons.Default.Close,
-                        contentDescription = "Batal Pilihan",
+                        contentDescription = "Clear Selection",
                         tint = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 }
@@ -466,9 +466,9 @@ private fun RemoveFromBookmarkConfirmationDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Keluarkan dari Koleksi") },
+        title = { Text("Remove from Collection") },
         text = {
-            Text("Apakah Anda yakin ingin mengeluarkan $count komik terpilih dari koleksi '$collectionName'? Komik TIDAK akan terhapus dari perangkat Anda.")
+            Text("Are you sure you want to remove $count selected comic(s) from collection '$collectionName'? Comics will NOT be deleted from your device storage.")
         },
         confirmButton = {
             Button(
@@ -477,12 +477,12 @@ private fun RemoveFromBookmarkConfirmationDialog(
                     containerColor = MaterialTheme.colorScheme.error
                 )
             ) {
-                Text("Keluarkan")
+                Text("Remove")
             }
         },
         dismissButton = {
             androidx.compose.material3.TextButton(onClick = onDismiss) {
-                Text("Batal")
+                Text("Cancel")
             }
         }
     )
@@ -638,18 +638,18 @@ private fun BookmarkRootNotConfiguredView(
                 modifier = Modifier.padding(bottom = 12.dp)
             )
             Text(
-                text = "Root Folder Belum Dipilih",
+                text = "Root Folder Not Configured",
                 style = MaterialTheme.typography.titleLarge
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Pilih folder 'Kitsune' di penyimpanan perangkat untuk memuat daftar bookmark.",
+                text = "Select a 'Kitsune' folder in device storage to load bookmarks.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(modifier = Modifier.height(16.dp))
             Button(onClick = onNavigateToSettings) {
-                Text("Buka Pengaturan")
+                Text("Open Settings")
             }
         }
     }
@@ -678,19 +678,19 @@ private fun BookmarkPermissionDeniedView(
                 modifier = Modifier.padding(bottom = 12.dp)
             )
             Text(
-                text = "Akses Folder Terputus",
+                text = "Folder Access Disconnected",
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.onErrorContainer
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Izin akses ke folder terputus: $message",
+                text = "Folder read permission lost: $message",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onErrorContainer
             )
             Spacer(modifier = Modifier.height(16.dp))
             Button(onClick = onNavigateToSettings) {
-                Text("Pulihkan Akses Folder")
+                Text("Recheck Access")
             }
         }
     }
@@ -718,7 +718,7 @@ private fun BookmarkErrorView(
                 modifier = Modifier.padding(bottom = 12.dp)
             )
             Text(
-                text = "Gagal Memuat Bookmark",
+                text = "Failed to Load Bookmarks",
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onErrorContainer
             )

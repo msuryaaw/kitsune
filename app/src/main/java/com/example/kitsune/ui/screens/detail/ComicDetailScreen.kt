@@ -510,13 +510,13 @@ private fun ComicNotFoundView(
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Komik terpilih tidak ditemukan atau telah dihapus dari direktori koleksi.",
+                text = "The selected comic was not found or was removed from the library directory.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(modifier = Modifier.height(16.dp))
             Button(onClick = onBackClick) {
-                Text("Kembali ke Library")
+                Text("Back to Library")
             }
         }
     }
@@ -544,18 +544,18 @@ private fun EmptyChaptersView(
                 modifier = Modifier.padding(bottom = 12.dp)
             )
             Text(
-                text = "Belum Ada Chapter Valid",
+                text = "No Valid Chapters Available",
                 style = MaterialTheme.typography.titleLarge
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Folder komik ini belum berisi file 'Chapter <angka>.cbz' yang dapat dibaca.",
+                text = "This comic folder does not contain readable 'Chapter <number>.cbz' files yet.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(modifier = Modifier.height(16.dp))
             OutlinedButton(onClick = onBackClick) {
-                Text("Kembali ke Library")
+                Text("Back to Library")
             }
         }
     }
@@ -584,7 +584,7 @@ private fun ComicDetailErrorView(
                 modifier = Modifier.padding(bottom = 12.dp)
             )
             Text(
-                text = "Gagal Memuat Detail Komik",
+                text = "Failed to Load Comic Detail",
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onErrorContainer
             )
@@ -596,7 +596,7 @@ private fun ComicDetailErrorView(
             )
             Spacer(modifier = Modifier.height(16.dp))
             Button(onClick = onBackClick) {
-                Text("Kembali ke Library")
+                Text("Back to Library")
             }
         }
     }
@@ -673,12 +673,12 @@ private fun BookmarkCollectionPickerDialog(
             Button(
                 onClick = { onConfirm(selectedIds) }
             ) {
-                Text("Simpan")
+                Text("Save")
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Batal")
+                Text("Cancel")
             }
         }
     )

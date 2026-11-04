@@ -7,20 +7,23 @@ import com.example.kitsune.core.RootFolderPreferences
 import com.example.kitsune.data.CoverCacheResult
 import com.example.kitsune.data.LibraryRepository
 import com.example.kitsune.data.SettingsRepository
+import com.example.kitsune.data.entity.BookmarkEntity
+import com.example.kitsune.data.entity.ComicEntity
+import com.example.kitsune.scanner.NaturalOrderComparator
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.io.File
-
-data class Quint<A, B, C, D, E>(val first: A, val second: B, val third: C, val fourth: D, val fifth: E)
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class BookmarkViewModel(
@@ -32,6 +35,9 @@ class BookmarkViewModel(
     val selectedCollectionId = MutableStateFlow<Long?>(null)
     val selectedComicIds = MutableStateFlow<Set<Long>>(emptySet())
     val isSelectionMode = MutableStateFlow(false)
+    val searchQuery = MutableStateFlow("")
+    val statusFilter = MutableStateFlow(BookmarkStatusFilter.ALL)
+    val sortOption = MutableStateFlow(BookmarkSortOption.TITLE_ASC)
 
     val uiState: StateFlow<BookmarkUiState> = rootFolderPreferences
         .observeRootUriString()
@@ -44,27 +50,91 @@ class BookmarkViewModel(
                     selectedCollectionId,
                     settingsRepository.observeSettings(),
                     selectedComicIds,
-                    isSelectionMode
-                ) { collections, selectedId, settings, selIds, selMode ->
-                    Quint(collections, selectedId, settings, selIds, selMode)
-                }.flatMapLatest { (collections, selectedId, settings, selIds, selMode) ->
+                    isSelectionMode,
+                    searchQuery,
+                    statusFilter,
+                    sortOption
+                ) { flows: Array<Any?> ->
+                    @Suppress("UNCHECKED_CAST")
+                    val collections = flows[0] as List<BookmarkEntity>
+                    val selectedId = flows[1] as Long?
+                    val settings = flows[2] as com.example.kitsune.data.entity.SettingsEntity
+                    @Suppress("UNCHECKED_CAST")
+                    val selIds = flows[3] as Set<Long>
+                    val selMode = flows[4] as Boolean
+                    val query = flows[5] as String
+                    val filter = flows[6] as BookmarkStatusFilter
+                    val sort = flows[7] as BookmarkSortOption
+
+                    Octet(collections, selectedId, settings, selIds, selMode, query, filter, sort)
+                }.flatMapLatest { (collections, selectedId, settings, selIds, selMode, query, filter, sort) ->
                     if (collections.isEmpty()) {
-                        flowOf(BookmarkUiState.Empty)
+                        flowOf(BookmarkUiState.EmptyNoCollections)
                     } else {
                         val activeCollection = collections.firstOrNull { it.id == selectedId } ?: collections.first()
                         libraryRepository.observeComicsInBookmarkCollection(activeCollection.id, rootUri)
-                            .map { comics ->
-                                if (collections.size == 1 && collections.first().name == "Favorit" && comics.isEmpty()) {
-                                    BookmarkUiState.Empty
-                                } else {
-                                    BookmarkUiState.Success(
-                                        rootUriString = rootUri,
-                                        collections = collections,
-                                        selectedCollection = activeCollection,
-                                        bookmarkedComics = comics,
-                                        gridColumns = settings.gridColumns.coerceIn(2, 4),
-                                        selectedComicIds = selIds,
-                                        isSelectionMode = selMode
+                            .flatMapLatest { comics ->
+                                flow<BookmarkUiState> {
+                                    val trimmedQuery = query.trim()
+                                    val searchFiltered = if (trimmedQuery.isBlank()) {
+                                        comics
+                                    } else {
+                                        comics.filter {
+                                            it.title.contains(trimmedQuery, ignoreCase = true) ||
+                                                (it.author?.contains(trimmedQuery, ignoreCase = true) == true)
+                                        }
+                                    }
+
+                                    val statusFiltered = when (filter) {
+                                        BookmarkStatusFilter.ALL -> searchFiltered
+                                        BookmarkStatusFilter.COMPLETED -> searchFiltered.filter { isComicCompleted(it.id) }
+                                        BookmarkStatusFilter.NOT_COMPLETED -> searchFiltered.filter { !isComicCompleted(it.id) }
+                                    }
+
+                                    val sortedComics = when (sort) {
+                                        BookmarkSortOption.TITLE_ASC ->
+                                            statusFiltered.sortedWith(
+                                                Comparator<ComicEntity> { c1, c2 ->
+                                                    NaturalOrderComparator.compare(c1.title, c2.title)
+                                                }.thenBy { it.relativePath }
+                                            )
+                                        BookmarkSortOption.TITLE_DESC ->
+                                            statusFiltered.sortedWith(
+                                                Comparator<ComicEntity> { c1, c2 ->
+                                                    NaturalOrderComparator.compare(c2.title, c1.title)
+                                                }.thenBy { it.relativePath }
+                                            )
+                                        BookmarkSortOption.AUTHOR_ASC ->
+                                            statusFiltered.sortedWith(
+                                                Comparator<ComicEntity> { c1, c2 ->
+                                                    val a1 = c1.author ?: ""
+                                                    val a2 = c2.author ?: ""
+                                                    NaturalOrderComparator.compare(a1, a2)
+                                                }.thenBy { c1 -> c1.title }
+                                            )
+                                        BookmarkSortOption.AUTHOR_DESC ->
+                                            statusFiltered.sortedWith(
+                                                Comparator<ComicEntity> { c1, c2 ->
+                                                    val a1 = c1.author ?: ""
+                                                    val a2 = c2.author ?: ""
+                                                    NaturalOrderComparator.compare(a2, a1)
+                                                }.thenBy { c1 -> c1.title }
+                                            )
+                                    }
+
+                                    emit(
+                                        BookmarkUiState.Success(
+                                            rootUriString = rootUri,
+                                            collections = collections,
+                                            selectedCollection = activeCollection,
+                                            bookmarkedComics = sortedComics,
+                                            gridColumns = settings.gridColumns.coerceIn(2, 4),
+                                            statusFilter = filter,
+                                            sortOption = sort,
+                                            searchQuery = query,
+                                            selectedComicIds = selIds,
+                                            isSelectionMode = selMode
+                                        )
                                     )
                                 }
                             }
@@ -75,7 +145,7 @@ class BookmarkViewModel(
         .catch { throwable ->
             emit(
                 BookmarkUiState.Error(
-                    throwable.localizedMessage ?: "Gagal memuat daftar bookmark."
+                    throwable.localizedMessage ?: "Failed to load bookmarks list."
                 )
             )
         }
@@ -85,10 +155,36 @@ class BookmarkViewModel(
             initialValue = BookmarkUiState.Loading
         )
 
+    private suspend fun isComicCompleted(comicId: Long): Boolean {
+        val progress = libraryRepository.getReadingProgress(comicId) ?: return false
+        val chapters = libraryRepository.observeChaptersByComicId(comicId).first()
+        if (chapters.isEmpty()) return false
+        val finalChapter = chapters.maxByOrNull { it.chapterNumber } ?: return false
+        return progress.lastReadChapterId == finalChapter.id && progress.pageIndex >= finalChapter.pageCount - 1
+    }
+
     fun selectCollection(bookmarkId: Long) {
         if (selectedCollectionId.value != bookmarkId) {
             clearSelection()
             selectedCollectionId.value = bookmarkId
+        }
+    }
+
+    fun setStatusFilter(filter: BookmarkStatusFilter) {
+        statusFilter.value = filter
+    }
+
+    fun setSortOption(sort: BookmarkSortOption) {
+        sortOption.value = sort
+    }
+
+    fun onSearchQueryChanged(query: String) {
+        searchQuery.value = query
+    }
+
+    fun setGridColumns(columns: Int) {
+        viewModelScope.launch {
+            settingsRepository.setGridColumns(columns.coerceIn(2, 4))
         }
     }
 
@@ -118,6 +214,17 @@ class BookmarkViewModel(
         isSelectionMode.value = false
     }
 
+    fun createCollection(name: String) {
+        val trimmed = name.trim()
+        if (trimmed.isBlank()) return
+        viewModelScope.launch {
+            val newId = libraryRepository.createBookmarkCollection(trimmed)
+            if (newId > 0) {
+                selectCollection(newId)
+            }
+        }
+    }
+
     fun bulkRemoveFromCollection(activeBookmarkId: Long) {
         val idsToRemove = selectedComicIds.value.toList()
         if (idsToRemove.isEmpty()) return
@@ -130,67 +237,11 @@ class BookmarkViewModel(
         }
     }
 
-    fun createCollection(name: String) {
-        val trimmed = name.trim()
-        if (trimmed.isBlank()) return
-        viewModelScope.launch {
-            try {
-                val newId = libraryRepository.createBookmarkCollection(trimmed)
-                selectedCollectionId.value = newId
-            } catch (_: Exception) {}
-        }
-    }
+    suspend fun getCoverFile(comicId: Long): CoverCacheResult =
+        libraryRepository.getCoverFile(comicId)
 
-    fun renameCollection(bookmarkId: Long, newName: String) {
-        val trimmed = newName.trim()
-        if (trimmed.isBlank()) return
-        viewModelScope.launch {
-            try {
-                libraryRepository.renameBookmarkCollection(bookmarkId, trimmed)
-            } catch (_: Exception) {}
-        }
-    }
-
-    fun deleteCollection(bookmarkId: Long) {
-        viewModelScope.launch {
-            try {
-                libraryRepository.deleteBookmarkCollection(bookmarkId)
-                if (selectedCollectionId.value == bookmarkId) {
-                    selectedCollectionId.value = null
-                }
-            } catch (_: Exception) {}
-        }
-    }
-
-    fun removeComicFromCollection(bookmarkId: Long, comicId: Long) {
-        viewModelScope.launch {
-            try {
-                libraryRepository.removeComicFromCollection(bookmarkId, comicId)
-            } catch (_: Exception) {}
-        }
-    }
-
-    fun toggleBookmark(comicId: Long, currentIsBookmarked: Boolean) {
-        viewModelScope.launch {
-            try {
-                libraryRepository.setBookmarked(comicId, !currentIsBookmarked)
-            } catch (_: Exception) {}
-        }
-    }
-
-    fun setGridColumns(columns: Int) {
-        viewModelScope.launch {
-            settingsRepository.setGridColumns(columns)
-        }
-    }
-
-    suspend fun getCoverFile(comicId: Long): CoverCacheResult {
-        return libraryRepository.getCoverFile(comicId)
-    }
-
-    suspend fun releaseCoverFile(file: File) {
+    suspend fun releaseCoverFile(file: File) =
         libraryRepository.releaseCoverFile(file)
-    }
 
     class Factory(
         private val libraryRepository: LibraryRepository,
@@ -199,10 +250,22 @@ class BookmarkViewModel(
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            if (modelClass.isAssignableFrom(BookmarkViewModel::class.java)) {
-                return BookmarkViewModel(libraryRepository, rootFolderPreferences, settingsRepository) as T
-            }
-            throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
+            return BookmarkViewModel(
+                libraryRepository,
+                rootFolderPreferences,
+                settingsRepository
+            ) as T
         }
     }
 }
+
+private data class Octet<A, B, C, D, E, F, G, H>(
+    val first: A,
+    val second: B,
+    val third: C,
+    val fourth: D,
+    val fifth: E,
+    val sixth: F,
+    val seventh: G,
+    val eighth: H
+)

@@ -18,6 +18,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -26,26 +28,28 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FolderOff
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -84,6 +88,17 @@ fun BookmarkScreen(
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    var showCreateDialog by remember { mutableStateOf(false) }
+
+    if (showCreateDialog) {
+        CreateCollectionDialog(
+            onConfirm = { name ->
+                viewModel.createCollection(name)
+                showCreateDialog = false
+            },
+            onDismiss = { showCreateDialog = false }
+        )
+    }
 
     Box(
         modifier = modifier
@@ -107,14 +122,18 @@ fun BookmarkScreen(
                     modifier = Modifier.align(Alignment.Center)
                 )
             }
-            is BookmarkUiState.Empty -> {
-                BookmarkEmptyView(modifier = Modifier.align(Alignment.Center))
+            is BookmarkUiState.EmptyNoCollections -> {
+                BookmarkEmptyNoCollectionsView(
+                    onCreateCollectionClick = { showCreateDialog = true },
+                    modifier = Modifier.align(Alignment.Center)
+                )
             }
             is BookmarkUiState.Success -> {
                 BookmarkSuccessView(
                     state = state,
                     viewModel = viewModel,
                     onComicClick = onComicClick,
+                    onCreateCollectionClick = { showCreateDialog = true },
                     onGridColumnsChange = { columns -> viewModel.setGridColumns(columns) }
                 )
             }
@@ -128,26 +147,18 @@ fun BookmarkScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun BookmarkSuccessView(
     state: BookmarkUiState.Success,
     viewModel: BookmarkViewModel,
     onComicClick: (Long) -> Unit,
+    onCreateCollectionClick: () -> Unit,
     onGridColumnsChange: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var showCreateDialog by remember { mutableStateOf(false) }
     var showRemoveConfirmationDialog by remember { mutableStateOf(false) }
-
-    if (showCreateDialog) {
-        CreateCollectionDialog(
-            onConfirm = { name ->
-                viewModel.createCollection(name)
-                showCreateDialog = false
-            },
-            onDismiss = { showCreateDialog = false }
-        )
-    }
+    var showSortAndGridSheet by remember { mutableStateOf(false) }
 
     if (showRemoveConfirmationDialog && state.selectedCollection != null) {
         RemoveFromBookmarkConfirmationDialog(
@@ -158,6 +169,22 @@ private fun BookmarkSuccessView(
                 showRemoveConfirmationDialog = false
             },
             onDismiss = { showRemoveConfirmationDialog = false }
+        )
+    }
+
+    if (showSortAndGridSheet) {
+        SortAndGridBottomSheet(
+            currentSort = state.sortOption,
+            currentGrid = state.gridColumns,
+            onSortSelected = { sort ->
+                viewModel.setSortOption(sort)
+                showSortAndGridSheet = false
+            },
+            onGridSelected = { cols ->
+                onGridColumnsChange(cols)
+                showSortAndGridSheet = false
+            },
+            onDismiss = { showSortAndGridSheet = false }
         )
     }
 
@@ -172,7 +199,7 @@ private fun BookmarkSuccessView(
             )
             Spacer(modifier = Modifier.height(8.dp))
         } else {
-            // Collections Filter Row & Add Collection Button
+            // Header Row with Title & Create Collection Action
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -180,42 +207,97 @@ private fun BookmarkSuccessView(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                LazyRow(
-                    modifier = Modifier.weight(1f),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    items(state.collections, key = { it.id }) { collection ->
-                        FilterChip(
-                            selected = state.selectedCollection?.id == collection.id,
-                            onClick = { viewModel.selectCollection(collection.id) },
-                            label = { Text(collection.name) }
-                        )
-                    }
-                }
+                Text(
+                    text = "Bookmarks",
+                    style = MaterialTheme.typography.displayLarge
+                )
 
-                IconButton(onClick = { showCreateDialog = true }) {
+                IconButton(onClick = onCreateCollectionClick) {
                     Icon(
                         imageVector = Icons.Default.Add,
-                        contentDescription = "Buat Koleksi Bookmark Baru"
+                        contentDescription = "Create Collection"
                     )
                 }
             }
 
+            // Search Bar
+            OutlinedTextField(
+                value = state.searchQuery,
+                onValueChange = { viewModel.onSearchQueryChanged(it) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp),
+                placeholder = { Text("Search titles or authors") },
+                leadingIcon = {
+                    Icon(imageVector = Icons.Default.Search, contentDescription = "Search")
+                },
+                trailingIcon = {
+                    if (state.searchQuery.isNotEmpty()) {
+                        IconButton(onClick = { viewModel.onSearchQueryChanged("") }) {
+                            Icon(imageVector = Icons.Default.Close, contentDescription = "Clear")
+                        }
+                    }
+                },
+                singleLine = true
+            )
+
+            // User Collections Selector Row (LazyRow)
+            LazyRow(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                items(state.collections, key = { it.id }) { collection ->
+                    FilterChip(
+                        selected = state.selectedCollection?.id == collection.id,
+                        onClick = { viewModel.selectCollection(collection.id) },
+                        label = { Text(collection.name) }
+                    )
+                }
+            }
+
+            // Status Filters Row (All, Completed, Not Completed) per Decision K-26
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                BookmarkStatusFilter.entries.forEach { filter ->
+                    FilterChip(
+                        selected = state.statusFilter == filter,
+                        onClick = { viewModel.setStatusFilter(filter) },
+                        label = { Text(filter.displayName) }
+                    )
+                }
+            }
+
+            // Controls & Count Bar
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "${state.bookmarkedComics.size} Comics in ${state.selectedCollection?.name ?: "Collection"}",
+                    text = "${state.bookmarkedComics.size} manga in ${state.selectedCollection?.name ?: "Collection"}",
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.primary
                 )
-                BookmarkGridSelectorRow(
-                    currentColumns = state.gridColumns,
-                    onColumnsSelected = onGridColumnsChange
-                )
+
+                OutlinedButton(
+                    onClick = { showSortAndGridSheet = true },
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.GridView,
+                        contentDescription = "Sort and Grid Settings",
+                        modifier = Modifier.padding(end = 4.dp)
+                    )
+                    Text("Sort & Grid")
+                }
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -229,7 +311,13 @@ private fun BookmarkSuccessView(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "No Comics in Collection ${state.selectedCollection?.name ?: ""}",
+                    text = if (state.searchQuery.isNotBlank()) {
+                        "No manga matching \"${state.searchQuery}\""
+                    } else if (state.statusFilter != BookmarkStatusFilter.ALL) {
+                        "No ${state.statusFilter.displayName.lowercase()} manga in ${state.selectedCollection?.name ?: "collection"}"
+                    } else {
+                        "No manga in ${state.selectedCollection?.name ?: "collection"} yet"
+                    },
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.outline
                 )
@@ -259,6 +347,73 @@ private fun BookmarkSuccessView(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SortAndGridBottomSheet(
+    currentSort: BookmarkSortOption,
+    currentGrid: Int,
+    onSortSelected: (BookmarkSortOption) -> Unit,
+    onGridSelected: (Int) -> Unit,
+    onDismiss: () -> Unit
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text(
+                text = "Sort & Grid Settings",
+                style = MaterialTheme.typography.titleLarge
+            )
+
+            Text(
+                text = "Sort By",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                BookmarkSortOption.entries.forEach { option ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onSortSelected(option) }
+                            .padding(vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(text = option.displayName, style = MaterialTheme.typography.bodyLarge)
+                        RadioButton(
+                            selected = currentSort == option,
+                            onClick = { onSortSelected(option) }
+                        )
+                    }
+                }
+            }
+
+            Text(
+                text = "Grid Columns",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(2, 3, 4).forEach { cols ->
+                    FilterChip(
+                        selected = currentGrid == cols,
+                        onClick = { onGridSelected(cols) },
+                        label = { Text("${cols}x") }
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+    }
+}
+
 @Composable
 private fun CreateCollectionDialog(
     onConfirm: (String) -> Unit,
@@ -269,7 +424,7 @@ private fun CreateCollectionDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Buat Koleksi Bookmark") },
+        title = { Text("Create Collection") },
         text = {
             Column {
                 OutlinedTextField(
@@ -278,14 +433,14 @@ private fun CreateCollectionDialog(
                         nameText = it
                         if (it.isNotBlank()) isError = false
                     },
-                    label = { Text("Nama Koleksi") },
+                    label = { Text("Collection Name") },
                     isError = isError,
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 if (isError) {
                     Text(
-                        text = "Nama koleksi tidak boleh kosong",
+                        text = "Collection name cannot be empty",
                         color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.labelSmall,
                         modifier = Modifier.padding(top = 4.dp)
@@ -303,43 +458,15 @@ private fun CreateCollectionDialog(
                     }
                 }
             ) {
-                Text("Buat")
+                Text("Create")
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Batal")
+                Text("Cancel")
             }
         }
     )
-}
-
-@Composable
-private fun BookmarkGridSelectorRow(
-    currentColumns: Int,
-    onColumnsSelected: (Int) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.End,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            imageVector = Icons.Default.GridView,
-            contentDescription = "Pilihan Kolom Grid",
-            tint = MaterialTheme.colorScheme.outline,
-            modifier = Modifier.padding(end = 8.dp)
-        )
-        listOf(2, 3, 4).forEach { columns ->
-            FilterChip(
-                selected = currentColumns == columns,
-                onClick = { onColumnsSelected(columns) },
-                label = { Text("${columns}x") },
-                modifier = Modifier.padding(horizontal = 2.dp)
-            )
-        }
-    }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -390,7 +517,7 @@ private fun BookmarkComicGridCard(
             if (isSelected) {
                 Icon(
                     imageVector = Icons.Default.CheckCircle,
-                    contentDescription = "Terpilih",
+                    contentDescription = "Selected",
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier
                         .align(Alignment.TopStart)
@@ -566,7 +693,7 @@ private fun BookmarkCoverImage(
             is CoverUiState.Loaded -> {
                 Image(
                     painter = BitmapPainter(state.imageBitmap),
-                    contentDescription = "Cover untuk ${comic.title}",
+                    contentDescription = "Cover for ${comic.title}",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
                 )
@@ -590,29 +717,42 @@ private fun BookmarkCoverImage(
 }
 
 @Composable
-private fun BookmarkEmptyView(
+private fun BookmarkEmptyNoCollectionsView(
+    onCreateCollectionClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(
+    Card(
         modifier = modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
     ) {
-        Icon(
-            imageVector = Icons.Default.BookmarkBorder,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.outline,
-            modifier = Modifier.padding(bottom = 12.dp)
-        )
-        Text(
-            text = "Belum Ada Komik Favorit",
-            style = MaterialTheme.typography.titleLarge
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = "Tandai komik favorit Anda di Library atau Detail Komik agar mudah diakses di sini.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.outline
-        )
+        Column(
+            modifier = Modifier.padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(
+                imageVector = Icons.Default.BookmarkBorder,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.height(40.dp)
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = "Keep your next story close",
+                style = MaterialTheme.typography.titleMedium
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Create your first collection to organize your favorite manga.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Button(onClick = onCreateCollectionClick) {
+                Text("Create Collection")
+            }
+        }
     }
 }
 

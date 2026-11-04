@@ -18,7 +18,7 @@ class UiStateAndFeedbackTest {
         val librarySearchEmpty = LibraryUiState.SearchNoResults("content://uri", searchQuery = "OnePiece")
         val libraryError = LibraryUiState.Error("Gagal memuat database")
 
-        val bookmarkEmpty = BookmarkUiState.Empty
+        val bookmarkEmpty = BookmarkUiState.EmptyNoCollections
         val bookmarkError = BookmarkUiState.Error("Gagal memuat bookmark")
 
         val historyEmpty = HistoryUiState.Empty

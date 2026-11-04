@@ -6,7 +6,6 @@ import com.example.kitsune.data.CoverResult
 import com.example.kitsune.data.LibraryRepository
 import com.example.kitsune.data.SettingsRepository
 import com.example.kitsune.data.entity.BookmarkEntity
-import com.example.kitsune.data.entity.ComicBookmarkCrossRef
 import com.example.kitsune.data.entity.ChapterEntity
 import com.example.kitsune.data.entity.ComicEntity
 import com.example.kitsune.data.entity.ReadingProgressEntity
@@ -29,7 +28,6 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -81,7 +79,7 @@ class FakeBookmarkLibraryRepository : LibraryRepository {
     override suspend fun openCbzArchive(chapterId: Long) = com.example.kitsune.reader.CbzArchiveResult.ChapterMissing
     override suspend fun ensureComicsDirectory(): StorageResult<StorageEntry> = StorageResult.Success(StorageEntry("Comics", "Comics", true))
 
-    val collectionsFlow = MutableStateFlow<List<BookmarkEntity>>(listOf(BookmarkEntity(id = 1L, name = "Favorit")))
+    val collectionsFlow = MutableStateFlow<List<BookmarkEntity>>(emptyList())
 
     override fun observeAllBookmarkCollections(): Flow<List<BookmarkEntity>> = collectionsFlow
     override fun observeComicsInBookmarkCollection(bookmarkId: Long, rootUri: String): Flow<List<ComicEntity>> = observeBookmarkedComicsByRoot(rootUri)
@@ -164,23 +162,24 @@ class BookmarkViewModelTest {
     }
 
     @Test
-    fun uiState_emitsEmpty_whenNoBookmarkedComicsExist() = runTest {
+    fun uiState_emitsEmptyNoCollections_whenNoBookmarkCollectionsExist() = runTest {
         val rootUri = "content://root"
         fakeRootPrefs.rootUriFlow.value = rootUri
-        fakeRepo.bookmarkedComicsByRoot.value = mapOf(rootUri to emptyList())
+        fakeRepo.collectionsFlow.value = emptyList()
 
         viewModel = BookmarkViewModel(fakeRepo, fakeRootPrefs, fakeSettingsRepo)
         val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
 
-        assertEquals(BookmarkUiState.Empty, viewModel.uiState.value)
+        assertEquals(BookmarkUiState.EmptyNoCollections, viewModel.uiState.value)
 
         collectJob.cancel()
     }
 
     @Test
-    fun uiState_emitsSuccess_andDynamicallyUpdates_whenBookmarkToggled() = runTest {
+    fun uiState_emitsSuccess_whenCollectionsAndComicsExist() = runTest {
         val rootUri = "content://root"
         fakeRootPrefs.rootUriFlow.value = rootUri
+        fakeRepo.collectionsFlow.value = listOf(BookmarkEntity(id = 1L, name = "Manga"))
 
         val comic1 = ComicEntity(id = 1L, rootUriString = rootUri, relativePath = "Comics/A", title = "Comic A", isBookmarked = true)
         val comic2 = ComicEntity(id = 2L, rootUriString = rootUri, relativePath = "Comics/B", title = "Comic B", isBookmarked = true)
@@ -196,18 +195,6 @@ class BookmarkViewModelTest {
         assertTrue("Initial state must be Success", initialState is BookmarkUiState.Success)
         assertEquals(2, (initialState as BookmarkUiState.Success).bookmarkedComics.size)
 
-        // Unbookmark comic 1 from BookmarkViewModel
-        viewModel.toggleBookmark(1L, currentIsBookmarked = true)
-
-        val updatedState = viewModel.uiState.value as BookmarkUiState.Success
-        assertEquals(1, updatedState.bookmarkedComics.size)
-        assertEquals(2L, updatedState.bookmarkedComics.first().id)
-
-        // Unbookmark comic 2 -> state becomes Empty dynamically!
-        viewModel.toggleBookmark(2L, currentIsBookmarked = true)
-
-        assertEquals("State must become Empty when last comic is unbookmarked", BookmarkUiState.Empty, viewModel.uiState.value)
-
         collectJob.cancel()
     }
 
@@ -215,6 +202,8 @@ class BookmarkViewModelTest {
     fun setGridColumns_updatesSettingsRepository() = runTest {
         val rootUri = "content://root"
         fakeRootPrefs.rootUriFlow.value = rootUri
+        fakeRepo.collectionsFlow.value = listOf(BookmarkEntity(id = 1L, name = "Manga"))
+
         val comic1 = ComicEntity(id = 1L, rootUriString = rootUri, relativePath = "Comics/A", title = "Comic A", isBookmarked = true)
         fakeRepo.allComicsById[1L] = comic1
         fakeRepo.bookmarkedComicsByRoot.value = mapOf(rootUri to listOf(comic1))

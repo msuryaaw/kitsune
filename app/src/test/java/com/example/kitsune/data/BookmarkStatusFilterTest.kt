@@ -17,6 +17,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -104,6 +105,41 @@ class BookmarkStatusFilterTest {
         progress = ReadingProgressEntity(comicId = comicId, lastReadChapterId = ch2Id, lastReadChapterNumber = 2, chapterRelativePath = "Comics/Naruto/Ch2.cbz", pageIndex = 9, updatedAt = 3000L)
         progressDao.save(progress)
         assertTrue(isComicCompleted(progressDao.getByComicId(comicId), validChapters))
+    }
+
+    @Test
+    fun multiCollectionMembershipSafety_bulkRemoveFromActiveCollectionOnly() = runTest {
+        val comicDao = db.comicDao()
+        val bookmarkDao = db.bookmarkDao()
+
+        // Comic A in Collection 1 ("Action") AND Collection 2 ("Shonen")
+        val comicA = ComicEntity(rootUriString = rootUri, relativePath = "Comics/Bleach", title = "Bleach")
+        val comicAId = comicDao.insert(comicA)
+
+        val col1Id = repository.createBookmarkCollection("Action")
+        val col2Id = repository.createBookmarkCollection("Shonen")
+
+        repository.addComicToCollection(col1Id, comicAId)
+        repository.addComicToCollection(col2Id, comicAId)
+
+        // Verify Comic A is in both collections
+        assertEquals(2, bookmarkDao.getCollectionsForComic(comicAId).size)
+
+        // Bulk remove Comic A from Collection 1 ("Action") ONLY
+        repository.removeComicsFromCollection(col1Id, listOf(comicAId))
+
+        // 1. Membership in Collection 1 ("Action") is removed
+        val collectionsAfterRemove = bookmarkDao.getCollectionsForComic(comicAId)
+        assertEquals(1, collectionsAfterRemove.size)
+        assertEquals("Shonen", collectionsAfterRemove.first().name)
+
+        // 2. Membership in Collection 2 ("Shonen") REMAINS INTACT
+        assertEquals(col2Id, collectionsAfterRemove.first().id)
+
+        // 3. ComicEntity in comics table remains 100% UNTOUCHED
+        val comicStillExists = comicDao.getById(comicAId)
+        assertNotNull("ComicEntity MUST NOT be deleted during bulk removal from a collection", comicStillExists)
+        assertEquals("Bleach", comicStillExists?.title)
     }
 
     private fun isComicCompleted(progress: ReadingProgressEntity?, validChapters: List<ChapterEntity>): Boolean {

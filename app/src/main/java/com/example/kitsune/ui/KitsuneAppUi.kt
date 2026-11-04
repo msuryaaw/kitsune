@@ -22,8 +22,9 @@ import androidx.navigation.navArgument
 import com.example.kitsune.core.AppContainer
 import com.example.kitsune.ui.navigation.KitsuneDestinations
 import com.example.kitsune.ui.navigation.TopLevelDestination
-import com.example.kitsune.ui.screens.PlaceholderScreen
 import com.example.kitsune.ui.screens.SettingsScreen
+import com.example.kitsune.ui.screens.home.HomeScreen
+import com.example.kitsune.ui.screens.home.HomeViewModel
 import com.example.kitsune.ui.screens.library.LibraryScreen
 import com.example.kitsune.ui.screens.library.LibraryViewModel
 
@@ -73,9 +74,29 @@ fun KitsuneApp(
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = KitsuneDestinations.LIBRARY_ROUTE,
+            startDestination = KitsuneDestinations.HOME_ROUTE,
             modifier = Modifier.padding(innerPadding)
         ) {
+            composable(KitsuneDestinations.HOME_ROUTE) {
+                val homeViewModel: HomeViewModel = viewModel(
+                    factory = HomeViewModel.Factory(
+                        libraryRepository = appContainer.libraryRepository,
+                        rootFolderPreferences = appContainer.rootFolderPreferences
+                    )
+                )
+                HomeScreen(
+                    viewModel = homeViewModel,
+                    onOpenLibraryClick = {
+                        navController.navigate(KitsuneDestinations.LIBRARY_ROUTE)
+                    },
+                    onOpenHistoryClick = {
+                        navController.navigate(KitsuneDestinations.HISTORY_ROUTE)
+                    },
+                    onContinueReadingClick = { chapterId ->
+                        navController.navigate(KitsuneDestinations.readerRoute(chapterId))
+                    }
+                )
+            }
             composable(KitsuneDestinations.LIBRARY_ROUTE) {
                 val libraryViewModel: LibraryViewModel = viewModel(
                     factory = LibraryViewModel.Factory(
@@ -188,4 +209,3 @@ fun KitsuneApp(
         }
     }
 }
-

@@ -9,20 +9,22 @@ import com.example.kitsune.data.CoverCacheResult
 import com.example.kitsune.data.LibraryRepository
 import com.example.kitsune.data.model.ComicWithProgress
 import com.example.kitsune.scanner.LibraryScanResult
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.io.File
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class HistoryViewModel(
@@ -39,7 +41,7 @@ class HistoryViewModel(
             if (rootUri.isNullOrBlank()) {
                 flowOf(HistoryUiState.RootNotConfigured)
             } else {
-                kotlinx.coroutines.flow.combine(
+                combine(
                     libraryRepository.observeRecentlyReadWithProgressByRoot(rootUri),
                     libraryRepository.observeLastScanResult()
                 ) { items, scanResult ->
@@ -48,16 +50,21 @@ class HistoryViewModel(
                     } else if (items.isEmpty()) {
                         HistoryUiState.Empty
                     } else {
-                        HistoryUiState.Success(
-                            rootUriString = rootUri,
-                            items = items
-                        )
+                        val groups = groupHistoryItemsByLocalDate(items)
+                        if (groups.isEmpty()) {
+                            HistoryUiState.Empty
+                        } else {
+                            HistoryUiState.Success(
+                                rootUriString = rootUri,
+                                groups = groups
+                            )
+                        }
                     }
                 }
                 .catch { throwable ->
                     emit(
                         HistoryUiState.Error(
-                            throwable.localizedMessage ?: "Gagal memuat riwayat membaca."
+                            throwable.localizedMessage ?: "Failed to load reading history."
                         )
                     )
                 }
@@ -66,7 +73,7 @@ class HistoryViewModel(
         .catch { throwable ->
             emit(
                 HistoryUiState.Error(
-                    throwable.localizedMessage ?: "Terjadi kesalahan pada status root."
+                    throwable.localizedMessage ?: "Root storage error."
                 )
             )
         }
@@ -100,26 +107,19 @@ class HistoryViewModel(
                         eventChannel.send(HistoryEvent.NavigateToReader(lastChapterId))
                     }
                     is ChapterAvailabilityResult.Missing -> {
-                        eventChannel.send(
-                            HistoryEvent.ShowFeedback("File chapter sebelumnya tidak ditemukan. Membuka detail komik.")
-                        )
+                        eventChannel.send(HistoryEvent.ShowFeedback("Chapter is missing. Opening comic detail."))
                         eventChannel.send(HistoryEvent.NavigateToComicDetail(comicId))
                     }
                     is ChapterAvailabilityResult.PermissionDenied -> {
-                        eventChannel.send(
-                            HistoryEvent.ShowFeedback("Izin akses terputus: ${availability.message}")
-                        )
+                        eventChannel.send(HistoryEvent.ShowFeedback("Permission denied: ${availability.message}"))
                     }
                     is ChapterAvailabilityResult.Error -> {
-                        eventChannel.send(
-                            HistoryEvent.ShowFeedback("Gagal memeriksa ketersediaan chapter. Membuka detail komik.")
-                        )
+                        eventChannel.send(HistoryEvent.ShowFeedback("Error checking chapter: ${availability.exception.localizedMessage}"))
                         eventChannel.send(HistoryEvent.NavigateToComicDetail(comicId))
                     }
                 }
-            } catch (ce: CancellationException) {
-                throw ce
             } catch (e: Exception) {
+                eventChannel.send(HistoryEvent.ShowFeedback("Failed to check chapter availability: ${e.localizedMessage}"))
                 eventChannel.send(HistoryEvent.NavigateToComicDetail(comicId))
             }
         }
@@ -129,35 +129,70 @@ class HistoryViewModel(
         viewModelScope.launch {
             try {
                 libraryRepository.clearHistoryForComic(comicId)
-            } catch (ce: CancellationException) {
-                throw ce
             } catch (e: Exception) {
-                eventChannel.send(HistoryEvent.ShowFeedback("Gagal menghapus riwayat komik: ${e.localizedMessage}"))
+                eventChannel.send(HistoryEvent.ShowFeedback("Failed to delete comic history: ${e.localizedMessage}"))
             }
         }
     }
 
-    fun clearAllHistoryForRoot() {
-        val rootUri = rootFolderPreferences.getRootUriString()
-        if (rootUri.isNullOrBlank()) return
-
+    fun clearAllHistory(rootUri: String) {
         viewModelScope.launch {
             try {
                 libraryRepository.clearAllHistoryByRoot(rootUri)
-            } catch (ce: CancellationException) {
-                throw ce
             } catch (e: Exception) {
-                eventChannel.send(HistoryEvent.ShowFeedback("Gagal menghapus seluruh riwayat: ${e.localizedMessage}"))
+                eventChannel.send(HistoryEvent.ShowFeedback("Failed to clear all history: ${e.localizedMessage}"))
             }
         }
     }
 
-    suspend fun getCoverFile(comicId: Long): CoverCacheResult {
-        return libraryRepository.getCoverFile(comicId)
-    }
+    suspend fun getCoverFile(comicId: Long): CoverCacheResult =
+        libraryRepository.getCoverFile(comicId)
 
     suspend fun releaseCoverFile(file: File) {
         libraryRepository.releaseCoverFile(file)
+    }
+
+    companion object {
+        fun groupHistoryItemsByLocalDate(
+            items: List<ComicWithProgress>,
+            nowMillis: Long = System.currentTimeMillis(),
+            zoneId: ZoneId = ZoneId.systemDefault()
+        ): List<HistoryGroup> {
+            if (items.isEmpty()) return emptyList()
+
+            val todayDate = Instant.ofEpochMilli(nowMillis).atZone(zoneId).toLocalDate()
+            val yesterdayDate = todayDate.minusDays(1)
+
+            val todayList = mutableListOf<ComicWithProgress>()
+            val yesterdayList = mutableListOf<ComicWithProgress>()
+            val earlierList = mutableListOf<ComicWithProgress>()
+
+            for (item in items) {
+                val lastReadAt = item.comic.lastReadAt ?: item.progress?.updatedAt ?: 0L
+                if (lastReadAt <= 0L) {
+                    earlierList.add(item)
+                    continue
+                }
+                val itemDate = Instant.ofEpochMilli(lastReadAt).atZone(zoneId).toLocalDate()
+                when {
+                    itemDate.isEqual(todayDate) -> todayList.add(item)
+                    itemDate.isEqual(yesterdayDate) -> yesterdayList.add(item)
+                    else -> earlierList.add(item)
+                }
+            }
+
+            val groups = mutableListOf<HistoryGroup>()
+            if (todayList.isNotEmpty()) {
+                groups.add(HistoryGroup(HistoryGroupHeader.TODAY, todayList))
+            }
+            if (yesterdayList.isNotEmpty()) {
+                groups.add(HistoryGroup(HistoryGroupHeader.YESTERDAY, yesterdayList))
+            }
+            if (earlierList.isNotEmpty()) {
+                groups.add(HistoryGroup(HistoryGroupHeader.EARLIER, earlierList))
+            }
+            return groups
+        }
     }
 
     class Factory(
@@ -166,10 +201,7 @@ class HistoryViewModel(
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            if (modelClass.isAssignableFrom(HistoryViewModel::class.java)) {
-                return HistoryViewModel(libraryRepository, rootFolderPreferences) as T
-            }
-            throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
+            return HistoryViewModel(libraryRepository, rootFolderPreferences) as T
         }
     }
 }

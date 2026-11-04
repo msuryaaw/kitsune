@@ -23,7 +23,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.DeleteOutline
-import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.FolderOff
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Lock
@@ -50,7 +49,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.layout.ContentScale
@@ -62,6 +60,7 @@ import coil.imageLoader
 import coil.request.ImageRequest
 import coil.request.SuccessResult
 import com.example.kitsune.data.CoverCacheResult
+import com.example.kitsune.data.entity.ComicEntity
 import com.example.kitsune.data.model.ComicWithProgress
 import com.example.kitsune.ui.screens.library.CoverUiState
 import kotlinx.coroutines.CancellationException
@@ -77,6 +76,7 @@ fun HistoryScreen(
     onComicClick: (Long) -> Unit,
     onContinueReadingClick: (Long) -> Unit,
     onNavigateToSettings: () -> Unit,
+    onOpenLibraryClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -121,11 +121,14 @@ fun HistoryScreen(
                 )
             }
             is HistoryUiState.Empty -> {
-                HistoryEmptyView(modifier = Modifier.align(Alignment.Center))
+                HistoryEmptyView(
+                    onOpenLibraryClick = onOpenLibraryClick,
+                    modifier = Modifier.align(Alignment.Center)
+                )
             }
             is HistoryUiState.Success -> {
                 HistorySuccessView(
-                    items = state.items,
+                    groups = state.groups,
                     viewModel = viewModel,
                     onItemClick = { item -> viewModel.onComicClicked(item.comic.id) },
                     onContinueClick = { item -> viewModel.onContinueReadingClicked(item) }
@@ -143,24 +146,13 @@ fun HistoryScreen(
 
 @Composable
 private fun HistorySuccessView(
-    items: List<ComicWithProgress>,
+    groups: List<HistoryGroup>,
     viewModel: HistoryViewModel,
     onItemClick: (ComicWithProgress) -> Unit,
     onContinueClick: (ComicWithProgress) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var showClearAllDialog by remember { mutableStateOf(false) }
     var itemToDelete by remember { mutableStateOf<ComicWithProgress?>(null) }
-
-    if (showClearAllDialog) {
-        ClearAllConfirmationDialog(
-            onConfirm = {
-                viewModel.clearAllHistoryForRoot()
-                showClearAllDialog = false
-            },
-            onDismiss = { showClearAllDialog = false }
-        )
-    }
 
     itemToDelete?.let { item ->
         SingleDeleteConfirmationDialog(
@@ -176,44 +168,37 @@ private fun HistorySuccessView(
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Riwayat Membaca (${items.size})",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                OutlinedButton(
-                    onClick = { showClearAllDialog = true },
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.DeleteSweep,
-                        contentDescription = "Clear All History",
-                        modifier = Modifier.padding(end = 4.dp)
-                    )
-                    Text("Clear All", style = MaterialTheme.typography.labelMedium)
-                }
-            }
+            Text(
+                text = "History",
+                style = MaterialTheme.typography.displayLarge
+            )
         }
 
-        items(
-            items = items,
-            key = { it.comic.id }
-        ) { item ->
-            HistoryItemCard(
-                item = item,
-                viewModel = viewModel,
-                onClick = { onItemClick(item) },
-                onContinueClick = { onContinueClick(item) },
-                onDeleteClick = { itemToDelete = item }
-            )
+        groups.forEach { group ->
+            item(key = "header_${group.header.name}") {
+                Text(
+                    text = group.header.displayName,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
+
+            items(
+                items = group.items,
+                key = { "${group.header.name}_${it.comic.id}" }
+            ) { item ->
+                HistoryItemCard(
+                    item = item,
+                    viewModel = viewModel,
+                    onClick = { onItemClick(item) },
+                    onContinueClick = { onContinueClick(item) },
+                    onDeleteClick = { itemToDelete = item }
+                )
+            }
         }
     }
 }
@@ -267,13 +252,11 @@ private fun HistoryItemCard(
 
                 Spacer(modifier = Modifier.height(2.dp))
 
-                item.comic.lastReadAt?.let { timestamp ->
-                    val formattedDate = DateFormat.getDateTimeInstance(
-                        DateFormat.SHORT,
-                        DateFormat.SHORT
-                    ).format(Date(timestamp))
+                val timestamp = item.comic.lastReadAt ?: item.progress?.updatedAt
+                if (timestamp != null && timestamp > 0L) {
+                    val timeFormat = DateFormat.getTimeInstance(DateFormat.SHORT)
                     Text(
-                        text = "Terakhir dibaca: $formattedDate",
+                        text = timeFormat.format(Date(timestamp)),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
@@ -286,7 +269,7 @@ private fun HistoryItemCard(
                 item.progress?.let { progress ->
                     val pageNumber = progress.pageIndex + 1
                     Text(
-                        text = "Chapter ${progress.lastReadChapterNumber} • Halaman $pageNumber",
+                        text = "Chapter ${progress.lastReadChapterNumber} • Page $pageNumber",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary,
                         maxLines = 1,
@@ -300,21 +283,21 @@ private fun HistoryItemCard(
             IconButton(onClick = onDeleteClick) {
                 Icon(
                     imageVector = Icons.Default.DeleteOutline,
-                    contentDescription = "Hapus Riwayat Komik",
+                    contentDescription = "Delete Comic History",
                     tint = MaterialTheme.colorScheme.outline
                 )
             }
 
-            OutlinedButton(
+            Button(
                 onClick = onContinueClick,
-                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
             ) {
                 Icon(
                     imageVector = Icons.Default.PlayArrow,
                     contentDescription = null,
                     modifier = Modifier.padding(end = 4.dp)
                 )
-                Text("Lanjutkan", style = MaterialTheme.typography.labelMedium)
+                Text("Continue", style = MaterialTheme.typography.labelMedium)
             }
         }
     }
@@ -346,32 +329,8 @@ private fun SingleDeleteConfirmationDialog(
 }
 
 @Composable
-private fun ClearAllConfirmationDialog(
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Clear All History") },
-        text = {
-            Text("Are you sure you want to clear all reading history for this active folder? Your reading progress in Library will remain intact.")
-        },
-        confirmButton = {
-            Button(onClick = onConfirm) {
-                Text("Clear All")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
-    )
-}
-
-@Composable
 private fun HistoryCoverImage(
-    comic: com.example.kitsune.data.entity.ComicEntity,
+    comic: ComicEntity,
     viewModel: HistoryViewModel,
     modifier: Modifier = Modifier
 ) {
@@ -400,7 +359,7 @@ private fun HistoryCoverImage(
 
             val request = ImageRequest.Builder(context)
                 .data(file)
-                .size(200, 280)
+                .size(300, 420)
                 .build()
 
             val imageLoader = context.imageLoader
@@ -438,14 +397,16 @@ private fun HistoryCoverImage(
     }
 
     Box(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier
+            .fillMaxWidth()
+            .aspectRatio(0.7f),
         contentAlignment = Alignment.Center
     ) {
         when (val state = coverState) {
             is CoverUiState.Loaded -> {
                 Image(
                     painter = BitmapPainter(state.imageBitmap),
-                    contentDescription = "Cover untuk ${comic.title}",
+                    contentDescription = "Cover for ${comic.title}",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
                 )
@@ -470,28 +431,41 @@ private fun HistoryCoverImage(
 
 @Composable
 private fun HistoryEmptyView(
+    onOpenLibraryClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(
+    Card(
         modifier = modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
     ) {
-        Icon(
-            imageVector = Icons.Default.History,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.outline,
-            modifier = Modifier.padding(bottom = 12.dp)
-        )
-        Text(
-            text = "Belum Ada Riwayat Membaca",
-            style = MaterialTheme.typography.titleLarge
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = "Komik yang Anda baca akan otomatis tercatat di sini beserta posisi terakhirnya.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.outline
-        )
+        Column(
+            modifier = Modifier.padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(
+                imageVector = Icons.Default.History,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.height(40.dp)
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = "Your reading history is clean",
+                style = MaterialTheme.typography.titleMedium
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Explore your Library to start reading your favorite manga.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Button(onClick = onOpenLibraryClick) {
+                Text("Open Library")
+            }
+        }
     }
 }
 

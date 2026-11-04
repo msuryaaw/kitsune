@@ -175,20 +175,22 @@ class HistoryViewModelTest {
     }
 
     @Test
-    fun uiState_emitsSuccess_orderedByLastReadAtDesc() = runTest {
+    fun uiState_emitsSuccess_groupedByLocalDate() = runTest {
         val rootUri = "content://root"
         fakeRootPrefs.rootUriFlow.value = rootUri
 
-        val comic1 = ComicEntity(id = 1L, rootUriString = rootUri, relativePath = "Comics/A", title = "A", lastReadAt = 1000L)
-        val progress1 = ReadingProgressEntity(comicId = 1L, lastReadChapterId = 101L, lastReadChapterNumber = 1, chapterRelativePath = "Comics/A/Ch1.cbz", pageIndex = 2, updatedAt = 1000L)
+        val now = System.currentTimeMillis()
+        val oneDayMillis = 24 * 60 * 60 * 1000L
 
-        val comic2 = ComicEntity(id = 2L, rootUriString = rootUri, relativePath = "Comics/B", title = "B", lastReadAt = 5000L)
-        val progress2 = ReadingProgressEntity(comicId = 2L, lastReadChapterId = 202L, lastReadChapterNumber = 2, chapterRelativePath = "Comics/B/Ch2.cbz", pageIndex = 5, updatedAt = 5000L)
+        val comicToday = ComicEntity(id = 1L, rootUriString = rootUri, relativePath = "Comics/A", title = "Comic Today", lastReadAt = now)
+        val comicYesterday = ComicEntity(id = 2L, rootUriString = rootUri, relativePath = "Comics/B", title = "Comic Yesterday", lastReadAt = now - oneDayMillis)
+        val comicEarlier = ComicEntity(id = 3L, rootUriString = rootUri, relativePath = "Comics/C", title = "Comic Earlier", lastReadAt = now - (3 * oneDayMillis))
 
-        val item1 = ComicWithProgress(comic1, progress1)
-        val item2 = ComicWithProgress(comic2, progress2)
+        val itemToday = ComicWithProgress(comicToday, null)
+        val itemYesterday = ComicWithProgress(comicYesterday, null)
+        val itemEarlier = ComicWithProgress(comicEarlier, null)
 
-        fakeRepo.recentlyReadByRoot.value = mapOf(rootUri to listOf(item1, item2))
+        fakeRepo.recentlyReadByRoot.value = mapOf(rootUri to listOf(itemToday, itemYesterday, itemEarlier))
 
         viewModel = HistoryViewModel(fakeRepo, fakeRootPrefs)
         val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
@@ -196,10 +198,10 @@ class HistoryViewModelTest {
         val currentState = viewModel.uiState.value
         assertTrue("State must be Success", currentState is HistoryUiState.Success)
         val success = currentState as HistoryUiState.Success
-        assertEquals(2, success.items.size)
-        // Item 2 (lastReadAt = 5000L) must come before Item 1 (1000L)
-        assertEquals(2L, success.items[0].comic.id)
-        assertEquals(1L, success.items[1].comic.id)
+        assertEquals(3, success.groups.size)
+        assertEquals(HistoryGroupHeader.TODAY, success.groups[0].header)
+        assertEquals(HistoryGroupHeader.YESTERDAY, success.groups[1].header)
+        assertEquals(HistoryGroupHeader.EARLIER, success.groups[2].header)
 
         collectJob.cancel()
     }
@@ -314,15 +316,15 @@ class HistoryViewModelTest {
         val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
 
         val stateA = viewModel.uiState.value as HistoryUiState.Success
-        assertEquals(1, stateA.items.size)
-        assertEquals(1L, stateA.items.first().comic.id)
+        assertEquals(1, stateA.groups.sumOf { it.items.size })
+        assertEquals(1L, stateA.groups.first().items.first().comic.id)
 
         // Switch to Root B
         fakeRootPrefs.rootUriFlow.value = rootB
 
         val stateB = viewModel.uiState.value as HistoryUiState.Success
-        assertEquals(1, stateB.items.size)
-        assertEquals(2L, stateB.items.first().comic.id)
+        assertEquals(1, stateB.groups.sumOf { it.items.size })
+        assertEquals(2L, stateB.groups.first().items.first().comic.id)
 
         collectJob.cancel()
     }
@@ -407,8 +409,8 @@ class HistoryViewModelTest {
         }
         assertTrue("HistoryViewModel state must be Success", historyState is HistoryUiState.Success)
         val successHistory = historyState as HistoryUiState.Success
-        assertEquals(1, successHistory.items.size)
-        val historyItem = successHistory.items.first()
+        assertEquals(1, successHistory.groups.sumOf { it.items.size })
+        val historyItem = successHistory.groups.first().items.first()
         assertEquals(comicId, historyItem.comic.id)
         assertEquals(8, historyItem.progress!!.pageIndex)
         assertEquals(240, historyItem.progress!!.scrollOffset)
@@ -497,7 +499,7 @@ class HistoryViewModelTest {
         viewModel = HistoryViewModel(fakeRepo, fakeRootPrefs)
         val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
 
-        assertEquals(1, (viewModel.uiState.value as HistoryUiState.Success).items.size)
+        assertEquals(1, (viewModel.uiState.value as HistoryUiState.Success).groups.sumOf { it.items.size })
 
         // Clear history for comic 1
         viewModel.clearHistoryForComic(1L)
@@ -525,10 +527,10 @@ class HistoryViewModelTest {
         viewModel = HistoryViewModel(fakeRepo, fakeRootPrefs)
         val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
 
-        assertEquals(2, (viewModel.uiState.value as HistoryUiState.Success).items.size)
+        assertEquals(2, (viewModel.uiState.value as HistoryUiState.Success).groups.sumOf { it.items.size })
 
         // Clear all history for root
-        viewModel.clearAllHistoryForRoot()
+        viewModel.clearAllHistory(rootUri)
 
         assertTrue(fakeRepo.clearAllHistoryCalled)
         assertEquals(rootUri, fakeRepo.lastClearedRootUri)
@@ -595,7 +597,7 @@ class HistoryViewModelTest {
         }
         assertTrue("HistoryViewModel state must initially be Success", historyState is HistoryUiState.Success)
         val initialHistory = historyState as HistoryUiState.Success
-        assertEquals(1, initialHistory.items.size)
+        assertEquals(1, initialHistory.groups.sumOf { it.items.size })
 
         // Step 3: Delete History for Comic via ViewModel
         viewModel.clearHistoryForComic(comicId)
@@ -691,7 +693,7 @@ class HistoryViewModelTest {
         // Must emit feedback cleanly without crashing
         assertEquals(1, events.size)
         assertTrue(events.first() is HistoryEvent.ShowFeedback)
-        assertTrue((events.first() as HistoryEvent.ShowFeedback).message.contains("Gagal menghapus riwayat komik"))
+        assertTrue((events.first() as HistoryEvent.ShowFeedback).message.contains("Failed to delete comic history"))
 
         eventJob.cancel()
         collectJob.cancel()

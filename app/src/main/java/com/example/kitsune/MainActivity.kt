@@ -6,6 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.getValue
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.kitsune.data.entity.SettingsEntity
 import com.example.kitsune.ui.KitsuneApp
@@ -13,7 +14,7 @@ import com.example.kitsune.ui.theme.KitsuneTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
-        setTheme(R.style.Theme_Kitsune)
+        installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 

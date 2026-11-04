@@ -47,4 +47,18 @@ class BrandingAssetsTest {
             assertTrue("Round icon in $density MUST exist", iconRoundBmp.exists() && iconRoundBmp.length() > 0L)
         }
     }
+
+    @Test
+    fun splashScreenConfiguration_usesKitsuneWarmDarkBackgroundColor() {
+        val rootDir = File(System.getProperty("user.dir") ?: ".")
+        val appMainDir = File(rootDir, "src/main/res").takeIf { it.exists() }
+            ?: File(rootDir, "app/src/main/res").takeIf { it.exists() }
+            ?: File("app/src/main/res")
+
+        val colorsFile = File(appMainDir, "values/colors.xml")
+        assertTrue("colors.xml MUST exist", colorsFile.exists())
+
+        val colorsContent = colorsFile.readText()
+        assertTrue("splash_background MUST be configured to Warm Dark #0F0E0C", colorsContent.contains("<color name=\"splash_background\">#0F0E0C</color>"))
+    }
 }

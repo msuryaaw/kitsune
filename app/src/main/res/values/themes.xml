@@ -3,7 +3,10 @@
 
     <style name="Theme.Kitsune" parent="android:Theme.Material.Light.NoActionBar" />
 
-    <style name="Theme.Kitsune.Starting" parent="Theme.Kitsune">
+    <style name="Theme.Kitsune.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/splash_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/kitsune_splash_logo</item>
+        <item name="postSplashScreenTheme">@style/Theme.Kitsune</item>
         <item name="android:windowBackground">@drawable/kitsune_splash_bg</item>
     </style>
 </resources>

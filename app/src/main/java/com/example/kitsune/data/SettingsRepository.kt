@@ -43,4 +43,9 @@ interface SettingsRepository {
      * Updates the unified reading mode setting in DB ("rtl", "ltr", or "vertical").
      */
     suspend fun setReadingMode(readingMode: String)
+
+    /**
+     * Updates the keep screen awake setting in DB (true or false).
+     */
+    suspend fun setKeepScreenAwake(keepScreenAwake: Boolean)
 }

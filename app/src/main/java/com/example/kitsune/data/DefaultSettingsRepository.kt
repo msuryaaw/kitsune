@@ -66,4 +66,10 @@ class DefaultSettingsRepository(
         val updated = (existing ?: SettingsEntity()).copy(readingMode = sanitized)
         settingsDao.upsertSettings(updated)
     }
+
+    override suspend fun setKeepScreenAwake(keepScreenAwake: Boolean) {
+        val existing = settingsDao.getSettings()
+        val updated = (existing ?: SettingsEntity()).copy(keepScreenAwake = keepScreenAwake)
+        settingsDao.upsertSettings(updated)
+    }
 }

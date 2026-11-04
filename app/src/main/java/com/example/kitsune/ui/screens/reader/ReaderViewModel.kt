@@ -129,12 +129,14 @@ class ReaderViewModel(
                                         readingDirection = settings.readingDirection,
                                         pageFit = settings.pageFit,
                                         readingMode = settings.readingMode,
+                                        keepScreenAwake = settings.keepScreenAwake,
                                         currentPageIndex = currentPos,
                                         scrollOffset = currentOffset,
                                         chapters = validChapters,
                                         currentChapterIndex = chIndex,
                                         hasPreviousChapter = hasPrev,
-                                        hasNextChapter = hasNext
+                                        hasNextChapter = hasNext,
+                                        comicTitle = activeChapter?.displayName?.removeSuffix(".cbz") ?: ""
                                     )
                                 }
                             }
@@ -276,6 +278,12 @@ class ReaderViewModel(
     fun setPageFit(pageFit: String) {
         viewModelScope.launch {
             settingsRepository.setPageFit(pageFit)
+        }
+    }
+
+    fun setKeepScreenAwake(keepScreenAwake: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.setKeepScreenAwake(keepScreenAwake)
         }
     }
 

@@ -125,6 +125,7 @@ class FakeBookmarkSettingsRepo(initialSettings: SettingsEntity = SettingsEntity(
     override suspend fun setReadingMode(readingMode: String) {
         settingsFlow.value = settingsFlow.value.copy(readingMode = readingMode)
     }
+    override suspend fun setKeepScreenAwake(keepScreenAwake: Boolean) {}
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)

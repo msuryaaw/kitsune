@@ -1,20 +1,14 @@
 package com.example.kitsune.ui.screens.reader
 
+import com.example.kitsune.data.entity.ChapterEntity
 import com.example.kitsune.reader.ChapterPageIndex
 
 /**
- * UI state for Reader Screen.
+ * UI state for Reader Screen (Phase 11).
  */
 sealed interface ReaderUiState {
-    /**
-     * Initial loading state while opening archive and indexing chapter.
-     */
     object Loading : ReaderUiState
 
-    /**
-     * Chapter archive opened and indexed successfully.
-     * Note: CbzPageDecoder and CbzArchiveHandle are private ViewModel resources and are NOT in UiState.
-     */
     data class Success(
         val chapterId: Long,
         val pageIndex: ChapterPageIndex,
@@ -22,12 +16,14 @@ sealed interface ReaderUiState {
         val readingDirection: String = "ltr",
         val pageFit: String = "fit_screen",
         val readingMode: String = "ltr",
+        val keepScreenAwake: Boolean = false,
         val currentPageIndex: Int = 0,
         val scrollOffset: Int = 0,
-        val chapters: List<com.example.kitsune.data.entity.ChapterEntity> = emptyList(),
+        val chapters: List<ChapterEntity> = emptyList(),
         val currentChapterIndex: Int = -1,
         val hasPreviousChapter: Boolean = false,
-        val hasNextChapter: Boolean = false
+        val hasNextChapter: Boolean = false,
+        val comicTitle: String = ""
     ) : ReaderUiState {
         val effectiveReadingMode: String
             get() = when (readingMode) {
@@ -36,9 +32,6 @@ sealed interface ReaderUiState {
             }
     }
 
-    /**
-     * Error state when chapter cannot be opened or indexed.
-     */
     data class Error(
         val message: String,
         val errorType: ReaderErrorType = ReaderErrorType.GENERAL

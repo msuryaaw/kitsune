@@ -119,6 +119,9 @@ class FakeReaderSettingsRepository(initialSettings: SettingsEntity = SettingsEnt
     override suspend fun setReadingMode(readingMode: String) {
         settingsFlow.value = settingsFlow.value.copy(readingMode = readingMode)
     }
+    override suspend fun setKeepScreenAwake(keepScreenAwake: Boolean) {
+        settingsFlow.value = settingsFlow.value.copy(keepScreenAwake = keepScreenAwake)
+    }
 }
 
 class FakeCbzPageIndexer : CbzPageIndexer {
@@ -227,6 +230,156 @@ class ReaderViewModelTest {
         assertEquals(1L, success.chapterId)
         assertEquals("single_page", success.readerMode)
         assertEquals(0, success.currentPageIndex)
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun setKeepScreenAwake_updatesSettings_andReflectsInUiState() = runTest {
+        val spooledFile = tempFolder.newFile("spool_awake.cbz")
+        val handle = CbzArchiveHandle(1L, spooledFile) {}
+
+        fakeRepo.openResult = CbzArchiveResult.Success(handle)
+
+        val samplePage = PageMetadata(pageIndex = 0, entryName = "p1.jpg", normalizedPath = "p1.jpg")
+        val pageIndex = ChapterPageIndex(chapterId = 1L, pages = listOf(samplePage))
+        fakeIndexer.indexResult = PageIndexResult.Success(pageIndex)
+
+        val viewModel = ReaderViewModel(
+            chapterId = 1L,
+            libraryRepository = fakeRepo,
+            settingsRepository = fakeSettingsRepo,
+            cbzPageIndexer = fakeIndexer,
+            cbzPageDecoderFactory = fakeDecoderFactory
+        )
+
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+
+        var currentState = viewModel.uiState.value as ReaderUiState.Success
+        assertFalse(currentState.keepScreenAwake)
+
+        viewModel.setKeepScreenAwake(true)
+
+        currentState = viewModel.uiState.value as ReaderUiState.Success
+        assertTrue(currentState.keepScreenAwake)
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun modeSwitching_preservesCurrentPageIndex() = runTest {
+        val spooledFile = tempFolder.newFile("spool_mode.cbz")
+        val handle = CbzArchiveHandle(1L, spooledFile) {}
+
+        fakeRepo.openResult = CbzArchiveResult.Success(handle)
+
+        val pages = (1..10).map { PageMetadata(pageIndex = it - 1, entryName = "p$it.jpg", normalizedPath = "p$it.jpg") }
+        val pageIndex = ChapterPageIndex(chapterId = 1L, pages = pages)
+        fakeIndexer.indexResult = PageIndexResult.Success(pageIndex)
+
+        val viewModel = ReaderViewModel(
+            chapterId = 1L,
+            libraryRepository = fakeRepo,
+            settingsRepository = fakeSettingsRepo,
+            cbzPageIndexer = fakeIndexer,
+            cbzPageDecoderFactory = fakeDecoderFactory
+        )
+
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+
+        // Go to page 5 in Single Page mode
+        viewModel.setCurrentPageIndex(5)
+        var currentState = viewModel.uiState.value as ReaderUiState.Success
+        assertEquals(5, currentState.currentPageIndex)
+        assertEquals("single_page", currentState.readerMode)
+
+        // Switch to Vertical Continuous mode
+        viewModel.setReaderMode("vertical_continuous")
+        currentState = viewModel.uiState.value as ReaderUiState.Success
+        assertEquals("vertical_continuous", currentState.readerMode)
+        assertEquals("Current page index 5 MUST be preserved when switching mode", 5, currentState.currentPageIndex)
+
+        // Switch back to Single Page mode
+        viewModel.setReaderMode("single_page")
+        currentState = viewModel.uiState.value as ReaderUiState.Success
+        assertEquals("single_page", currentState.readerMode)
+        assertEquals("Current page index 5 MUST be preserved when switching back", 5, currentState.currentPageIndex)
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun readingDirection_ltrAndRtl_doesNotMutatePageIndex() = runTest {
+        val spooledFile = tempFolder.newFile("spool_dir.cbz")
+        val handle = CbzArchiveHandle(1L, spooledFile) {}
+
+        fakeRepo.openResult = CbzArchiveResult.Success(handle)
+
+        val pages = (1..5).map { PageMetadata(pageIndex = it - 1, entryName = "p$it.jpg", normalizedPath = "p$it.jpg") }
+        val pageIndex = ChapterPageIndex(chapterId = 1L, pages = pages)
+        fakeIndexer.indexResult = PageIndexResult.Success(pageIndex)
+
+        val viewModel = ReaderViewModel(
+            chapterId = 1L,
+            libraryRepository = fakeRepo,
+            settingsRepository = fakeSettingsRepo,
+            cbzPageIndexer = fakeIndexer,
+            cbzPageDecoderFactory = fakeDecoderFactory
+        )
+
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+
+        viewModel.setCurrentPageIndex(2)
+        var currentState = viewModel.uiState.value as ReaderUiState.Success
+        assertEquals(2, currentState.currentPageIndex)
+
+        // Switch direction to RTL
+        viewModel.setReadingDirection("rtl")
+        currentState = viewModel.uiState.value as ReaderUiState.Success
+        assertEquals("rtl", currentState.readingDirection)
+        assertEquals("Changing direction to RTL MUST NOT alter current page index 2", 2, currentState.currentPageIndex)
+
+        // Switch direction to LTR
+        viewModel.setReadingDirection("ltr")
+        currentState = viewModel.uiState.value as ReaderUiState.Success
+        assertEquals("ltr", currentState.readingDirection)
+        assertEquals("Changing direction to LTR MUST NOT alter current page index 2", 2, currentState.currentPageIndex)
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun pageFitOptions_fitScreen_fitWidth_fitHeight() = runTest {
+        val spooledFile = tempFolder.newFile("spool_fit.cbz")
+        val handle = CbzArchiveHandle(1L, spooledFile) {}
+
+        fakeRepo.openResult = CbzArchiveResult.Success(handle)
+
+        val samplePage = PageMetadata(pageIndex = 0, entryName = "p1.jpg", normalizedPath = "p1.jpg")
+        val pageIndex = ChapterPageIndex(chapterId = 1L, pages = listOf(samplePage))
+        fakeIndexer.indexResult = PageIndexResult.Success(pageIndex)
+
+        val viewModel = ReaderViewModel(
+            chapterId = 1L,
+            libraryRepository = fakeRepo,
+            settingsRepository = fakeSettingsRepo,
+            cbzPageIndexer = fakeIndexer,
+            cbzPageDecoderFactory = fakeDecoderFactory
+        )
+
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+
+        viewModel.setPageFit("fit_width")
+        var currentState = viewModel.uiState.value as ReaderUiState.Success
+        assertEquals("fit_width", currentState.pageFit)
+
+        viewModel.setPageFit("fit_height")
+        currentState = viewModel.uiState.value as ReaderUiState.Success
+        assertEquals("fit_height", currentState.pageFit)
+
+        viewModel.setPageFit("fit_screen")
+        currentState = viewModel.uiState.value as ReaderUiState.Success
+        assertEquals("fit_screen", currentState.pageFit)
 
         collectJob.cancel()
     }

@@ -182,6 +182,10 @@ class FakeSettingsRepository(
     override suspend fun setReadingMode(readingMode: String) {
         settingsFlow.value = settingsFlow.value.copy(readingMode = readingMode)
     }
+
+    override suspend fun setKeepScreenAwake(keepScreenAwake: Boolean) {
+        settingsFlow.value = settingsFlow.value.copy(keepScreenAwake = keepScreenAwake)
+    }
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)

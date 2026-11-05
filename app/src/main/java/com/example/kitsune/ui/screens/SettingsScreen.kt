@@ -20,22 +20,26 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -45,6 +49,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -54,6 +59,8 @@ import com.example.kitsune.core.RootFolderState
 import com.example.kitsune.core.SafStorageHelper
 import com.example.kitsune.data.LibraryRepository
 import com.example.kitsune.data.SettingsRepository
+import com.example.kitsune.ui.components.KitsuneSectionHeading
+import com.example.kitsune.ui.components.KitsuneSegmentedControl
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 
@@ -98,7 +105,6 @@ fun SettingsScreen(
         refreshStatus()
     }
 
-    // Custom contract to capture both Uri and Intent flags from ActivityResult
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -112,7 +118,6 @@ fun SettingsScreen(
                 return@rememberLauncherForActivityResult
             }
 
-            // Attempt to persist permissions BEFORE overwriting existing root
             val takeResult = SafStorageHelper.takePersistablePermissions(
                 resolver = context.contentResolver,
                 uri = pickedUri,
@@ -120,12 +125,10 @@ fun SettingsScreen(
             )
 
             takeResult.onSuccess {
-                // Verify that permission is actually held
                 val verifiedAccess = SafStorageHelper.checkRootAccess(context, pickedUri)
                 if (verifiedAccess is RootFolderState.Ready) {
                     rootFolderPreferences.setRootUriString(pickedUri.toString())
                     folderState = verifiedAccess
-                    // Ensure "Comics" directory exists and trigger initial scan
                     scope.launch {
                         try {
                             libraryRepository?.ensureComicsDirectory()
@@ -146,403 +149,387 @@ fun SettingsScreen(
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(16.dp)
+            .padding(horizontal = 20.dp, vertical = 18.dp),
+        verticalArrangement = Arrangement.spacedBy(22.dp)
     ) {
         Text(
             text = "Settings",
             style = MaterialTheme.typography.headlineMedium
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        // Section 1 — Storage Management
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            KitsuneSectionHeading(title = "Storage Management")
 
-        // Storage Management Card
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant
-            )
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = "Storage Management",
-                    style = MaterialTheme.typography.titleMedium
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
                 )
-                Spacer(modifier = Modifier.height(8.dp))
-
-                when (val state = folderState) {
-                    is RootFolderState.NotConfigured -> {
-                        Text(
-                            text = "Status: Root folder not selected.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = "Select a 'Kitsune' folder containing a 'Comics' subfolder.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.outline
-                        )
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    when (val state = folderState) {
+                        is RootFolderState.NotConfigured -> {
+                            Text(
+                                text = "Status: Root folder not selected.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = "Select a 'Kitsune' folder containing a 'Comics' subfolder.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                        }
+                        is RootFolderState.PermissionLost -> {
+                            Text(
+                                text = "Status: Read permission lost or revoked.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                            Text(
+                                text = "Reason: ${state.reason}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                            Text(
+                                text = "Please select the folder again to update permission.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                        }
+                        is RootFolderState.Inaccessible -> {
+                            Text(
+                                text = "Status: Folder access error.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                            Text(
+                                text = "Reason: ${state.error}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                        is RootFolderState.Ready -> {
+                            Text(
+                                text = "Status: Ready (Active access verified)",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = "Folder configured in device storage",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                        }
                     }
-                    is RootFolderState.PermissionLost -> {
+
+                    if (operationError != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "Status: Read permission lost or revoked.",
-                            style = MaterialTheme.typography.bodyMedium,
+                            text = operationError ?: "",
+                            style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.error
                         )
-                        Text(
-                            text = "Reason: ${state.reason}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error
-                        )
-                        Text(
-                            text = "Please select the folder again to update permission.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.outline
-                        )
                     }
-                    is RootFolderState.Inaccessible -> {
-                        Text(
-                            text = "Status: Folder access error.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.error
-                        )
-                        Text(
-                            text = "Reason: ${state.error}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error
-                        )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                val openDocTreeIntent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                                    val currentStr = rootFolderPreferences.getRootUriString()
+                                    if (!currentStr.isNullOrEmpty()) {
+                                        try {
+                                            val currentUri = Uri.parse(currentStr)
+                                            putExtra("android.provider.extra.INITIAL_URI", currentUri)
+                                        } catch (_: Exception) {}
+                                    }
+                                }
+                                launcher.launch(openDocTreeIntent)
+                            }
+                        ) {
+                            Text(
+                                text = if (folderState is RootFolderState.Ready) {
+                                    "Change Root Folder"
+                                } else {
+                                    "Select Root Folder"
+                                }
+                            )
+                        }
+
+                        if (folderState !is RootFolderState.NotConfigured) {
+                            OutlinedButton(
+                                onClick = {
+                                    operationError = null
+                                    isVerifying = true
+                                    refreshStatus()
+                                    isVerifying = false
+                                },
+                                enabled = !isVerifying
+                            ) {
+                                if (isVerifying) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        strokeWidth = 2.dp
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                }
+                                Text("Recheck Access")
+                            }
+                        }
                     }
-                    is RootFolderState.Ready -> {
-                        Text(
-                            text = "Status: Ready (Active access verified)",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Text(
-                            text = "Folder configured in device storage",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.outline
-                        )
-                    }
-                }
 
-                if (operationError != null) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = operationError ?: "",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Button(
-                        onClick = {
-                            val openDocTreeIntent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
-                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                    if (showReleaseRootDialog) {
+                        ReleaseRootConfirmationDialog(
+                            onConfirm = {
+                                showReleaseRootDialog = false
                                 val currentStr = rootFolderPreferences.getRootUriString()
+                                var releaseFailed = false
                                 if (!currentStr.isNullOrEmpty()) {
                                     try {
-                                        val currentUri = Uri.parse(currentStr)
-                                        putExtra("android.provider.extra.INITIAL_URI", currentUri)
+                                        val uri = Uri.parse(currentStr)
+                                        val releaseResult = SafStorageHelper.releasePersistablePermissions(
+                                            resolver = context.contentResolver,
+                                            uri = uri
+                                        )
+                                        releaseResult.onFailure { err ->
+                                            releaseFailed = true
+                                            operationError = "Warning: Failed to release system permission: ${err.localizedMessage ?: "Unknown error"}"
+                                        }
                                     } catch (_: Exception) {}
                                 }
-                            }
-                            launcher.launch(openDocTreeIntent)
-                        }
-                    ) {
-                        Text(
-                            text = if (folderState is RootFolderState.Ready) {
-                                "Change Root Folder"
-                            } else {
-                                "Select Root Folder"
-                            }
+
+                                if (!releaseFailed) {
+                                    rootFolderPreferences.setRootUriString(null)
+                                    refreshStatus()
+                                }
+                            },
+                            onDismiss = { showReleaseRootDialog = false }
                         )
                     }
 
                     if (folderState !is RootFolderState.NotConfigured) {
+                        Spacer(modifier = Modifier.height(8.dp))
                         OutlinedButton(
-                            onClick = {
-                                operationError = null
-                                isVerifying = true
-                                refreshStatus()
-                                isVerifying = false
-                            },
-                            enabled = !isVerifying
+                            onClick = { showReleaseRootDialog = true }
                         ) {
-                            if (isVerifying) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(16.dp),
-                                    strokeWidth = 2.dp
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                            }
-                            Text("Recheck Access")
+                            Text("Release Root Folder")
                         }
                     }
                 }
+            }
+        }
 
-                if (showReleaseRootDialog) {
-                    ReleaseRootConfirmationDialog(
-                        onConfirm = {
-                            showReleaseRootDialog = false
-                            val currentStr = rootFolderPreferences.getRootUriString()
-                            var releaseFailed = false
-                            if (!currentStr.isNullOrEmpty()) {
-                                try {
-                                    val uri = Uri.parse(currentStr)
-                                    val releaseResult = SafStorageHelper.releasePersistablePermissions(
-                                        resolver = context.contentResolver,
-                                        uri = uri
-                                    )
-                                    releaseResult.onFailure { err ->
-                                        releaseFailed = true
-                                        operationError = "Warning: Failed to release system permission: ${err.localizedMessage ?: "Unknown error"}"
-                                    }
-                                } catch (_: Exception) {}
+        // Section 2 — Reader Preferences
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            KitsuneSectionHeading(title = "Reader Preferences")
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    // Reading Mode
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            text = "Reading mode",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = "How pages move while reading",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        KitsuneSegmentedControl(
+                            options = listOf(
+                                "single_page" to "Single Page",
+                                "vertical_continuous" to "Vertical Continuous"
+                            ),
+                            selected = settingsState.readerMode,
+                            onSelected = { mode ->
+                                scope.launch { settingsRepository?.setReaderMode(mode) }
                             }
-
-                            if (!releaseFailed) {
-                                rootFolderPreferences.setRootUriString(null)
-                                refreshStatus()
-                            }
-                        },
-                        onDismiss = { showReleaseRootDialog = false }
-                    )
-                }
-
-                if (folderState !is RootFolderState.NotConfigured) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedButton(
-                        onClick = { showReleaseRootDialog = true }
-                    ) {
-                        Text("Release Root Folder")
+                        )
                     }
-                }
-            }
-        }
 
-        Spacer(modifier = Modifier.height(16.dp))
+                    // Reading Direction
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            text = "Reading direction",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = "Page order and navigation",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        KitsuneSegmentedControl(
+                            options = listOf("ltr" to "LTR", "rtl" to "RTL"),
+                            selected = settingsState.readingDirection,
+                            onSelected = { dir ->
+                                scope.launch { settingsRepository?.setReadingDirection(dir) }
+                            }
+                        )
+                    }
 
-        // Reader Preferences Card
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant
-            )
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = "Reader Preferences",
-                    style = MaterialTheme.typography.titleMedium
-                )
+                    // Page Fit
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            text = "Page fit",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = "Default page scaling",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        KitsuneSegmentedControl(
+                            options = listOf(
+                                "fit_screen" to "Fit Screen",
+                                "fit_width" to "Fit Width",
+                                "fit_height" to "Fit Height"
+                            ),
+                            selected = settingsState.pageFit,
+                            onSelected = { fit ->
+                                scope.launch { settingsRepository?.setPageFit(fit) }
+                            }
+                        )
+                    }
 
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Reading Mode
-                Text(
-                    text = "Reading Mode",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(
-                        selected = settingsState.readerMode == "single_page",
-                        onClick = {
-                            scope.launch { settingsRepository?.setReaderMode("single_page") }
-                        },
-                        label = { Text("Single Page") }
-                    )
-                    FilterChip(
-                        selected = settingsState.readerMode == "vertical_continuous",
-                        onClick = {
-                            scope.launch { settingsRepository?.setReaderMode("vertical_continuous") }
-                        },
-                        label = { Text("Vertical Continuous") }
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Reading Direction
-                Text(
-                    text = "Reading Direction",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(
-                        selected = settingsState.readingDirection == "ltr",
-                        onClick = {
-                            scope.launch { settingsRepository?.setReadingDirection("ltr") }
-                        },
-                        label = { Text("LTR") }
-                    )
-                    FilterChip(
-                        selected = settingsState.readingDirection == "rtl",
-                        onClick = {
-                            scope.launch { settingsRepository?.setReadingDirection("rtl") }
-                        },
-                        label = { Text("RTL") }
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Page Fit
-                Text(
-                    text = "Page Fit",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(
-                        selected = settingsState.pageFit == "fit_screen",
-                        onClick = {
-                            scope.launch { settingsRepository?.setPageFit("fit_screen") }
-                        },
-                        label = { Text("Fit Screen") }
-                    )
-                    FilterChip(
-                        selected = settingsState.pageFit == "fit_width",
-                        onClick = {
-                            scope.launch { settingsRepository?.setPageFit("fit_width") }
-                        },
-                        label = { Text("Fit Width") }
-                    )
-                    FilterChip(
-                        selected = settingsState.pageFit == "fit_height",
-                        onClick = {
-                            scope.launch { settingsRepository?.setPageFit("fit_height") }
-                        },
-                        label = { Text("Fit Height") }
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Keep Screen Awake
-                Text(
-                    text = "Keep Screen Awake",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(
-                        selected = settingsState.keepScreenAwake,
-                        onClick = {
-                            scope.launch { settingsRepository?.setKeepScreenAwake(!settingsState.keepScreenAwake) }
-                        },
-                        label = { Text(if (settingsState.keepScreenAwake) "Enabled" else "Disabled") }
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Appearance & Grid Preferences Card
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant
-            )
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = "Display & Grid",
-                    style = MaterialTheme.typography.titleMedium
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // App Theme
-                Text(
-                    text = "App Theme",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(
-                        selected = settingsState.theme == "system",
-                        onClick = {
-                            scope.launch { settingsRepository?.setTheme("system") }
-                        },
-                        label = { Text("System") }
-                    )
-                    FilterChip(
-                        selected = settingsState.theme == "light",
-                        onClick = {
-                            scope.launch { settingsRepository?.setTheme("light") }
-                        },
-                        label = { Text("Light") }
-                    )
-                    FilterChip(
-                        selected = settingsState.theme == "dark",
-                        onClick = {
-                            scope.launch { settingsRepository?.setTheme("dark") }
-                        },
-                        label = { Text("Dark") }
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Library Grid Columns
-                Text(
-                    text = "Library Grid Columns",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(2, 3, 4).forEach { cols ->
-                        FilterChip(
-                            selected = settingsState.gridColumns == cols,
-                            onClick = {
-                                scope.launch { settingsRepository?.setGridColumns(cols) }
-                            },
-                            label = { Text("${cols}x") }
+                    // Keep Screen Awake
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Keep screen awake",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = "Prevent sleep while reading",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = settingsState.keepScreenAwake,
+                            onCheckedChange = { checked ->
+                                scope.launch { settingsRepository?.setKeepScreenAwake(checked) }
+                            }
                         )
                     }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        // Section 3 — Display & Grid
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            KitsuneSectionHeading(title = "Display & Grid")
 
-        // Bookmark Manager Card
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant
-            )
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = "Bookmark Manager",
-                    style = MaterialTheme.typography.titleMedium
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
                 )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "Manage, create, and reorder your Bookmark collections.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                Button(
-                    onClick = { showBookmarkManagerDialog = true }
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    Text("Open Bookmark Manager")
+                    // App Theme (Dark & System ONLY per locked specs)
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            text = "Theme",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = "Application appearance",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        KitsuneSegmentedControl(
+                            options = listOf("dark" to "Dark", "system" to "System"),
+                            selected = if (settingsState.theme == "light") "system" else settingsState.theme,
+                            onSelected = { theme ->
+                                scope.launch { settingsRepository?.setTheme(theme) }
+                            }
+                        )
+                    }
+
+                    // Library Grid Columns
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            text = "Library grid",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = "Default cover density",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        KitsuneSegmentedControl(
+                            options = listOf(2 to "2 columns", 3 to "3 columns", 4 to "4 columns"),
+                            selected = settingsState.gridColumns,
+                            onSelected = { cols ->
+                                scope.launch { settingsRepository?.setGridColumns(cols) }
+                            }
+                        )
+                    }
+                }
+            }
+        }
+
+        // Section 4 — Bookmark Manager
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            KitsuneSectionHeading(title = "Bookmark Manager")
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "Collection Management",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Manage, create, rename, and reorder your Bookmark collections.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Button(
+                        onClick = { showBookmarkManagerDialog = true }
+                    ) {
+                        Text("Open Bookmark Manager")
+                    }
                 }
             }
         }
@@ -680,7 +667,7 @@ private fun BookmarkManagerDialog(
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
                                 colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.surface
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
                                 )
                             ) {
                                 Row(
@@ -688,7 +675,7 @@ private fun BookmarkManagerDialog(
                                         .fillMaxWidth()
                                         .padding(horizontal = 12.dp, vertical = 8.dp),
                                     horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
@@ -698,7 +685,7 @@ private fun BookmarkManagerDialog(
                                         )
                                     }
 
-                                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
                                         IconButton(
                                             onClick = {
                                                 if (index > 0) {

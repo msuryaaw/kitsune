@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -20,10 +19,13 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.unit.dp
+import com.example.kitsune.ui.theme.ComponentShapes
+import com.example.kitsune.ui.theme.Spacing
 
 /**
- * Shared search field per Phase 11 UI Implementation Playbook (Section 4.2).
+ * Shared search field per Phase 11 & Phase 12 UI Playbook (Section 4.2 & K-34).
  * Filled warm-brown capsule with search leading icon and optional clear button.
  */
 @Composable
@@ -36,8 +38,8 @@ fun KitsuneSearchField(
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(min = 44.dp),
-        shape = CircleShape,
+            .heightIn(min = Spacing.controlMinHeight),
+        shape = ComponentShapes.searchCapsule,
         color = MaterialTheme.colorScheme.surface
     ) {
         Row(
@@ -55,6 +57,7 @@ fun KitsuneSearchField(
                 onValueChange = onValueChange,
                 modifier = Modifier.weight(1f),
                 singleLine = true,
+                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                 textStyle = MaterialTheme.typography.bodyMedium.copy(
                     color = MaterialTheme.colorScheme.onSurface
                 ),

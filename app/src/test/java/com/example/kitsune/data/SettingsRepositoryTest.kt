@@ -279,4 +279,15 @@ class SettingsRepositoryTest {
         fileDb.close()
         dbFile.delete()
     }
+
+    @Test
+    fun setKeepScreenAwake_validInputs_persistsAndPreservesOtherFields() = runTest {
+        repository.setKeepScreenAwake(true)
+        val settingsAwake = repository.observeSettings().first()
+        assertEquals(true, settingsAwake.keepScreenAwake)
+
+        repository.setKeepScreenAwake(false)
+        val settingsNormal = repository.observeSettings().first()
+        assertEquals(false, settingsNormal.keepScreenAwake)
+    }
 }

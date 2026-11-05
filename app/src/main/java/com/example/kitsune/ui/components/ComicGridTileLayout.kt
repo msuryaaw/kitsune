@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -15,9 +14,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.example.kitsune.ui.theme.ComponentShapes
 
 /**
- * Shared grid tile layout per Phase 11 UI Implementation Playbook (Section 4.6).
+ * Shared grid tile layout per Phase 11 & Phase 12 UI Playbook (Section 4.6 & K-34).
  * Maintains portrait aspect ratio ~0.70f for cover with title and optional author/status.
  */
 @Composable
@@ -39,7 +39,7 @@ fun ComicGridTileLayout(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(0.70f)
-                .clip(RoundedCornerShape(8.dp)),
+                .clip(ComponentShapes.coverTile),
             content = cover
         )
         Text(

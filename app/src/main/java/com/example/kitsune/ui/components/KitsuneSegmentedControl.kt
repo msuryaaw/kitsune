@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -18,10 +17,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.example.kitsune.ui.theme.ComponentShapes
+import com.example.kitsune.ui.theme.Spacing
 
 /**
- * Shared segmented control per Phase 11 UI Implementation Playbook (Section 4.4).
- * Single shared selection container for mutually exclusive choices.
+ * Shared segmented control per Phase 11 & Phase 12 UI Playbook (Section 4.4 & K-34).
+ * Single shared selection container for mutually exclusive choices with accessible contrast.
  */
 @Composable
 fun <T> KitsuneSegmentedControl(
@@ -33,21 +34,21 @@ fun <T> KitsuneSegmentedControl(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
+            .clip(ComponentShapes.segmentedContainer)
             .background(MaterialTheme.colorScheme.surface),
-        horizontalArrangement = Arrangement.spacedBy(4.dp)
+        horizontalArrangement = Arrangement.spacedBy(Spacing.extraSmall)
     ) {
         options.forEach { (value, label) ->
             val isSelected = value == selected
             Surface(
                 modifier = Modifier
                     .weight(1f)
-                    .heightIn(min = 44.dp)
-                    .clip(RoundedCornerShape(10.dp))
+                    .heightIn(min = Spacing.controlMinHeight)
+                    .clip(ComponentShapes.segmentedItem)
                     .clickable { onSelected(value) },
                 color = if (isSelected) MaterialTheme.colorScheme.primaryContainer
                 else Color.Transparent,
-                contentColor = if (isSelected) MaterialTheme.colorScheme.primary
+                contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer
                 else MaterialTheme.colorScheme.onSurfaceVariant
             ) {
                 Box(contentAlignment = Alignment.Center) {

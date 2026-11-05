@@ -17,9 +17,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.example.kitsune.ui.theme.Spacing
 
 /**
- * Shared section heading per Phase 11 UI Implementation Playbook (Section 4.3).
+ * Shared section heading per Phase 11 & Phase 12 UI Playbook (Section 4.3 & K-34).
  */
 @Composable
 fun KitsuneSectionHeading(
@@ -38,7 +39,7 @@ fun KitsuneSectionHeading(
 }
 
 /**
- * Shared back toolbar per Phase 11 UI Implementation Playbook (Section 4.3).
+ * Shared back toolbar per Phase 11 & Phase 12 UI Playbook (Section 4.3 & K-34).
  */
 @Composable
 fun KitsuneBackToolbar(
@@ -50,7 +51,7 @@ fun KitsuneBackToolbar(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(min = 56.dp)
+            .heightIn(min = Spacing.toolbarMinHeight)
             .padding(horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

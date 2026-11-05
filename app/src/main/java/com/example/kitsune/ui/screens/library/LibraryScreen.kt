@@ -126,6 +126,7 @@ fun LibraryScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
             .padding(
                 horizontal = Spacing.screenHorizontalPadding,
                 vertical = Spacing.screenVerticalPadding
@@ -369,8 +370,8 @@ private fun EmptyComicsDirectoryView(
         ) {
             com.example.kitsune.ui.components.KitsuneEmptyState(
                 icon = Icons.AutoMirrored.Filled.MenuBook,
-                title = "A home for your manga",
-                message = "No comics in this folder yet. Add your manga files to Kitsune Library, or choose another folder.",
+                title = "A home for your items",
+                message = "No comics in this folder yet. Add your item files to Kitsune Library, or choose another folder.",
                 actionText = "Change Root Folder",
                 onAction = onNavigateToSettings,
                 modifier = Modifier.padding(Spacing.large)
@@ -453,7 +454,7 @@ private fun StorageRootCard(
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = "On this device: $itemCount local manga",
+                    text = "On this device: $itemCount local items",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -644,7 +645,7 @@ private fun LibrarySearchBar(
     com.example.kitsune.ui.components.KitsuneSearchField(
         value = searchQuery,
         onValueChange = onSearchQueryChange,
-        placeholder = "Search local manga",
+        placeholder = "Search local items",
         modifier = modifier.padding(bottom = 8.dp)
     )
 }

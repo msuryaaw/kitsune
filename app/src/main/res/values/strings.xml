@@ -9,7 +9,7 @@
     <string name="nav_history">History</string>
 
     <!-- Search & Filters -->
-    <string name="search_placeholder_local_manga">Search local manga</string>
+    <string name="search_placeholder_local_manga">Search local items</string>
     <string name="search_placeholder_titles_authors">Search titles or authors</string>
     <string name="filter_all">All</string>
     <string name="filter_completed">Completed</string>

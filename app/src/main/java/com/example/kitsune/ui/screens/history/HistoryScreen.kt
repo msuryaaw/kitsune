@@ -5,6 +5,7 @@ import android.graphics.Canvas
 import android.graphics.drawable.BitmapDrawable
 import android.widget.Toast
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -109,6 +110,7 @@ fun HistoryScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
             .padding(
                 horizontal = Spacing.screenHorizontalPadding,
                 vertical = Spacing.screenVerticalPadding
@@ -473,7 +475,7 @@ private fun HistoryEmptyView(
         KitsuneEmptyState(
             icon = Icons.AutoMirrored.Filled.MenuBook,
             title = "Every story starts somewhere",
-            message = "The manga you read will appear here, with your last page saved. Start a chapter from your library.",
+            message = "The items you read will appear here, with your last page saved. Start a chapter from your library.",
             actionText = "Open Library",
             onAction = onOpenLibraryClick,
             modifier = Modifier.padding(Spacing.large)

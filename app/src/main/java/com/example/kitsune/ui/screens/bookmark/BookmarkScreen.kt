@@ -1,5 +1,6 @@
 package com.example.kitsune.ui.screens.bookmark
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -80,6 +81,7 @@ fun BookmarkScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
             .padding(16.dp)
     ) {
         when (val state = uiState) {
@@ -417,7 +419,7 @@ fun DeleteBookmarkCollectionConfirmationDialog(
         onDismissRequest = onDismiss,
         title = { Text("Delete Collection") },
         text = {
-            Text("Are you sure you want to delete collection '${collection.name}'? Manga in this collection will NOT be deleted from device storage.")
+            Text("Are you sure you want to delete collection '${collection.name}'? Items in this collection will NOT be deleted from device storage.")
         },
         confirmButton = {
             Button(
@@ -451,7 +453,7 @@ private fun BookmarkEmptyNoCollectionsView(
         KitsuneEmptyState(
             icon = Icons.Default.BookmarkBorder,
             title = "Keep your next story close",
-            message = "Bookmark manga from your library. Your saved stories will appear here.",
+            message = "Bookmark items from your library. Your saved stories will appear here.",
             actionText = "Create Collection",
             onAction = onCreateCollectionClick,
             modifier = Modifier.padding(16.dp)

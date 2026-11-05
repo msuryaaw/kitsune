@@ -66,7 +66,7 @@ class SharedComponentsTest {
                     KitsuneSearchField(
                         value = "Naruto",
                         onValueChange = {},
-                        placeholder = "Search local manga"
+                        placeholder = "Search local items"
                     )
                 }
             }

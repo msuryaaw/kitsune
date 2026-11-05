@@ -5,6 +5,7 @@ import android.graphics.Canvas
 import android.graphics.drawable.BitmapDrawable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -67,9 +68,11 @@ import coil.request.ImageRequest
 import coil.request.SuccessResult
 import com.example.kitsune.data.CoverCacheResult
 import com.example.kitsune.data.entity.ComicEntity
+import com.example.kitsune.ui.components.KitsuneBackToolbar
 import com.example.kitsune.ui.components.KitsuneEmptyState
 import com.example.kitsune.ui.components.KitsuneSearchField
 import com.example.kitsune.ui.screens.library.CoverUiState
+import com.example.kitsune.ui.theme.Spacing
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
@@ -90,32 +93,29 @@ fun CollectionDetailScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    Column(modifier = modifier.fillMaxSize()) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(
+                horizontal = Spacing.screenHorizontalPadding,
+                vertical = Spacing.screenVerticalPadding
+            )
+    ) {
         when (val state = uiState) {
             is CollectionDetailUiState.Loading -> {
-                TopAppBar(
-                    title = { Text("Collection") },
-                    navigationIcon = {
-                        IconButton(onClick = onBackClick) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Back"
-                            )
-                        }
-                    }
+                KitsuneBackToolbar(
+                    title = "Collection",
+                    onBack = onBackClick
                 )
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
                 }
             }
             is CollectionDetailUiState.RootNotConfigured -> {
-                TopAppBar(
-                    title = { Text("Bookmarks") },
-                    navigationIcon = {
-                        IconButton(onClick = onBackClick) {
-                            Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                        }
-                    }
+                KitsuneBackToolbar(
+                    title = "Bookmarks",
+                    onBack = onBackClick
                 )
                 Box(modifier = Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
                     Card(modifier = Modifier.fillMaxWidth()) {
@@ -128,13 +128,9 @@ fun CollectionDetailScreen(
                 }
             }
             is CollectionDetailUiState.PermissionDenied -> {
-                TopAppBar(
-                    title = { Text("Bookmarks") },
-                    navigationIcon = {
-                        IconButton(onClick = onBackClick) {
-                            Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                        }
-                    }
+                KitsuneBackToolbar(
+                    title = "Bookmarks",
+                    onBack = onBackClick
                 )
                 Box(modifier = Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
                     Card(modifier = Modifier.fillMaxWidth()) {
@@ -148,13 +144,9 @@ fun CollectionDetailScreen(
                 }
             }
             is CollectionDetailUiState.CollectionNotFound -> {
-                TopAppBar(
-                    title = { Text("Collection Not Found") },
-                    navigationIcon = {
-                        IconButton(onClick = onBackClick) {
-                            Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                        }
-                    }
+                KitsuneBackToolbar(
+                    title = "Collection Not Found",
+                    onBack = onBackClick
                 )
                 Box(modifier = Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
                     Card(modifier = Modifier.fillMaxWidth()) {
@@ -172,13 +164,9 @@ fun CollectionDetailScreen(
                 }
             }
             is CollectionDetailUiState.Error -> {
-                TopAppBar(
-                    title = { Text("Error") },
-                    navigationIcon = {
-                        IconButton(onClick = onBackClick) {
-                            Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                        }
-                    }
+                KitsuneBackToolbar(
+                    title = "Error",
+                    onBack = onBackClick
                 )
                 Box(modifier = Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
                     Card(modifier = Modifier.fillMaxWidth()) {
@@ -244,7 +232,7 @@ private fun CollectionDetailContent(
         )
     }
 
-    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize()) {
         if (state.isSelectionMode) {
             Spacer(modifier = Modifier.height(8.dp))
             BookmarkSelectionActionBar(
@@ -257,38 +245,26 @@ private fun CollectionDetailContent(
             Spacer(modifier = Modifier.height(8.dp))
         } else {
             // Header with Back and Collection Title
-            TopAppBar(
-                title = {
-                    Text(
-                        text = state.collection.name,
-                        style = MaterialTheme.typography.titleLarge,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBackClick) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back"
-                        )
-                    }
-                }
+            KitsuneBackToolbar(
+                title = state.collection.name,
+                onBack = onBackClick
             )
+
+            Spacer(modifier = Modifier.height(Spacing.small))
 
             // Search Bar
             KitsuneSearchField(
                 value = state.searchQuery,
                 onValueChange = { viewModel.onSearchQueryChanged(it) },
                 placeholder = "Search in ${state.collection.name}",
-                modifier = Modifier.padding(bottom = 8.dp)
+                modifier = Modifier.padding(bottom = Spacing.small)
             )
 
             // Status Filters Row (All, Completed, Not Completed) per Decision K-26
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 8.dp),
+                    .padding(bottom = Spacing.small),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -303,12 +279,12 @@ private fun CollectionDetailContent(
 
             // Controls & Count Bar
             Row(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                modifier = Modifier.fillMaxWidth().padding(bottom = Spacing.small),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "${state.comics.size} manga",
+                    text = "${state.comics.size} items",
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -343,9 +319,9 @@ private fun CollectionDetailContent(
                     ) {
                         Text(
                             text = if (state.searchQuery.isNotBlank()) {
-                                "No manga matching \"${state.searchQuery}\""
+                                "No items matching \"${state.searchQuery}\""
                             } else {
-                                "No ${state.statusFilter.displayName.lowercase()} manga in ${state.collection.name}"
+                                "No ${state.statusFilter.displayName.lowercase()} items in ${state.collection.name}"
                             },
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -355,7 +331,7 @@ private fun CollectionDetailContent(
                     KitsuneEmptyState(
                         icon = Icons.AutoMirrored.Filled.MenuBook,
                         title = "Collection is empty",
-                        message = "This collection does not contain any manga yet. Add manga to '${state.collection.name}' from your Library or Comic Detail.",
+                        message = "This collection does not contain any items yet. Add items to '${state.collection.name}' from your Library or Comic Detail.",
                         actionText = "Open Library",
                         onAction = onOpenLibraryClick,
                         modifier = Modifier.padding(16.dp)

@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.drawable.BitmapDrawable
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -82,7 +83,11 @@ fun HomeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    Box(modifier = modifier.fillMaxSize()) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
         when (val state = uiState) {
             is HomeUiState.Loading -> {
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
@@ -132,7 +137,7 @@ private fun HomeSuccessContent(
                 style = MaterialTheme.typography.headlineMedium
             )
             Text(
-                text = "Your offline manga library",
+                text = "Your offline item library",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -165,13 +170,13 @@ private fun HomeSuccessContent(
                 ShortcutRow(
                     title = "Library",
                     subtitle = "Your local comics",
-                    trailingInfo = "${state.libraryCount} local manga",
+                    trailingInfo = "${state.libraryCount} local items",
                     icon = Icons.AutoMirrored.Filled.MenuBook,
                     onClick = onOpenLibraryClick
                 )
 
                 val historyInfo = if (state.historyCount > 0) {
-                    "${state.historyCount} recently read manga"
+                    "${state.historyCount} recently read items"
                 } else {
                     "No chapters read yet"
                 }
@@ -203,7 +208,7 @@ private fun HomeLastReadEmptyCard(
         KitsuneEmptyState(
             icon = Icons.AutoMirrored.Filled.MenuBook,
             title = "Your first chapter awaits",
-            message = "Explore your Library to start reading your favorite manga.",
+            message = "Explore your Library to start reading your favorite items.",
             actionText = "Open Library",
             onAction = onOpenLibraryClick,
             modifier = Modifier.padding(Spacing.large)

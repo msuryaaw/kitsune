@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -66,8 +67,13 @@ fun ContinuousVerticalView(
         contentAlignment = Alignment.Center
     ) {
         val density = LocalDensity.current
-        val parentWidthPx = with(density) { maxWidth.roundToPx() }.coerceIn(1, 2048)
-        val parentHeightPx = with(density) { maxHeight.roundToPx() }.coerceIn(1, 2048)
+        val viewportWidthPx = with(density) { maxWidth.roundToPx() }.coerceAtLeast(1)
+        val viewportHeightPx = with(density) { maxHeight.roundToPx() }.coerceAtLeast(1)
+        val (parentWidthPx, parentHeightPx) = PageScaleCalculator.calculateTargetDecodeDimensions(
+            viewportWidth = viewportWidthPx,
+            viewportHeight = viewportHeightPx,
+            pageFit = "fit_width"
+        )
 
         val visibleIndices by produceState<Set<Int>>(
             initialValue = setOf(initialPageIndex),
@@ -168,7 +174,9 @@ private fun ContinuousPageItem(
                     painter = BitmapPainter(state.imageBitmap),
                     contentDescription = "Halaman ${page.pageNumber}",
                     contentScale = contentScale,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .wrapContentHeight()
                 )
             }
             is PageRenderState.Corrupt -> {

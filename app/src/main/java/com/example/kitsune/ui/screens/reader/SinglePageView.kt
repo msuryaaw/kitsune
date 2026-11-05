@@ -2,6 +2,10 @@ package com.example.kitsune.ui.screens.reader
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -48,13 +52,18 @@ fun SinglePageView(
         contentAlignment = Alignment.Center
     ) {
         val density = LocalDensity.current
-        val targetWidthPx = with(density) { maxWidth.roundToPx() }.coerceIn(1, 2048)
-        val targetHeightPx = with(density) { maxHeight.roundToPx() }.coerceIn(1, 2048)
+        val viewportWidthPx = with(density) { maxWidth.roundToPx() }.coerceAtLeast(1)
+        val viewportHeightPx = with(density) { maxHeight.roundToPx() }.coerceAtLeast(1)
+        val (targetWidthPx, targetHeightPx) = PageScaleCalculator.calculateTargetDecodeDimensions(
+            viewportWidth = viewportWidthPx,
+            viewportHeight = viewportHeightPx,
+            pageFit = pageFit
+        )
         val retryTrigger = androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(0) }
 
         val contentScale = when (pageFit) {
             "fit_width" -> ContentScale.FillWidth
-            "fit_height" -> ContentScale.FillHeight
+            "fit_height" -> ContentScale.Inside // Preserves aspect ratio, fits height, and prevents wide-image horizontal overflow
             else -> ContentScale.Fit
         }
 
@@ -90,12 +99,31 @@ fun SinglePageView(
                 CircularProgressIndicator()
             }
             is PageRenderState.Loaded -> {
-                Image(
-                    painter = BitmapPainter(state.imageBitmap),
-                    contentDescription = "Halaman ${currentPageIndex + 1}",
-                    contentScale = contentScale,
-                    modifier = Modifier.fillMaxSize()
-                )
+                if (pageFit == "fit_width") {
+                    val scrollState = rememberScrollState()
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(scrollState),
+                        contentAlignment = Alignment.TopCenter
+                    ) {
+                        Image(
+                            painter = BitmapPainter(state.imageBitmap),
+                            contentDescription = "Halaman ${currentPageIndex + 1}",
+                            contentScale = contentScale,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .wrapContentHeight()
+                        )
+                    }
+                } else {
+                    Image(
+                        painter = BitmapPainter(state.imageBitmap),
+                        contentDescription = "Halaman ${currentPageIndex + 1}",
+                        contentScale = contentScale,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
             }
             is PageRenderState.Corrupt -> {
                 PageErrorCard(

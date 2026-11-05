@@ -85,6 +85,7 @@ class DefaultCbzPageDecoder(
             if (height > reqHeight || width > reqWidth) {
                 val halfHeight: Int = height / 2
                 val halfWidth: Int = width / 2
+                // Maintain image detail without over-downsampling: downsample only when both dimensions exceed target
                 while (halfHeight / inSampleSize >= reqHeight && halfWidth / inSampleSize >= reqWidth) {
                     inSampleSize *= 2
                 }

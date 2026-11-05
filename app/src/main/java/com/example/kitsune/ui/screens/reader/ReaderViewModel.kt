@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
 class ReaderViewModel(
@@ -47,11 +48,16 @@ class ReaderViewModel(
     private var progressSaveJob: Job? = null
     private var requestGeneration = 0
 
+    private val isTransitioningChapter = AtomicBoolean(false)
+
     init {
         loadChapterAndInitialize(chapterId)
     }
 
-    private fun loadChapterAndInitialize(targetChapterId: Long = currentChapterIdState.value) {
+    private fun loadChapterAndInitialize(
+        targetChapterId: Long = currentChapterIdState.value,
+        startAtLastPage: Boolean = false
+    ) {
         val currentGen = ++requestGeneration
         viewModelScope.launch {
             _uiState.value = ReaderUiState.Loading
@@ -84,11 +90,11 @@ class ReaderViewModel(
                                 val comicId = chapter?.comicId ?: 0L
                                 val savedProgress = if (comicId > 0L) libraryRepository.getReadingProgress(comicId) else null
 
-                                var initialPageIndex = 0
+                                val totalPages = indexResult.pageIndex.totalPages
+                                var initialPageIndex = if (startAtLastPage && totalPages > 0) totalPages - 1 else 0
                                 var initialScrollOffset = 0
 
-                                if (savedProgress != null && savedProgress.lastReadChapterId == targetChapterId) {
-                                    val totalPages = indexResult.pageIndex.totalPages
+                                if (!startAtLastPage && savedProgress != null && savedProgress.lastReadChapterId == targetChapterId) {
                                     if (totalPages > 0) {
                                         initialPageIndex = savedProgress.pageIndex.coerceIn(0, totalPages - 1)
                                         initialScrollOffset = savedProgress.scrollOffset
@@ -150,24 +156,29 @@ class ReaderViewModel(
                                         hasNextChapter = hasNext,
                                         comicTitle = parentComicTitle
                                     )
+                                    isTransitioningChapter.set(false)
                                 }
                             }
                             is PageIndexResult.NoImagesFound -> {
+                                isTransitioningChapter.set(false)
                                 if (currentGen == requestGeneration) {
                                     _uiState.value = ReaderUiState.Error("Tidak ada halaman gambar ditemukan dalam chapter", ReaderErrorType.NO_IMAGES)
                                 }
                             }
                             is PageIndexResult.CorruptArchive -> {
+                                isTransitioningChapter.set(false)
                                 if (currentGen == requestGeneration) {
                                     _uiState.value = ReaderUiState.Error("Arsip chapter rusak: ${indexResult.message}", ReaderErrorType.CORRUPT_ARCHIVE)
                                 }
                             }
                             is PageIndexResult.LimitExceeded -> {
+                                isTransitioningChapter.set(false)
                                 if (currentGen == requestGeneration) {
                                     _uiState.value = ReaderUiState.Error("Batas keamanan arsip terlampaui: ${indexResult.reason}", ReaderErrorType.UNSUPPORTED_ARCHIVE)
                                 }
                             }
                             is PageIndexResult.StorageError -> {
+                                isTransitioningChapter.set(false)
                                 if (currentGen == requestGeneration) {
                                     _uiState.value = ReaderUiState.Error("Gagal membaca indeks chapter: ${indexResult.exception.localizedMessage}", ReaderErrorType.STORAGE_ERROR)
                                 }
@@ -175,11 +186,13 @@ class ReaderViewModel(
                         }
                     }
                     is CbzArchiveResult.ChapterMissing -> {
+                        isTransitioningChapter.set(false)
                         if (currentGen == requestGeneration) {
                             _uiState.value = ReaderUiState.Error("File chapter tidak ditemukan di penyimpanan", ReaderErrorType.CHAPTER_MISSING)
                         }
                     }
                     is CbzArchiveResult.PermissionDenied -> {
+                        isTransitioningChapter.set(false)
                         if (currentGen == requestGeneration) {
                             val errorType = if (openResult.message.contains("Root", ignoreCase = true) || openResult.message.contains("dikonfigurasi", ignoreCase = true)) {
                                 ReaderErrorType.ROOT_NOT_CONFIGURED
@@ -190,24 +203,29 @@ class ReaderViewModel(
                         }
                     }
                     is CbzArchiveResult.ArchiveTooLarge -> {
+                        isTransitioningChapter.set(false)
                         if (currentGen == requestGeneration) {
                             _uiState.value = ReaderUiState.Error("Ukuran arsip melebihi batas 500 MB", ReaderErrorType.UNSUPPORTED_ARCHIVE)
                         }
                     }
                     is CbzArchiveResult.SpoolBudgetExceeded -> {
+                        isTransitioningChapter.set(false)
                         if (currentGen == requestGeneration) {
                             _uiState.value = ReaderUiState.Error("Kapasitas cache reader penuh (1.5 GB)", ReaderErrorType.STORAGE_ERROR)
                         }
                     }
                     is CbzArchiveResult.StorageError -> {
+                        isTransitioningChapter.set(false)
                         if (currentGen == requestGeneration) {
                             _uiState.value = ReaderUiState.Error("Gagal membuka arsip chapter: ${openResult.exception.localizedMessage}", ReaderErrorType.STORAGE_ERROR)
                         }
                     }
                 }
             } catch (ce: CancellationException) {
+                isTransitioningChapter.set(false)
                 throw ce
             } catch (e: Exception) {
+                isTransitioningChapter.set(false)
                 if (currentGen == requestGeneration) {
                     _uiState.value = ReaderUiState.Error("Gagal mempersiapkan reader: ${e.localizedMessage}")
                 }
@@ -246,9 +264,12 @@ class ReaderViewModel(
         }
     }
 
-    fun navigateToChapter(targetChapterId: Long) {
+    fun navigateToChapter(targetChapterId: Long, startAtLastPage: Boolean = false) {
         val currentState = _uiState.value
         if (currentState is ReaderUiState.Success && currentState.chapterId == targetChapterId) {
+            return
+        }
+        if (!isTransitioningChapter.compareAndSet(false, true)) {
             return
         }
 
@@ -263,16 +284,16 @@ class ReaderViewModel(
             activeDecoder = null
 
             currentChapterIdState.value = targetChapterId
-            loadChapterAndInitialize(targetChapterId)
+            loadChapterAndInitialize(targetChapterId, startAtLastPage = startAtLastPage)
         }
     }
 
-    fun navigateToPreviousChapter() {
+    fun navigateToPreviousChapter(startAtLastPage: Boolean = false) {
         val state = _uiState.value
         if (state is ReaderUiState.Success && state.hasPreviousChapter) {
             val prevChapter = state.chapters.getOrNull(state.currentChapterIndex - 1)
             if (prevChapter != null) {
-                navigateToChapter(prevChapter.id)
+                navigateToChapter(prevChapter.id, startAtLastPage = startAtLastPage)
             }
         }
     }
@@ -282,7 +303,31 @@ class ReaderViewModel(
         if (state is ReaderUiState.Success && state.hasNextChapter) {
             val nextChapter = state.chapters.getOrNull(state.currentChapterIndex + 1)
             if (nextChapter != null) {
-                navigateToChapter(nextChapter.id)
+                navigateToChapter(nextChapter.id, startAtLastPage = false)
+            }
+        }
+    }
+
+    fun onSwipeForward() {
+        val state = _uiState.value
+        if (state is ReaderUiState.Success) {
+            val totalPages = state.pageIndex.totalPages
+            if (totalPages <= 0) return
+            if (state.currentPageIndex < totalPages - 1) {
+                goToNextPage()
+            } else if (state.hasNextChapter) {
+                navigateToNextChapter()
+            }
+        }
+    }
+
+    fun onSwipeBackward() {
+        val state = _uiState.value
+        if (state is ReaderUiState.Success) {
+            if (state.currentPageIndex > 0) {
+                goToPreviousPage()
+            } else if (state.hasPreviousChapter) {
+                navigateToPreviousChapter(startAtLastPage = true)
             }
         }
     }

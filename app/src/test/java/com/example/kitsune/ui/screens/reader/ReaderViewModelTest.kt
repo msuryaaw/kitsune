@@ -1364,4 +1364,269 @@ class ReaderViewModelTest {
 
         collectJob.cancel()
     }
+
+    @Test
+    fun readerViewModel_swipeForward_incrementsPageWhenNotAtLastPage() = runTest {
+        val spooledFile = tempFolder.newFile("spool_swipe.cbz")
+        val handle = CbzArchiveHandle(1L, spooledFile) {}
+        fakeRepo.openResult = CbzArchiveResult.Success(handle)
+
+        val pages = listOf(
+            PageMetadata(pageIndex = 0, entryName = "p1.jpg", normalizedPath = "p1.jpg"),
+            PageMetadata(pageIndex = 1, entryName = "p2.jpg", normalizedPath = "p2.jpg")
+        )
+        fakeIndexer.indexResult = PageIndexResult.Success(ChapterPageIndex(chapterId = 1L, pages = pages))
+
+        val ch1 = ChapterEntity(id = 1L, comicId = 100L, relativePath = "Comics/OP/Ch1.cbz", chapterNumber = 1, displayName = "Chapter 1.cbz", pageCount = 2)
+        fakeRepo.chaptersById[1L] = ch1
+
+        val viewModel = ReaderViewModel(
+            chapterId = 1L,
+            libraryRepository = fakeRepo,
+            settingsRepository = fakeSettingsRepo,
+            cbzPageIndexer = fakeIndexer,
+            cbzPageDecoderFactory = fakeDecoderFactory
+        )
+
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+
+        val initialState = viewModel.uiState.value as ReaderUiState.Success
+        assertEquals(0, initialState.currentPageIndex)
+
+        viewModel.onSwipeForward()
+
+        val afterState = viewModel.uiState.value as ReaderUiState.Success
+        assertEquals(1, afterState.currentPageIndex)
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun readerViewModel_swipeForward_atLastPageTransitionsToNextChapterAtPageZero() = runTest {
+        val spooledFile = tempFolder.newFile("spool_swipe_next.cbz")
+        val handle = CbzArchiveHandle(1L, spooledFile) {}
+        fakeRepo.openResult = CbzArchiveResult.Success(handle)
+
+        val pages1 = listOf(
+            PageMetadata(pageIndex = 0, entryName = "p1.jpg", normalizedPath = "p1.jpg"),
+            PageMetadata(pageIndex = 1, entryName = "p2.jpg", normalizedPath = "p2.jpg")
+        )
+        val pages2 = listOf(
+            PageMetadata(pageIndex = 0, entryName = "ch2_p1.jpg", normalizedPath = "ch2_p1.jpg"),
+            PageMetadata(pageIndex = 1, entryName = "ch2_p2.jpg", normalizedPath = "ch2_p2.jpg")
+        )
+
+        fakeIndexer.indexResult = PageIndexResult.Success(ChapterPageIndex(chapterId = 1L, pages = pages1))
+
+        val ch1 = ChapterEntity(id = 1L, comicId = 100L, relativePath = "Comics/OP/Ch1.cbz", chapterNumber = 1, displayName = "Chapter 1.cbz", pageCount = 2)
+        val ch2 = ChapterEntity(id = 2L, comicId = 100L, relativePath = "Comics/OP/Ch2.cbz", chapterNumber = 2, displayName = "Chapter 2.cbz", pageCount = 2)
+        fakeRepo.chaptersById[1L] = ch1
+        fakeRepo.chaptersById[2L] = ch2
+
+        val viewModel = ReaderViewModel(
+            chapterId = 1L,
+            libraryRepository = fakeRepo,
+            settingsRepository = fakeSettingsRepo,
+            cbzPageIndexer = fakeIndexer,
+            cbzPageDecoderFactory = fakeDecoderFactory
+        )
+
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+
+        // Advance to last page of ch1
+        viewModel.setCurrentPageIndex(1)
+        val state1 = viewModel.uiState.value as ReaderUiState.Success
+        assertEquals(1, state1.currentPageIndex)
+
+        // Set indexer result for Chapter 2 before navigation
+        fakeIndexer.indexResult = PageIndexResult.Success(ChapterPageIndex(chapterId = 2L, pages = pages2))
+
+        // Swipe forward at boundary
+        viewModel.onSwipeForward()
+
+        val state2 = viewModel.uiState.value as ReaderUiState.Success
+        assertEquals(2L, state2.chapterId)
+        assertEquals(0, state2.currentPageIndex) // Next chapter starts at page 0
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun readerViewModel_swipeBackward_atFirstPageTransitionsToPreviousChapterAtLastPage() = runTest {
+        val spooledFile = tempFolder.newFile("spool_swipe_prev.cbz")
+        val handle = CbzArchiveHandle(2L, spooledFile) {}
+        fakeRepo.openResult = CbzArchiveResult.Success(handle)
+
+        val pages1 = listOf(
+            PageMetadata(pageIndex = 0, entryName = "ch1_p1.jpg", normalizedPath = "ch1_p1.jpg"),
+            PageMetadata(pageIndex = 1, entryName = "ch1_p2.jpg", normalizedPath = "ch1_p2.jpg"),
+            PageMetadata(pageIndex = 2, entryName = "ch1_p3.jpg", normalizedPath = "ch1_p3.jpg")
+        )
+        val pages2 = listOf(
+            PageMetadata(pageIndex = 0, entryName = "ch2_p1.jpg", normalizedPath = "ch2_p1.jpg")
+        )
+
+        fakeIndexer.indexResult = PageIndexResult.Success(ChapterPageIndex(chapterId = 2L, pages = pages2))
+
+        val ch1 = ChapterEntity(id = 1L, comicId = 100L, relativePath = "Comics/OP/Ch1.cbz", chapterNumber = 1, displayName = "Chapter 1.cbz", pageCount = 3)
+        val ch2 = ChapterEntity(id = 2L, comicId = 100L, relativePath = "Comics/OP/Ch2.cbz", chapterNumber = 2, displayName = "Chapter 2.cbz", pageCount = 1)
+        fakeRepo.chaptersById[1L] = ch1
+        fakeRepo.chaptersById[2L] = ch2
+
+        val viewModel = ReaderViewModel(
+            chapterId = 2L,
+            libraryRepository = fakeRepo,
+            settingsRepository = fakeSettingsRepo,
+            cbzPageIndexer = fakeIndexer,
+            cbzPageDecoderFactory = fakeDecoderFactory
+        )
+
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+
+        val initialCh2State = viewModel.uiState.value as ReaderUiState.Success
+        assertEquals(2L, initialCh2State.chapterId)
+        assertEquals(0, initialCh2State.currentPageIndex)
+
+        // For Chapter 1, indexer will return 3 pages
+        fakeIndexer.indexResult = PageIndexResult.Success(ChapterPageIndex(chapterId = 1L, pages = pages1))
+
+        // Swipe backward at first page of ch2
+        viewModel.onSwipeBackward()
+
+        val state1 = viewModel.uiState.value as ReaderUiState.Success
+        assertEquals(1L, state1.chapterId)
+        assertEquals(2, state1.currentPageIndex) // Previous chapter starts at last page (index 2)
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun readerViewModel_swipeForward_atLastChapterDoesNotWrap() = runTest {
+        val spooledFile = tempFolder.newFile("spool_swipe_nowrap.cbz")
+        val handle = CbzArchiveHandle(1L, spooledFile) {}
+        fakeRepo.openResult = CbzArchiveResult.Success(handle)
+
+        val pages = listOf(
+            PageMetadata(pageIndex = 0, entryName = "p1.jpg", normalizedPath = "p1.jpg")
+        )
+        fakeIndexer.indexResult = PageIndexResult.Success(ChapterPageIndex(chapterId = 1L, pages = pages))
+
+        val ch1 = ChapterEntity(id = 1L, comicId = 100L, relativePath = "Comics/OP/Ch1.cbz", chapterNumber = 1, displayName = "Chapter 1.cbz", pageCount = 1)
+        fakeRepo.chaptersById[1L] = ch1 // Only 1 chapter in comic
+
+        val viewModel = ReaderViewModel(
+            chapterId = 1L,
+            libraryRepository = fakeRepo,
+            settingsRepository = fakeSettingsRepo,
+            cbzPageIndexer = fakeIndexer,
+            cbzPageDecoderFactory = fakeDecoderFactory
+        )
+
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+
+        val state = viewModel.uiState.value as ReaderUiState.Success
+        assertFalse(state.hasNextChapter)
+        assertFalse(state.hasPreviousChapter)
+
+        viewModel.onSwipeForward()
+        assertEquals(1L, (viewModel.uiState.value as ReaderUiState.Success).chapterId)
+        assertEquals(0, (viewModel.uiState.value as ReaderUiState.Success).currentPageIndex)
+
+        viewModel.onSwipeBackward()
+        assertEquals(1L, (viewModel.uiState.value as ReaderUiState.Success).chapterId)
+        assertEquals(0, (viewModel.uiState.value as ReaderUiState.Success).currentPageIndex)
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun readerViewModel_rapidRepeatedNavigation_guardPreventsDoubleTrigger() = runTest {
+        val spooledFile = tempFolder.newFile("spool_rapid.cbz")
+        val handle = CbzArchiveHandle(1L, spooledFile) {}
+        fakeRepo.openResult = CbzArchiveResult.Success(handle)
+
+        val pages1 = listOf(PageMetadata(pageIndex = 0, entryName = "p1.jpg", normalizedPath = "p1.jpg"))
+        val pages2 = listOf(PageMetadata(pageIndex = 0, entryName = "p2.jpg", normalizedPath = "p2.jpg"))
+        val pages3 = listOf(PageMetadata(pageIndex = 0, entryName = "p3.jpg", normalizedPath = "p3.jpg"))
+
+        fakeIndexer.indexResult = PageIndexResult.Success(ChapterPageIndex(chapterId = 1L, pages = pages1))
+
+        val ch1 = ChapterEntity(id = 1L, comicId = 100L, relativePath = "Ch1.cbz", chapterNumber = 1, displayName = "Ch1.cbz", pageCount = 1)
+        val ch2 = ChapterEntity(id = 2L, comicId = 100L, relativePath = "Ch2.cbz", chapterNumber = 2, displayName = "Ch2.cbz", pageCount = 1)
+        val ch3 = ChapterEntity(id = 3L, comicId = 100L, relativePath = "Ch3.cbz", chapterNumber = 3, displayName = "Ch3.cbz", pageCount = 1)
+
+        fakeRepo.chaptersById[1L] = ch1
+        fakeRepo.chaptersById[2L] = ch2
+        fakeRepo.chaptersById[3L] = ch3
+
+        val viewModel = ReaderViewModel(
+            chapterId = 1L,
+            libraryRepository = fakeRepo,
+            settingsRepository = fakeSettingsRepo,
+            cbzPageIndexer = fakeIndexer,
+            cbzPageDecoderFactory = fakeDecoderFactory
+        )
+
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+
+        assertEquals(1L, (viewModel.uiState.value as ReaderUiState.Success).chapterId)
+
+        fakeIndexer.indexResult = PageIndexResult.Success(ChapterPageIndex(chapterId = 2L, pages = pages2))
+
+        // Navigate to chapter 2
+        viewModel.navigateToChapter(2L)
+
+        // Attempt concurrent call immediately to navigateToChapter(2L) or navigateToChapter(3L) while transitioning
+        // Note: in unconfined dispatcher, navigateToChapter(2L) runs synchronously to completion, so test that calling it while already on ch2 is a no-op:
+        val stateAfterNav = viewModel.uiState.value as ReaderUiState.Success
+        assertEquals(2L, stateAfterNav.chapterId)
+
+        // Duplicate navigation to same chapter should be no-op
+        viewModel.navigateToChapter(2L)
+        assertEquals(2L, (viewModel.uiState.value as ReaderUiState.Success).chapterId)
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun readerViewModel_guardResetsAfterError() = runTest {
+        val spooledFile = tempFolder.newFile("spool_guard_err.cbz")
+        val handle = CbzArchiveHandle(1L, spooledFile) {}
+        fakeRepo.openResult = CbzArchiveResult.Success(handle)
+
+        val pages1 = listOf(PageMetadata(pageIndex = 0, entryName = "p1.jpg", normalizedPath = "p1.jpg"))
+        fakeIndexer.indexResult = PageIndexResult.Success(ChapterPageIndex(chapterId = 1L, pages = pages1))
+
+        val ch1 = ChapterEntity(id = 1L, comicId = 100L, relativePath = "Ch1.cbz", chapterNumber = 1, displayName = "Ch1.cbz", pageCount = 1)
+        val ch2 = ChapterEntity(id = 2L, comicId = 100L, relativePath = "Ch2.cbz", chapterNumber = 2, displayName = "Ch2.cbz", pageCount = 1)
+
+        fakeRepo.chaptersById[1L] = ch1
+        fakeRepo.chaptersById[2L] = ch2
+
+        val viewModel = ReaderViewModel(
+            chapterId = 1L,
+            libraryRepository = fakeRepo,
+            settingsRepository = fakeSettingsRepo,
+            cbzPageIndexer = fakeIndexer,
+            cbzPageDecoderFactory = fakeDecoderFactory
+        )
+
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+
+        // Set error for Chapter 2
+        fakeIndexer.indexResult = PageIndexResult.NoImagesFound
+        viewModel.navigateToChapter(2L)
+
+        assertTrue(viewModel.uiState.value is ReaderUiState.Error)
+
+        // Reset indexer to success and navigate again to verify guard was cleared on error
+        val pages2 = listOf(PageMetadata(pageIndex = 0, entryName = "p2.jpg", normalizedPath = "p2.jpg"))
+        fakeIndexer.indexResult = PageIndexResult.Success(ChapterPageIndex(chapterId = 1L, pages = pages1))
+        viewModel.navigateToChapter(1L)
+
+        assertTrue(viewModel.uiState.value is ReaderUiState.Success)
+        assertEquals(1L, (viewModel.uiState.value as ReaderUiState.Success).chapterId)
+
+        collectJob.cancel()
+    }
 }

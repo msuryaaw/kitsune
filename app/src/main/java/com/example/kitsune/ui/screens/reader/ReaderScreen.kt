@@ -2,6 +2,11 @@ package com.example.kitsune.ui.screens.reader
 
 import android.app.Activity
 import android.view.WindowManager
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -70,6 +75,7 @@ fun ReaderScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showChapterSelector by remember { mutableStateOf(false) }
     var showSettingsDialog by remember { mutableStateOf(false) }
+    var controlsVisible by remember { mutableStateOf(false) }
 
     // Keep Screen Awake DisposableEffect
     val state = uiState
@@ -111,9 +117,60 @@ fun ReaderScreen(
         )
     }
 
-    Scaffold(
-        modifier = modifier.fillMaxSize(),
-        topBar = {
+    Box(
+        modifier = modifier.fillMaxSize()
+    ) {
+        // Canvas: Fills full available screen
+        when (val currentState = uiState) {
+            is ReaderUiState.Loading -> {
+                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+            }
+            is ReaderUiState.Success -> {
+                if (currentState.readerMode == "vertical_continuous" || currentState.readerMode == "vertical") {
+                    ContinuousVerticalView(
+                        chapterPageIndex = currentState.pageIndex,
+                        initialPageIndex = currentState.currentPageIndex,
+                        initialScrollOffset = currentState.scrollOffset,
+                        pageFit = currentState.pageFit,
+                        readingDirection = currentState.readingDirection,
+                        viewModel = viewModel,
+                        onPositionChanged = { firstVisible, offset ->
+                            viewModel.setCurrentPageIndexAndOffset(firstVisible, offset)
+                        },
+                        onToggleControls = {
+                            controlsVisible = !controlsVisible
+                        }
+                    )
+                } else {
+                    SinglePageView(
+                        currentPageIndex = currentState.currentPageIndex,
+                        readingDirection = currentState.readingDirection,
+                        pageFit = currentState.pageFit,
+                        viewModel = viewModel,
+                        onToggleControls = {
+                            controlsVisible = !controlsVisible
+                        }
+                    )
+                }
+            }
+            is ReaderUiState.Error -> {
+                ReaderErrorView(
+                    errorState = currentState,
+                    onBackClick = onBackClick,
+                    onRetryClick = { viewModel.retryLoadChapter() },
+                    onSettingsClick = onSettingsClick ?: onBackClick,
+                    modifier = Modifier.align(Alignment.Center)
+                )
+            }
+        }
+
+        // Overlay Controls: Top AppBar
+        AnimatedVisibility(
+            visible = controlsVisible && uiState is ReaderUiState.Success,
+            enter = fadeIn() + slideInVertically(initialOffsetY = { -it }),
+            exit = fadeOut() + slideOutVertically(targetOffsetY = { -it }),
+            modifier = Modifier.align(Alignment.TopCenter)
+        ) {
             TopAppBar(
                 title = {
                     val currState = uiState
@@ -196,8 +253,15 @@ fun ReaderScreen(
                     }
                 }
             )
-        },
-        bottomBar = {
+        }
+
+        // Overlay Controls: Bottom Control Panel
+        AnimatedVisibility(
+            visible = controlsVisible && uiState is ReaderUiState.Success,
+            enter = fadeIn() + slideInVertically(initialOffsetY = { it }),
+            exit = fadeOut() + slideOutVertically(targetOffsetY = { it }),
+            modifier = Modifier.align(Alignment.BottomCenter)
+        ) {
             val currState = uiState
             if (currState is ReaderUiState.Success) {
                 ReaderControlPanel(
@@ -205,48 +269,6 @@ fun ReaderScreen(
                     viewModel = viewModel,
                     onOpenReaderSettings = { showSettingsDialog = true }
                 )
-            }
-        }
-    ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-        ) {
-            when (val currentState = uiState) {
-                is ReaderUiState.Loading -> {
-                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-                }
-                is ReaderUiState.Success -> {
-                    if (currentState.readerMode == "vertical_continuous" || currentState.readerMode == "vertical") {
-                        ContinuousVerticalView(
-                            chapterPageIndex = currentState.pageIndex,
-                            initialPageIndex = currentState.currentPageIndex,
-                            initialScrollOffset = currentState.scrollOffset,
-                            pageFit = currentState.pageFit,
-                            viewModel = viewModel,
-                            onPositionChanged = { firstVisible, offset ->
-                                viewModel.setCurrentPageIndexAndOffset(firstVisible, offset)
-                            }
-                        )
-                    } else {
-                        SinglePageView(
-                            currentPageIndex = currentState.currentPageIndex,
-                            readingDirection = currentState.readingDirection,
-                            pageFit = currentState.pageFit,
-                            viewModel = viewModel
-                        )
-                    }
-                }
-                is ReaderUiState.Error -> {
-                    ReaderErrorView(
-                        errorState = currentState,
-                        onBackClick = onBackClick,
-                        onRetryClick = { viewModel.retryLoadChapter() },
-                        onSettingsClick = onSettingsClick ?: onBackClick,
-                        modifier = Modifier.align(Alignment.Center)
-                    )
-                }
             }
         }
     }
@@ -315,28 +337,6 @@ private fun ReaderControlPanel(
                     inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant
                 )
             )
-
-            // Previous / Next Buttons
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                OutlinedButton(
-                    onClick = { viewModel.goToPreviousPage() },
-                    modifier = Modifier.weight(1f),
-                    enabled = state.currentPageIndex > 0
-                ) {
-                    Text("Previous")
-                }
-
-                Button(
-                    onClick = { viewModel.goToNextPage() },
-                    modifier = Modifier.weight(1f),
-                    enabled = state.currentPageIndex < totalPages - 1
-                ) {
-                    Text("Next")
-                }
-            }
 
             // Preference Summary & Settings Icon
             Row(

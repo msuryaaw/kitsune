@@ -1,7 +1,8 @@
 package com.example.kitsune.ui.screens.reader
 
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -12,28 +13,24 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.NavigateBefore
-import androidx.compose.material.icons.automirrored.filled.NavigateNext
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.painter.BitmapPainter
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
@@ -45,10 +42,50 @@ fun SinglePageView(
     readingDirection: String,
     pageFit: String = "fit_screen",
     viewModel: ReaderViewModel,
+    onToggleControls: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val density = LocalDensity.current
+    val swipeThresholdPx = with(density) { 48.dp.toPx() }
+    val horizontalDragOffset = remember { mutableFloatStateOf(0f) }
+
     BoxWithConstraints(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier
+            .fillMaxSize()
+            .pointerInput(readingDirection) {
+                detectHorizontalDragGestures(
+                    onDragStart = {
+                        horizontalDragOffset.floatValue = 0f
+                    },
+                    onHorizontalDrag = { change, dragAmount ->
+                        change.consume()
+                        horizontalDragOffset.floatValue += dragAmount
+                    },
+                    onDragEnd = {
+                        val totalDx = horizontalDragOffset.floatValue
+                        when (ReaderGestureHelper.resolveHorizontalSwipeAction(totalDx, swipeThresholdPx, readingDirection)) {
+                            ReaderGestureHelper.SwipeAction.FORWARD -> viewModel.onSwipeForward()
+                            ReaderGestureHelper.SwipeAction.BACKWARD -> viewModel.onSwipeBackward()
+                            ReaderGestureHelper.SwipeAction.NONE -> { /* Below threshold or no-op */ }
+                        }
+                        horizontalDragOffset.floatValue = 0f
+                    },
+                    onDragCancel = {
+                        // Gesture cancellation does not navigate
+                        horizontalDragOffset.floatValue = 0f
+                    }
+                )
+            }
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onTap = { offset ->
+                        // Center tap only (middle 50% width and height)
+                        if (ReaderGestureHelper.isCenterTap(offset.x, offset.y, size.width.toFloat(), size.height.toFloat())) {
+                            onToggleControls()
+                        }
+                    }
+                )
+            },
         contentAlignment = Alignment.Center
     ) {
         val density = LocalDensity.current
@@ -137,63 +174,6 @@ fun SinglePageView(
                     message = state.message,
                     onRetry = { retryTrigger.intValue++ },
                     onSkip = { viewModel.goToNextPage() }
-                )
-            }
-        }
-
-        // Tap gesture navigation zones mapped according to readingDirection
-        Row(
-            modifier = Modifier.fillMaxSize()
-        ) {
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .clickable {
-                        if (readingDirection == "rtl") {
-                            viewModel.goToNextPage()
-                        } else {
-                            viewModel.goToPreviousPage()
-                        }
-                    }
-            )
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .clickable {
-                        if (readingDirection == "rtl") {
-                            viewModel.goToPreviousPage()
-                        } else {
-                            viewModel.goToNextPage()
-                        }
-                    }
-            )
-        }
-
-        // Explicit Previous and Next IconButton Navigation Controls
-        Row(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 16.dp),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(
-                onClick = { viewModel.goToPreviousPage() }
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.NavigateBefore,
-                    contentDescription = "Halaman Sebelumnya"
-                )
-            }
-            Spacer(modifier = Modifier.width(32.dp))
-            IconButton(
-                onClick = { viewModel.goToNextPage() }
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.NavigateNext,
-                    contentDescription = "Halaman Berikutnya"
                 )
             }
         }

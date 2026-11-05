@@ -73,6 +73,8 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.example.kitsune.ui.theme.ComponentShapes
+import com.example.kitsune.ui.theme.Spacing
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.imageLoader
 import coil.request.ImageRequest
@@ -124,7 +126,10 @@ fun LibraryScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(16.dp),
+            .padding(
+                horizontal = Spacing.screenHorizontalPadding,
+                vertical = Spacing.screenVerticalPadding
+            ),
     ) {
         if (onBackClick != null) {
             com.example.kitsune.ui.components.KitsuneBackToolbar(
@@ -219,31 +224,32 @@ private fun RootNotConfiguredView(
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
+        shape = ComponentShapes.card,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant,
         ),
     ) {
         Column(
-            modifier = Modifier.padding(24.dp),
+            modifier = Modifier.padding(Spacing.extraLarge),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Icon(
                 imageVector = Icons.Default.FolderOff,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(bottom = 12.dp),
+                modifier = Modifier.padding(bottom = Spacing.medium),
             )
             Text(
                 text = "Root Folder Not Configured",
                 style = MaterialTheme.typography.titleLarge,
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(Spacing.small))
             Text(
                 text = "Select a 'Kitsune' folder in device storage containing a 'Comics' subfolder to load comics.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(Spacing.large))
             Button(onClick = onNavigateToSettings) {
                 Text("Open Settings")
             }
@@ -259,32 +265,33 @@ private fun PermissionDeniedView(
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
+        shape = ComponentShapes.card,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.errorContainer,
         ),
     ) {
         Column(
-            modifier = Modifier.padding(24.dp),
+            modifier = Modifier.padding(Spacing.extraLarge),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Icon(
                 imageVector = Icons.Default.Lock,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onErrorContainer,
-                modifier = Modifier.padding(bottom = 12.dp),
+                modifier = Modifier.padding(bottom = Spacing.medium),
             )
             Text(
                 text = "Folder Access Disconnected",
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.onErrorContainer,
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(Spacing.small))
             Text(
                 text = "Folder read permission lost: $message",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onErrorContainer,
             )
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(Spacing.large))
             Button(onClick = onNavigateToSettings) {
                 Text("Recheck Access")
             }
@@ -300,32 +307,33 @@ private fun ComicsDirectoryNotFoundView(
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
+        shape = ComponentShapes.card,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant,
         ),
     ) {
         Column(
-            modifier = Modifier.padding(24.dp),
+            modifier = Modifier.padding(Spacing.extraLarge),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Icon(
                 imageVector = Icons.Default.Folder,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(bottom = 12.dp),
+                modifier = Modifier.padding(bottom = Spacing.medium),
             )
             Text(
                 text = "Comics Directory Not Found",
                 style = MaterialTheme.typography.titleLarge,
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(Spacing.small))
             Text(
                 text = "Subfolder 'Comics' was not found inside selected root folder. Create 'Comics' directory and place comic folders inside.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Spacer(modifier = Modifier.height(16.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Spacer(modifier = Modifier.height(Spacing.large))
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.small)) {
                 Button(onClick = onCreateComicsDirectory) {
                     Text("Create 'Comics' Folder")
                 }
@@ -345,7 +353,7 @@ private fun EmptyComicsDirectoryView(
 ) {
     Column(
         modifier = modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(Spacing.small)
     ) {
         StorageRootCard(itemCount = 0)
         LibrarySearchBar(
@@ -354,6 +362,7 @@ private fun EmptyComicsDirectoryView(
         )
         Card(
             modifier = Modifier.fillMaxWidth(),
+            shape = ComponentShapes.cardLarge,
             colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surface
             )
@@ -364,7 +373,7 @@ private fun EmptyComicsDirectoryView(
                 message = "No comics in this folder yet. Add your manga files to Kitsune Library, or choose another folder.",
                 actionText = "Change Root Folder",
                 onAction = onNavigateToSettings,
-                modifier = Modifier.padding(16.dp)
+                modifier = Modifier.padding(Spacing.large)
             )
         }
     }
@@ -378,32 +387,33 @@ private fun NoValidChaptersView(
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
+        shape = ComponentShapes.card,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant,
         ),
     ) {
         Column(
-            modifier = Modifier.padding(24.dp),
+            modifier = Modifier.padding(Spacing.extraLarge),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.MenuBook,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(bottom = 12.dp),
+                modifier = Modifier.padding(bottom = Spacing.medium),
             )
             Text(
                 text = "No Valid Chapters Available",
                 style = MaterialTheme.typography.titleLarge,
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(Spacing.small))
             Text(
                 text = "Comic folders found but none contain readable 'Chapter <number>.cbz' files yet.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Spacer(modifier = Modifier.height(16.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Spacer(modifier = Modifier.height(Spacing.large))
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.small)) {
                 Button(onClick = onRefresh) {
                     Text("Rescan")
                 }
@@ -423,7 +433,8 @@ private fun StorageRootCard(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .padding(bottom = 8.dp),
+            .padding(bottom = Spacing.small),
+        shape = ComponentShapes.card,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant
         )
@@ -431,7 +442,7 @@ private fun StorageRootCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(horizontal = Spacing.large, vertical = Spacing.medium),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -514,17 +525,17 @@ private fun LibrarySuccessView(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 6.dp),
+                    .padding(bottom = Spacing.small),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
                     imageVector = Icons.Default.Info,
-                    contentDescription = "Diagnostik Scan",
+                    contentDescription = "Scan Diagnostics",
                     tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(end = 4.dp)
+                    modifier = Modifier.padding(end = Spacing.extraSmall)
                 )
                 Text(
-                    text = "$issuesCount masalah scan",
+                    text = "$issuesCount scan issues",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -534,9 +545,9 @@ private fun LibrarySuccessView(
         LazyVerticalGrid(
             columns = GridCells.Fixed(gridColumns.coerceIn(2, 4)),
             modifier = Modifier.fillMaxSize(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            contentPadding = PaddingValues(bottom = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.small),
+            verticalArrangement = Arrangement.spacedBy(Spacing.small),
+            contentPadding = PaddingValues(bottom = Spacing.large),
         ) {
             items(
                 items = comics,
@@ -578,7 +589,8 @@ private fun FilterAndSortControlBar(
             FilterChip(
                 selected = isBookmarkedOnly,
                 onClick = { onBookmarkedFilterChange(!isBookmarkedOnly) },
-                label = { Text("Favorit") },
+                shape = ComponentShapes.chip,
+                label = { Text("Bookmarked") },
                 leadingIcon = {
                     Icon(
                         imageVector = if (isBookmarkedOnly) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
@@ -593,6 +605,7 @@ private fun FilterAndSortControlBar(
             FilterChip(
                 selected = sortOption == option,
                 onClick = { onSortOptionChange(option) },
+                shape = ComponentShapes.chip,
                 label = { Text(option.displayName) }
             )
         }
@@ -602,6 +615,7 @@ private fun FilterAndSortControlBar(
                 FilterChip(
                     selected = gridColumns == columns,
                     onClick = { onGridColumnsChange(columns) },
+                    shape = ComponentShapes.chip,
                     label = { Text("${columns}x") }
                 )
             }
@@ -661,18 +675,18 @@ private fun SearchNoResultsView(
             onGridColumnsChange = { viewModel.setGridColumns(it) },
             onResetClick = { viewModel.resetFiltersAndSorting() }
         )
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(Spacing.extraLarge))
         Icon(
             imageVector = Icons.Default.SearchOff,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.outline,
-            modifier = Modifier.padding(bottom = 12.dp)
+            modifier = Modifier.padding(bottom = Spacing.medium)
         )
         Text(
             text = "No Matching Comics",
             style = MaterialTheme.typography.titleLarge
         )
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(Spacing.small))
         Text(
             text = if (searchQuery.isNotBlank()) {
                 "No comics found matching \"$searchQuery\"."
@@ -682,7 +696,7 @@ private fun SearchNoResultsView(
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.outline
         )
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(Spacing.large))
         Button(onClick = { viewModel.resetFiltersAndSorting() }) {
             Text("Reset Filters")
         }
@@ -715,6 +729,7 @@ private fun ComicGridItemCard(
                     viewModel.toggleComicSelection(comic.id)
                 }
             ),
+        shape = ComponentShapes.card,
         colors = CardDefaults.cardColors(
             containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
         ),
@@ -727,7 +742,7 @@ private fun ComicGridItemCard(
                     isBookmarked = isBookmarked,
                     viewModel = viewModel
                 )
-                Column(modifier = Modifier.padding(8.dp)) {
+                Column(modifier = Modifier.padding(Spacing.small)) {
                     Text(
                         text = comic.title,
                         style = MaterialTheme.typography.titleSmall,
@@ -739,11 +754,11 @@ private fun ComicGridItemCard(
             if (isSelected) {
                 Icon(
                     imageVector = Icons.Default.CheckCircle,
-                    contentDescription = "Terpilih",
+                    contentDescription = "Selected",
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier
                         .align(Alignment.TopStart)
-                        .padding(8.dp)
+                        .padding(Spacing.small)
                 )
             }
         }
@@ -821,9 +836,9 @@ private fun ComicCoverImage(
     }
 
     val semanticsDesc = if (isBookmarked) {
-        "Komik terdaftar di koleksi Bookmark"
+        "Comic is in bookmark collection"
     } else {
-        "Komik tidak terdaftar di koleksi Bookmark"
+        "Comic is not in bookmark collection"
     }
 
     Box(
@@ -839,7 +854,7 @@ private fun ComicCoverImage(
             is CoverUiState.Loaded -> {
                 Image(
                     painter = BitmapPainter(state.imageBitmap),
-                    contentDescription = "Cover untuk ${comic.title}",
+                    contentDescription = "Cover for ${comic.title}",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
                 )
@@ -885,39 +900,40 @@ private fun LibraryErrorView(
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
+        shape = ComponentShapes.card,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.errorContainer,
         ),
     ) {
         Column(
-            modifier = Modifier.padding(24.dp),
+            modifier = Modifier.padding(Spacing.extraLarge),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Icon(
                 imageVector = Icons.Default.Warning,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onErrorContainer,
-                modifier = Modifier.padding(bottom = 12.dp)
+                modifier = Modifier.padding(bottom = Spacing.medium)
             )
             Text(
-                text = "Gagal Memuat Library",
+                text = "Failed to Load Library",
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onErrorContainer,
             )
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(Spacing.extraSmall))
             Text(
                 text = message,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onErrorContainer,
             )
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(Spacing.large))
             Button(onClick = onRetry) {
                 Icon(
                     imageVector = Icons.Default.Refresh,
                     contentDescription = null,
-                    modifier = Modifier.padding(end = 4.dp)
+                    modifier = Modifier.padding(end = Spacing.extraSmall)
                 )
-                Text("Coba Lagi")
+                Text("Retry")
             }
         }
     }
@@ -934,6 +950,7 @@ private fun SelectionActionBar(
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
+        shape = ComponentShapes.card,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer
         )
@@ -941,7 +958,7 @@ private fun SelectionActionBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
+                .padding(horizontal = Spacing.medium, vertical = Spacing.small),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -1000,11 +1017,11 @@ private fun AddToBookmarkCollectionDialog(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable { onCollectionSelect(collection.id) },
-                            shape = MaterialTheme.shapes.small,
+                            shape = ComponentShapes.card,
                             color = MaterialTheme.colorScheme.surfaceVariant
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
+                                modifier = Modifier.padding(horizontal = Spacing.medium, vertical = Spacing.medium),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(

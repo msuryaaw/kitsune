@@ -75,6 +75,8 @@ import com.example.kitsune.data.entity.ReadingProgressEntity
 import com.example.kitsune.ui.components.KitsunePrimaryButton
 import com.example.kitsune.ui.components.KitsuneSectionHeading
 import com.example.kitsune.ui.screens.library.CoverUiState
+import com.example.kitsune.ui.theme.ComponentShapes
+import com.example.kitsune.ui.theme.Spacing
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
@@ -161,7 +163,10 @@ fun ComicDetailScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .padding(
+                    horizontal = Spacing.screenHorizontalPadding,
+                    vertical = Spacing.screenVerticalPadding
+                )
         ) {
             when (val state = uiState) {
                 is ComicDetailUiState.Loading -> {
@@ -217,8 +222,8 @@ private fun ComicDetailSuccessView(
 ) {
     LazyColumn(
         modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        contentPadding = PaddingValues(bottom = Spacing.extraLarge),
+        verticalArrangement = Arrangement.spacedBy(Spacing.large)
     ) {
         item {
             ComicHeaderCard(
@@ -259,11 +264,12 @@ private fun ComicHeaderCard(
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
+        shape = ComponentShapes.cardLarge,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         )
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(Spacing.large)) {
             Row(modifier = Modifier.fillMaxWidth()) {
                 Box(
                     modifier = Modifier
@@ -276,9 +282,12 @@ private fun ComicHeaderCard(
                     )
                 }
 
-                Spacer(modifier = Modifier.width(16.dp))
+                Spacer(modifier = Modifier.width(Spacing.large))
 
-                Column(modifier = Modifier.weight(1f)) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.extraSmall)
+                ) {
                     Text(
                         text = comic.title,
                         style = MaterialTheme.typography.titleLarge,
@@ -288,11 +297,11 @@ private fun ComicHeaderCard(
 
                     val hasMetadata = !comic.type.isNullOrBlank() || !comic.language.isNullOrBlank() || !comic.author.isNullOrBlank()
                     if (hasMetadata) {
-                        Spacer(modifier = Modifier.height(6.dp))
+                        Spacer(modifier = Modifier.height(2.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             if (!comic.type.isNullOrBlank()) {
                                 Surface(
-                                    shape = MaterialTheme.shapes.extraSmall,
+                                    shape = ComponentShapes.chip,
                                     color = MaterialTheme.colorScheme.primaryContainer,
                                     contentColor = MaterialTheme.colorScheme.onPrimaryContainer
                                 ) {
@@ -305,7 +314,7 @@ private fun ComicHeaderCard(
                             }
                             if (!comic.language.isNullOrBlank()) {
                                 Surface(
-                                    shape = MaterialTheme.shapes.extraSmall,
+                                    shape = ComponentShapes.chip,
                                     color = MaterialTheme.colorScheme.secondaryContainer,
                                     contentColor = MaterialTheme.colorScheme.onSecondaryContainer
                                 ) {
@@ -318,7 +327,7 @@ private fun ComicHeaderCard(
                             }
                             if (!comic.author.isNullOrBlank()) {
                                 Surface(
-                                    shape = MaterialTheme.shapes.extraSmall,
+                                    shape = ComponentShapes.chip,
                                     color = MaterialTheme.colorScheme.tertiaryContainer,
                                     contentColor = MaterialTheme.colorScheme.onTertiaryContainer
                                 ) {
@@ -332,7 +341,7 @@ private fun ComicHeaderCard(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(Spacing.extraSmall))
 
                     Text(
                         text = "${chapters.size} Chapters · Local",
@@ -342,19 +351,21 @@ private fun ComicHeaderCard(
                 }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(Spacing.large))
 
             OutlinedButton(
                 onClick = onManageCollections,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(28.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(Spacing.buttonMinHeight),
+                shape = ComponentShapes.button
             ) {
                 Icon(imageVector = Icons.Default.BookmarkBorder, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(Spacing.small))
                 Text("Manage Bookmark Collections")
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(Spacing.small))
 
             // Primary Reading Action CTA Button
             val lastChapterId = progress?.lastReadChapterId
@@ -388,6 +399,7 @@ private fun ChapterItemCard(
         modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
+        shape = ComponentShapes.card,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
@@ -396,7 +408,7 @@ private fun ChapterItemCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(Spacing.large),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -497,7 +509,7 @@ private fun ComicCoverDetailImage(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .clip(RoundedCornerShape(8.dp)),
+            .clip(ComponentShapes.coverTile),
         contentAlignment = Alignment.Center
     ) {
         when (val state = coverState) {
@@ -534,31 +546,32 @@ private fun ComicNotFoundView(
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
+        shape = ComponentShapes.card,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant
         )
     ) {
         Column(
-            modifier = Modifier.padding(24.dp),
+            modifier = Modifier.padding(Spacing.extraLarge),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Icon(
                 imageVector = Icons.Default.FolderOff,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(bottom = 12.dp)
+                modifier = Modifier.padding(bottom = Spacing.medium)
             )
             Text(
                 text = "Comic Not Found",
                 style = MaterialTheme.typography.titleLarge
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(Spacing.small))
             Text(
                 text = "The selected comic was not found or was removed from the library directory.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(Spacing.large))
             Button(onClick = onBackClick) {
                 Text("Back to Library")
             }
@@ -573,31 +586,32 @@ private fun EmptyChaptersView(
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
+        shape = ComponentShapes.card,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant
         )
     ) {
         Column(
-            modifier = Modifier.padding(24.dp),
+            modifier = Modifier.padding(Spacing.extraLarge),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.MenuBook,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(bottom = 12.dp)
+                modifier = Modifier.padding(bottom = Spacing.medium)
             )
             Text(
                 text = "No Valid Chapters Available",
                 style = MaterialTheme.typography.titleLarge
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(Spacing.small))
             Text(
                 text = "This comic folder does not contain readable 'Chapter <number>.cbz' files yet.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(Spacing.large))
             OutlinedButton(onClick = onBackClick) {
                 Text("Back to Library")
             }
@@ -613,32 +627,33 @@ private fun ComicDetailErrorView(
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
+        shape = ComponentShapes.card,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.errorContainer
         )
     ) {
         Column(
-            modifier = Modifier.padding(24.dp),
+            modifier = Modifier.padding(Spacing.extraLarge),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Icon(
                 imageVector = Icons.Default.Warning,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onErrorContainer,
-                modifier = Modifier.padding(bottom = 12.dp)
+                modifier = Modifier.padding(bottom = Spacing.medium)
             )
             Text(
                 text = "Failed to Load Comic Detail",
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onErrorContainer
             )
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(Spacing.extraSmall))
             Text(
                 text = message,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onErrorContainer
             )
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(Spacing.large))
             Button(onClick = onBackClick) {
                 Text("Back to Library")
             }

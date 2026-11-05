@@ -68,6 +68,8 @@ import com.example.kitsune.data.model.ComicWithProgress
 import com.example.kitsune.ui.components.KitsuneEmptyState
 import com.example.kitsune.ui.components.KitsunePrimaryButton
 import com.example.kitsune.ui.screens.library.CoverUiState
+import com.example.kitsune.ui.theme.ComponentShapes
+import com.example.kitsune.ui.theme.Spacing
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
@@ -107,7 +109,10 @@ fun HistoryScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(16.dp)
+            .padding(
+                horizontal = Spacing.screenHorizontalPadding,
+                vertical = Spacing.screenVerticalPadding
+            )
     ) {
         if (onBackClick != null) {
             com.example.kitsune.ui.components.KitsuneBackToolbar(
@@ -183,16 +188,15 @@ private fun HistorySuccessView(
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        contentPadding = PaddingValues(bottom = Spacing.extraLarge),
+        verticalArrangement = Arrangement.spacedBy(Spacing.large)
     ) {
         item {
-            Column {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.extraSmall)) {
                 Text(
                     text = "History",
-                    style = MaterialTheme.typography.displayLarge
+                    style = MaterialTheme.typography.headlineMedium
                 )
-                Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = "Right where you left off.",
                     style = MaterialTheme.typography.bodyMedium,
@@ -207,7 +211,7 @@ private fun HistorySuccessView(
                     text = group.header.displayName,
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(top = 8.dp)
+                    modifier = Modifier.padding(top = Spacing.small)
                 )
             }
 
@@ -240,13 +244,14 @@ private fun HistoryItemCard(
         modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
+        shape = ComponentShapes.cardLarge,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         )
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            modifier = Modifier.padding(Spacing.large),
+            verticalArrangement = Arrangement.spacedBy(Spacing.large)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -263,11 +268,11 @@ private fun HistoryItemCard(
                     )
                 }
 
-                Spacer(modifier = Modifier.width(14.dp))
+                Spacer(modifier = Modifier.width(Spacing.large))
 
                 Column(
                     modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                    verticalArrangement = Arrangement.spacedBy(Spacing.extraSmall)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -423,7 +428,7 @@ private fun HistoryCoverImage(
         modifier = modifier
             .fillMaxWidth()
             .aspectRatio(0.70f)
-            .clip(RoundedCornerShape(8.dp)),
+            .clip(ComponentShapes.coverTile),
         contentAlignment = Alignment.Center
     ) {
         when (val state = coverState) {
@@ -460,6 +465,7 @@ private fun HistoryEmptyView(
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
+        shape = ComponentShapes.cardLarge,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         )
@@ -470,7 +476,7 @@ private fun HistoryEmptyView(
             message = "The manga you read will appear here, with your last page saved. Start a chapter from your library.",
             actionText = "Open Library",
             onAction = onOpenLibraryClick,
-            modifier = Modifier.padding(16.dp)
+            modifier = Modifier.padding(Spacing.large)
         )
     }
 }
@@ -482,31 +488,32 @@ private fun HistoryRootNotConfiguredView(
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
+        shape = ComponentShapes.card,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant
         )
     ) {
         Column(
-            modifier = Modifier.padding(24.dp),
+            modifier = Modifier.padding(Spacing.extraLarge),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Icon(
                 imageVector = Icons.Default.FolderOff,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(bottom = 12.dp)
+                modifier = Modifier.padding(bottom = Spacing.medium)
             )
             Text(
                 text = "Root Folder Not Configured",
                 style = MaterialTheme.typography.titleLarge
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(Spacing.small))
             Text(
                 text = "Select a 'Kitsune' folder in device storage to load reading history.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(Spacing.large))
             Button(onClick = onNavigateToSettings) {
                 Text("Open Settings")
             }
@@ -522,32 +529,33 @@ private fun HistoryPermissionDeniedView(
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
+        shape = ComponentShapes.card,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.errorContainer
         )
     ) {
         Column(
-            modifier = Modifier.padding(24.dp),
+            modifier = Modifier.padding(Spacing.extraLarge),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Icon(
                 imageVector = Icons.Default.Lock,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onErrorContainer,
-                modifier = Modifier.padding(bottom = 12.dp)
+                modifier = Modifier.padding(bottom = Spacing.medium)
             )
             Text(
                 text = "Folder Access Disconnected",
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.onErrorContainer
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(Spacing.small))
             Text(
                 text = "Folder read permission lost: $message",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onErrorContainer
             )
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(Spacing.large))
             Button(onClick = onNavigateToSettings) {
                 Text("Recheck Access")
             }
@@ -562,26 +570,27 @@ private fun HistoryErrorView(
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
+        shape = ComponentShapes.card,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.errorContainer
         )
     ) {
         Column(
-            modifier = Modifier.padding(24.dp),
+            modifier = Modifier.padding(Spacing.extraLarge),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Icon(
                 imageVector = Icons.Default.Warning,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onErrorContainer,
-                modifier = Modifier.padding(bottom = 12.dp)
+                modifier = Modifier.padding(bottom = Spacing.medium)
             )
             Text(
                 text = "Failed to Load History",
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onErrorContainer
             )
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(Spacing.extraSmall))
             Text(
                 text = message,
                 style = MaterialTheme.typography.bodySmall,

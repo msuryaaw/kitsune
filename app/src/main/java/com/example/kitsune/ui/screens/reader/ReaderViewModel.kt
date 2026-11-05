@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.kitsune.data.LibraryRepository
 import com.example.kitsune.data.SettingsRepository
 import com.example.kitsune.data.entity.ChapterEntity
+import com.example.kitsune.data.entity.ComicEntity
 import com.example.kitsune.data.entity.ReadingProgressEntity
 import com.example.kitsune.reader.CbzArchiveHandle
 import com.example.kitsune.reader.CbzArchiveResult
@@ -101,12 +102,19 @@ class ReaderViewModel(
                                     kotlinx.coroutines.flow.flowOf(emptyList())
                                 }
 
+                                val comicFlow = if (comicId > 0L) {
+                                    libraryRepository.observeComicById(comicId)
+                                } else {
+                                    kotlinx.coroutines.flow.flowOf(null)
+                                }
+
                                 combine(
                                     settingsRepository.observeSettings(),
-                                    chaptersFlow
-                                ) { settings: com.example.kitsune.data.entity.SettingsEntity, rawChapters: List<ChapterEntity> ->
-                                    Pair(settings, rawChapters)
-                                }.collect { (settings, rawChapters) ->
+                                    chaptersFlow,
+                                    comicFlow
+                                ) { settings: com.example.kitsune.data.entity.SettingsEntity, rawChapters: List<ChapterEntity>, comic: ComicEntity? ->
+                                    Triple(settings, rawChapters, comic)
+                                }.collect { (settings, rawChapters, comic) ->
                                     if (currentGen != requestGeneration) return@collect
                                     val currentState = _uiState.value
                                     val currentPos = if (currentState is ReaderUiState.Success && currentState.chapterId == targetChapterId) currentState.currentPageIndex else initialPageIndex
@@ -122,6 +130,10 @@ class ReaderViewModel(
                                     val hasPrev = chIndex > 0
                                     val hasNext = chIndex >= 0 && chIndex < validChapters.size - 1
 
+                                    val parentComicTitle = comic?.title?.ifBlank { null }
+                                        ?: activeChapter?.displayName?.removeSuffix(".cbz")
+                                        ?: ""
+
                                     _uiState.value = ReaderUiState.Success(
                                         chapterId = targetChapterId,
                                         pageIndex = indexResult.pageIndex,
@@ -136,7 +148,7 @@ class ReaderViewModel(
                                         currentChapterIndex = chIndex,
                                         hasPreviousChapter = hasPrev,
                                         hasNextChapter = hasNext,
-                                        comicTitle = activeChapter?.displayName?.removeSuffix(".cbz") ?: ""
+                                        comicTitle = parentComicTitle
                                     )
                                 }
                             }

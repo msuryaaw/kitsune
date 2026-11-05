@@ -12,7 +12,9 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -32,7 +34,10 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -41,13 +46,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.kitsune.ui.components.KitsunePrimaryButton
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -109,7 +118,25 @@ fun ReaderScreen(
                 title = {
                     val currState = uiState
                     if (currState is ReaderUiState.Success) {
-                        Text("Page ${currState.currentPageIndex + 1} / ${currState.pageIndex.totalPages}")
+                        Column {
+                            Text(
+                                text = currState.comicTitle.ifBlank { "Reader" },
+                                style = MaterialTheme.typography.titleMedium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            val activeChapter = currState.chapters.getOrNull(currState.currentChapterIndex)
+                            val chapterName = activeChapter?.displayName?.removeSuffixCaseInsensitive(".cbz") ?: ""
+                            if (chapterName.isNotBlank()) {
+                                Text(
+                                    text = chapterName,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
                     } else {
                         Text("Reader")
                     }
@@ -169,6 +196,16 @@ fun ReaderScreen(
                     }
                 }
             )
+        },
+        bottomBar = {
+            val currState = uiState
+            if (currState is ReaderUiState.Success) {
+                ReaderControlPanel(
+                    state = currState,
+                    viewModel = viewModel,
+                    onOpenReaderSettings = { showSettingsDialog = true }
+                )
+            }
         }
     ) { innerPadding ->
         Box(
@@ -208,6 +245,124 @@ fun ReaderScreen(
                         onRetryClick = { viewModel.retryLoadChapter() },
                         onSettingsClick = onSettingsClick ?: onBackClick,
                         modifier = Modifier.align(Alignment.Center)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReaderControlPanel(
+    state: ReaderUiState.Success,
+    viewModel: ReaderViewModel,
+    onOpenReaderSettings: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val totalPages = state.pageIndex.totalPages
+    val currentPageDisplay = (state.currentPageIndex + 1).coerceAtMost(totalPages)
+    val progressFraction = if (totalPages > 0) {
+        (currentPageDisplay.toFloat() / totalPages.toFloat()).coerceIn(0f, 1f)
+    } else 0f
+    val sliderFraction = if (totalPages > 1) {
+        state.currentPageIndex.toFloat() / (totalPages - 1).toFloat()
+    } else 0f
+
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 4.dp
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            // Page Info Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Page $currentPageDisplay / $totalPages",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = "${(progressFraction * 100).toInt()}% of chapter",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            // Progress Slider
+            Slider(
+                value = sliderFraction,
+                onValueChange = { fraction ->
+                    if (totalPages > 1) {
+                        val targetIndex = (fraction * (totalPages - 1)).roundToInt()
+                        viewModel.setCurrentPageIndex(targetIndex)
+                    }
+                },
+                valueRange = 0f..1f,
+                enabled = totalPages > 1,
+                colors = SliderDefaults.colors(
+                    thumbColor = MaterialTheme.colorScheme.primary,
+                    activeTrackColor = MaterialTheme.colorScheme.primary,
+                    inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant
+                )
+            )
+
+            // Previous / Next Buttons
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedButton(
+                    onClick = { viewModel.goToPreviousPage() },
+                    modifier = Modifier.weight(1f),
+                    enabled = state.currentPageIndex > 0
+                ) {
+                    Text("Previous")
+                }
+
+                Button(
+                    onClick = { viewModel.goToNextPage() },
+                    modifier = Modifier.weight(1f),
+                    enabled = state.currentPageIndex < totalPages - 1
+                ) {
+                    Text("Next")
+                }
+            }
+
+            // Preference Summary & Settings Icon
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val modeLabel = if (state.readerMode == "vertical_continuous" || state.readerMode == "vertical") "Vertical Continuous" else "Single Page"
+                val dirLabel = state.readingDirection.uppercase()
+                val fitLabel = when (state.pageFit) {
+                    "fit_width" -> "Fit Width"
+                    "fit_height" -> "Fit Height"
+                    else -> "Fit Screen"
+                }
+
+                Text(
+                    text = "$modeLabel · $dirLabel · $fitLabel",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                IconButton(onClick = onOpenReaderSettings) {
+                    Icon(
+                        imageVector = Icons.Default.Settings,
+                        contentDescription = "Reader Settings",
+                        tint = MaterialTheme.colorScheme.primary
                     )
                 }
             }

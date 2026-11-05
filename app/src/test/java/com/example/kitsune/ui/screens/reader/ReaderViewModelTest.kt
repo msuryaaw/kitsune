@@ -50,6 +50,7 @@ import java.io.File
 
 class FakeReaderLibraryRepository : LibraryRepository {
     var openResult: CbzArchiveResult = CbzArchiveResult.ChapterMissing
+    val comicsById = mutableMapOf<Long, ComicEntity>()
     val chaptersById = mutableMapOf<Long, ChapterEntity>()
     val progressByComicId = mutableMapOf<Long, ReadingProgressEntity>()
     val savedProgressList = mutableListOf<ReadingProgressEntity>()
@@ -76,7 +77,7 @@ class FakeReaderLibraryRepository : LibraryRepository {
     override suspend fun clearAllHistoryByRoot(rootUri: String) {}
     override fun observeChaptersByComicId(comicId: Long): Flow<List<ChapterEntity>> =
         flowOf(chaptersById.values.filter { it.comicId == comicId })
-    override fun observeComicById(comicId: Long): Flow<ComicEntity?> = flowOf(null)
+    override fun observeComicById(comicId: Long): Flow<ComicEntity?> = flowOf(comicsById[comicId])
     override suspend fun verifyChapterAvailable(chapterId: Long) = com.example.kitsune.data.ChapterAvailabilityResult.Missing
     override suspend fun setBookmarked(comicId: Long, bookmarked: Boolean) {}
     override suspend fun fetchCover(comicId: Long): CoverResult = CoverResult.Unavailable("Fake")
@@ -380,6 +381,37 @@ class ReaderViewModelTest {
         viewModel.setPageFit("fit_screen")
         currentState = viewModel.uiState.value as ReaderUiState.Success
         assertEquals("fit_screen", currentState.pageFit)
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun comicTitle_resolvesFromParentComicTitle_notChapterDisplayName() = runTest {
+        val spooledFile = tempFolder.newFile("spool_title.cbz")
+        val handle = CbzArchiveHandle(1L, spooledFile) {}
+
+        val comic = ComicEntity(id = 10L, rootUriString = "content://root", relativePath = "Comics/Naruto", title = "Naruto")
+        val chapter = ChapterEntity(id = 1L, comicId = 10L, relativePath = "Comics/Naruto/Ch1.cbz", chapterNumber = 1, displayName = "Ch1.cbz", pageCount = 10)
+        fakeRepo.chaptersById[1L] = chapter
+        fakeRepo.comicsById[10L] = comic
+        fakeRepo.openResult = CbzArchiveResult.Success(handle)
+
+        val pages = (1..10).map { PageMetadata(pageIndex = it - 1, entryName = "p$it.jpg", normalizedPath = "p$it.jpg") }
+        val pageIndex = ChapterPageIndex(chapterId = 1L, pages = pages)
+        fakeIndexer.indexResult = PageIndexResult.Success(pageIndex)
+
+        val viewModel = ReaderViewModel(
+            chapterId = 1L,
+            libraryRepository = fakeRepo,
+            settingsRepository = fakeSettingsRepo,
+            cbzPageIndexer = fakeIndexer,
+            cbzPageDecoderFactory = fakeDecoderFactory
+        )
+
+        val collectJob = launch(testDispatcher) { viewModel.uiState.collect() }
+
+        val currentState = viewModel.uiState.value as ReaderUiState.Success
+        assertEquals("Naruto", currentState.comicTitle)
 
         collectJob.cancel()
     }

@@ -134,6 +134,21 @@ class ComicDetailViewModelTest {
         assertEquals(col2Id, updatedCols.first().id)
     }
 
+    @Test
+    fun getCoverFile_andReleaseCoverFile_executeWithoutError() = runTest {
+        val comicDao = db.comicDao()
+        val comic = ComicEntity(rootUriString = rootUri, relativePath = "Comics/OnePiece", title = "One Piece")
+        val comicId = comicDao.insert(comic)
+
+        val viewModel = ComicDetailViewModel(comicId, repository)
+
+        val cacheResult = viewModel.getCoverFile(comicId)
+        assertNotNull(cacheResult)
+
+        val tempFile = File(System.getProperty("java.io.tmpdir"), "test_detail_cover.tmp")
+        viewModel.releaseCoverFile(tempFile)
+    }
+
     private class FakeDetailScanner : LibraryScanner {
         override fun scanLibrary(): LibraryScanResult = LibraryScanResult.RootNotConfigured
     }

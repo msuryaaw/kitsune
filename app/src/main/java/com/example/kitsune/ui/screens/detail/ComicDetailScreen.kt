@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.MenuBook
@@ -55,6 +56,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.painter.BitmapPainter
@@ -70,6 +72,8 @@ import com.example.kitsune.data.CoverCacheResult
 import com.example.kitsune.data.entity.ChapterEntity
 import com.example.kitsune.data.entity.ComicEntity
 import com.example.kitsune.data.entity.ReadingProgressEntity
+import com.example.kitsune.ui.components.KitsunePrimaryButton
+import com.example.kitsune.ui.components.KitsuneSectionHeading
 import com.example.kitsune.ui.screens.library.CoverUiState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
@@ -183,6 +187,9 @@ fun ComicDetailScreen(
                         viewModel = viewModel,
                         onChapterSelect = { chapterId ->
                             viewModel.onChapterSelected(chapterId)
+                        },
+                        onManageCollections = {
+                            showCollectionPicker = true
                         }
                     )
                 }
@@ -205,6 +212,7 @@ private fun ComicDetailSuccessView(
     progress: ReadingProgressEntity?,
     viewModel: ComicDetailViewModel,
     onChapterSelect: (Long) -> Unit,
+    onManageCollections: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     LazyColumn(
@@ -218,16 +226,13 @@ private fun ComicDetailSuccessView(
                 chapters = chapters,
                 progress = progress,
                 viewModel = viewModel,
-                onChapterSelect = onChapterSelect
+                onChapterSelect = onChapterSelect,
+                onManageCollections = onManageCollections
             )
         }
 
         item {
-            Text(
-                text = "Chapters (${chapters.size})",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onBackground
-            )
+            KitsuneSectionHeading("Chapters (${chapters.size})")
         }
 
         items(
@@ -249,20 +254,21 @@ private fun ComicHeaderCard(
     progress: ReadingProgressEntity?,
     viewModel: ComicDetailViewModel,
     onChapterSelect: (Long) -> Unit,
+    onManageCollections: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
+            containerColor = MaterialTheme.colorScheme.surface
         )
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(modifier = Modifier.fillMaxWidth()) {
                 Box(
                     modifier = Modifier
-                        .width(100.dp)
-                        .aspectRatio(0.7f)
+                        .width(112.dp)
+                        .aspectRatio(0.70f)
                 ) {
                     ComicCoverDetailImage(
                         comic = comic,
@@ -329,38 +335,44 @@ private fun ComicHeaderCard(
                     Spacer(modifier = Modifier.height(8.dp))
 
                     Text(
-                        text = "${chapters.size} Chapters",
+                        text = "${chapters.size} Chapters · Local",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.primary
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(14.dp))
+
+            OutlinedButton(
+                onClick = onManageCollections,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(28.dp)
+            ) {
+                Icon(imageVector = Icons.Default.BookmarkBorder, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Manage Bookmark Collections")
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
 
             // Primary Reading Action CTA Button
             val lastChapterId = progress?.lastReadChapterId
             if (progress != null && lastChapterId != null && lastChapterId > 0L) {
-                Button(
+                KitsunePrimaryButton(
+                    text = "Continue · Chapter ${progress.lastReadChapterNumber}",
                     onClick = { onChapterSelect(lastChapterId) },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(imageVector = Icons.Default.PlayArrow, contentDescription = null)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Continue · Chapter ${progress.lastReadChapterNumber}")
-                }
+                    leadingIcon = Icons.Default.PlayArrow
+                )
             } else {
-                Button(
+                KitsunePrimaryButton(
+                    text = "Start Reading",
                     onClick = {
                         chapters.firstOrNull()?.let { onChapterSelect(it.id) }
                     },
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = chapters.isNotEmpty()
-                ) {
-                    Icon(imageVector = Icons.Default.PlayArrow, contentDescription = null)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Start Reading")
-                }
+                    enabled = chapters.isNotEmpty(),
+                    leadingIcon = Icons.Default.PlayArrow
+                )
             }
         }
     }
@@ -483,7 +495,9 @@ private fun ComicCoverDetailImage(
     }
 
     Box(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier
+            .fillMaxSize()
+            .clip(RoundedCornerShape(8.dp)),
         contentAlignment = Alignment.Center
     ) {
         when (val state = coverState) {

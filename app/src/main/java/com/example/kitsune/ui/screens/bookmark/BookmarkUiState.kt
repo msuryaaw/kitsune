@@ -17,24 +17,43 @@ enum class BookmarkStatusFilter(val displayName: String) {
 }
 
 /**
- * UI State for the Bookmark Screen (Phase 11).
+ * UI State for the Bookmark Landing Screen (Task 12.7 / K-36).
  */
-sealed interface BookmarkUiState {
-    object Loading : BookmarkUiState
-    object RootNotConfigured : BookmarkUiState
-    data class PermissionDenied(val message: String) : BookmarkUiState
-    object EmptyNoCollections : BookmarkUiState
+typealias BookmarkUiState = BookmarkLandingUiState
+
+sealed interface BookmarkLandingUiState {
+    object Loading : BookmarkLandingUiState
+    object RootNotConfigured : BookmarkLandingUiState
+    data class PermissionDenied(val message: String) : BookmarkLandingUiState
+    object EmptyNoCollections : BookmarkLandingUiState
     data class Success(
-        val rootUriString: String,
-        val collections: List<BookmarkEntity>,
-        val selectedCollection: BookmarkEntity?,
-        val bookmarkedComics: List<ComicEntity>,
+        val collections: List<BookmarkEntity>
+    ) : BookmarkLandingUiState
+    data class Error(val message: String) : BookmarkLandingUiState
+
+    companion object {
+        val EmptyNoCollections = BookmarkLandingUiState.EmptyNoCollections
+        fun Error(message: String) = BookmarkLandingUiState.Error(message)
+    }
+}
+
+/**
+ * UI State for Collection Detail Screen (Task 12.7 / K-36).
+ */
+sealed interface CollectionDetailUiState {
+    object Loading : CollectionDetailUiState
+    object RootNotConfigured : CollectionDetailUiState
+    data class PermissionDenied(val message: String) : CollectionDetailUiState
+    object CollectionNotFound : CollectionDetailUiState
+    data class Success(
+        val collection: BookmarkEntity,
+        val comics: List<ComicEntity>,
         val gridColumns: Int = 3,
         val statusFilter: BookmarkStatusFilter = BookmarkStatusFilter.ALL,
         val sortOption: BookmarkSortOption = BookmarkSortOption.TITLE_ASC,
         val searchQuery: String = "",
         val selectedComicIds: Set<Long> = emptySet(),
         val isSelectionMode: Boolean = false
-    ) : BookmarkUiState
-    data class Error(val message: String) : BookmarkUiState
+    ) : CollectionDetailUiState
+    data class Error(val message: String) : CollectionDetailUiState
 }

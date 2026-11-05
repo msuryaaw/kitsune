@@ -1,37 +1,28 @@
 package com.example.kitsune.ui.screens.bookmark
 
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.drawable.BitmapDrawable
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.BookmarkBorder
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FolderOff
-import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
@@ -39,64 +30,47 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.painter.BitmapPainter
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import coil.imageLoader
-import coil.request.ImageRequest
-import coil.request.SuccessResult
-import com.example.kitsune.data.CoverCacheResult
-import com.example.kitsune.data.entity.ComicEntity
+import com.example.kitsune.data.entity.BookmarkEntity
 import com.example.kitsune.ui.components.KitsuneEmptyState
-import com.example.kitsune.ui.components.KitsunePrimaryButton
-import com.example.kitsune.ui.components.KitsuneSearchField
 import com.example.kitsune.ui.components.KitsuneSectionHeading
-import com.example.kitsune.ui.screens.library.CoverUiState
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.withContext
-import java.io.File
+import com.example.kitsune.ui.theme.ComponentShapes
 
+/**
+ * Root Bookmarks Landing Screen (Task 12.7 / K-36).
+ * Displays all user-created collections as cards.
+ * When a card is clicked, navigates to Collection Detail.
+ */
 @Composable
 fun BookmarkScreen(
     viewModel: BookmarkViewModel,
-    onComicClick: (Long) -> Unit,
+    onCollectionClick: (Long) -> Unit,
     onNavigateToSettings: () -> Unit,
-    onOpenLibraryClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showCreateDialog by remember { mutableStateOf(false) }
 
     if (showCreateDialog) {
-        CreateCollectionDialog(
+        CreateBookmarkCollectionDialog(
             onConfirm = { name ->
-                viewModel.createCollection(name)
+                viewModel.createCollection(name) { newId ->
+                    onCollectionClick(newId)
+                }
                 showCreateDialog = false
             },
             onDismiss = { showCreateDialog = false }
@@ -109,39 +83,37 @@ fun BookmarkScreen(
             .padding(16.dp)
     ) {
         when (val state = uiState) {
-            is BookmarkUiState.Loading -> {
+            is BookmarkLandingUiState.Loading -> {
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
             }
-            is BookmarkUiState.RootNotConfigured -> {
+            is BookmarkLandingUiState.RootNotConfigured -> {
                 BookmarkRootNotConfiguredView(
                     onNavigateToSettings = onNavigateToSettings,
                     modifier = Modifier.align(Alignment.Center)
                 )
             }
-            is BookmarkUiState.PermissionDenied -> {
+            is BookmarkLandingUiState.PermissionDenied -> {
                 BookmarkPermissionDeniedView(
                     message = state.message,
                     onNavigateToSettings = onNavigateToSettings,
                     modifier = Modifier.align(Alignment.Center)
                 )
             }
-            is BookmarkUiState.EmptyNoCollections -> {
+            is BookmarkLandingUiState.EmptyNoCollections -> {
                 BookmarkEmptyNoCollectionsView(
                     onCreateCollectionClick = { showCreateDialog = true },
                     modifier = Modifier.align(Alignment.Center)
                 )
             }
-            is BookmarkUiState.Success -> {
-                BookmarkSuccessView(
-                    state = state,
+            is BookmarkLandingUiState.Success -> {
+                BookmarkLandingSuccessView(
+                    collections = state.collections,
                     viewModel = viewModel,
-                    onComicClick = onComicClick,
-                    onCreateCollectionClick = { showCreateDialog = true },
-                    onOpenLibraryClick = onOpenLibraryClick,
-                    onGridColumnsChange = { columns -> viewModel.setGridColumns(columns) }
+                    onCollectionClick = onCollectionClick,
+                    onCreateCollectionClick = { showCreateDialog = true }
                 )
             }
-            is BookmarkUiState.Error -> {
+            is BookmarkLandingUiState.Error -> {
                 BookmarkErrorView(
                     message = state.message,
                     modifier = Modifier.align(Alignment.Center)
@@ -151,272 +123,181 @@ fun BookmarkScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun BookmarkSuccessView(
-    state: BookmarkUiState.Success,
+private fun BookmarkLandingSuccessView(
+    collections: List<BookmarkEntity>,
     viewModel: BookmarkViewModel,
-    onComicClick: (Long) -> Unit,
+    onCollectionClick: (Long) -> Unit,
     onCreateCollectionClick: () -> Unit,
-    onOpenLibraryClick: () -> Unit,
-    onGridColumnsChange: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var showRemoveConfirmationDialog by remember { mutableStateOf(false) }
-    var showSortAndGridSheet by remember { mutableStateOf(false) }
+    var collectionToRename by remember { mutableStateOf<BookmarkEntity?>(null) }
+    var collectionToDelete by remember { mutableStateOf<BookmarkEntity?>(null) }
 
-    if (showRemoveConfirmationDialog && state.selectedCollection != null) {
-        RemoveFromBookmarkConfirmationDialog(
-            count = state.selectedComicIds.size,
-            collectionName = state.selectedCollection.name,
-            onConfirm = {
-                viewModel.bulkRemoveFromCollection(state.selectedCollection.id)
-                showRemoveConfirmationDialog = false
+    collectionToRename?.let { col ->
+        RenameBookmarkCollectionDialog(
+            collection = col,
+            onConfirm = { newName ->
+                viewModel.renameCollection(col.id, newName)
+                collectionToRename = null
             },
-            onDismiss = { showRemoveConfirmationDialog = false }
+            onDismiss = { collectionToRename = null }
         )
     }
 
-    if (showSortAndGridSheet) {
-        SortAndGridBottomSheet(
-            currentSort = state.sortOption,
-            currentGrid = state.gridColumns,
-            onSortSelected = { sort ->
-                viewModel.setSortOption(sort)
-                showSortAndGridSheet = false
+    collectionToDelete?.let { col ->
+        DeleteBookmarkCollectionConfirmationDialog(
+            collection = col,
+            onConfirm = {
+                viewModel.deleteCollection(col.id)
+                collectionToDelete = null
             },
-            onGridSelected = { cols ->
-                onGridColumnsChange(cols)
-                showSortAndGridSheet = false
-            },
-            onDismiss = { showSortAndGridSheet = false }
+            onDismiss = { collectionToDelete = null }
         )
     }
 
     Column(modifier = modifier.fillMaxSize()) {
-        if (state.isSelectionMode) {
-            BookmarkSelectionActionBar(
-                selectedCount = state.selectedComicIds.size,
-                allCount = state.bookmarkedComics.size,
-                onSelectAll = { viewModel.selectAllComics(state.bookmarkedComics.map { it.id }) },
-                onClear = { viewModel.clearSelection() },
-                onRemoveFromCollection = { showRemoveConfirmationDialog = true }
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-        } else {
-            // Header Row with Title & Create Collection Action
-            KitsuneSectionHeading(
-                title = "Bookmarks",
-                modifier = Modifier.padding(bottom = 8.dp),
-                action = {
-                    IconButton(onClick = onCreateCollectionClick) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = "Create Collection"
-                        )
-                    }
-                }
-            )
-
-            // Search Bar
-            KitsuneSearchField(
-                value = state.searchQuery,
-                onValueChange = { viewModel.onSearchQueryChanged(it) },
-                placeholder = "Search titles or authors",
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-
-            // User Collections Selector Row (LazyRow)
-            LazyRow(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                items(state.collections, key = { it.id }) { collection ->
-                    FilterChip(
-                        selected = state.selectedCollection?.id == collection.id,
-                        onClick = { viewModel.selectCollection(collection.id) },
-                        label = { Text(collection.name) }
-                    )
-                }
-            }
-
-            // Status Filters Row (All, Completed, Not Completed) per Decision K-26
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                BookmarkStatusFilter.entries.forEach { filter ->
-                    FilterChip(
-                        selected = state.statusFilter == filter,
-                        onClick = { viewModel.setStatusFilter(filter) },
-                        label = { Text(filter.displayName) }
-                    )
-                }
-            }
-
-            // Controls & Count Bar
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "${state.bookmarkedComics.size} manga in ${state.selectedCollection?.name ?: "Collection"}",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-
-                OutlinedButton(
-                    onClick = { showSortAndGridSheet = true },
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
-                ) {
+        KitsuneSectionHeading(
+            title = "Bookmarks",
+            modifier = Modifier.padding(bottom = 12.dp),
+            action = {
+                IconButton(onClick = onCreateCollectionClick) {
                     Icon(
-                        imageVector = Icons.Default.GridView,
-                        contentDescription = "Sort and Grid Settings",
-                        modifier = Modifier.padding(end = 4.dp)
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Create Collection"
                     )
-                    Text("Sort & Grid")
                 }
             }
+        )
 
-            Spacer(modifier = Modifier.height(8.dp))
-        }
-
-        if (state.bookmarkedComics.isEmpty()) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(bottom = 16.dp)
+        ) {
+            itemsIndexed(collections, key = { _, col -> col.id }) { index, col ->
+                BookmarkCollectionCard(
+                    collection = col,
+                    canMoveUp = index > 0,
+                    canMoveDown = index < collections.size - 1,
+                    onClick = { onCollectionClick(col.id) },
+                    onMoveUp = {
+                        val mutable = collections.toMutableList()
+                        val temp = mutable[index]
+                        mutable[index] = mutable[index - 1]
+                        mutable[index - 1] = temp
+                        viewModel.reorderCollections(mutable)
+                    },
+                    onMoveDown = {
+                        val mutable = collections.toMutableList()
+                        val temp = mutable[index]
+                        mutable[index] = mutable[index + 1]
+                        mutable[index + 1] = temp
+                        viewModel.reorderCollections(mutable)
+                    },
+                    onRename = { collectionToRename = col },
+                    onDelete = { collectionToDelete = col }
                 )
-            ) {
-                if (state.searchQuery.isNotBlank() || state.statusFilter != BookmarkStatusFilter.ALL) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(24.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = if (state.searchQuery.isNotBlank()) {
-                                "No manga matching \"${state.searchQuery}\""
-                            } else {
-                                "No ${state.statusFilter.displayName.lowercase()} manga in ${state.selectedCollection?.name ?: "collection"}"
-                            },
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                } else {
-                    KitsuneEmptyState(
-                        icon = Icons.AutoMirrored.Filled.MenuBook,
-                        title = "Collection is empty",
-                        message = "This collection does not contain any manga yet. Add manga to '${state.selectedCollection?.name ?: "Collection"}' from your Library or Comic Detail.",
-                        actionText = "Open Library",
-                        onAction = onOpenLibraryClick,
-                        modifier = Modifier.padding(16.dp)
-                    )
-                }
-            }
-        } else {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(state.gridColumns.coerceIn(2, 4)),
-                modifier = Modifier.fillMaxSize(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(bottom = 16.dp)
-            ) {
-                items(
-                    items = state.bookmarkedComics,
-                    key = { it.id }
-                ) { comic ->
-                    BookmarkComicGridCard(
-                        comic = comic,
-                        isSelected = state.selectedComicIds.contains(comic.id),
-                        isSelectionMode = state.isSelectionMode,
-                        viewModel = viewModel,
-                        onClick = { onComicClick(comic.id) }
-                    )
-                }
             }
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SortAndGridBottomSheet(
-    currentSort: BookmarkSortOption,
-    currentGrid: Int,
-    onSortSelected: (BookmarkSortOption) -> Unit,
-    onGridSelected: (Int) -> Unit,
-    onDismiss: () -> Unit
+fun BookmarkCollectionCard(
+    collection: BookmarkEntity,
+    canMoveUp: Boolean,
+    canMoveDown: Boolean,
+    onClick: () -> Unit,
+    onMoveUp: () -> Unit,
+    onMoveDown: () -> Unit,
+    onRename: () -> Unit,
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = ComponentShapes.card,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = "Sort & grid",
-                style = MaterialTheme.typography.titleLarge
-            )
-
-            Text(
-                text = "Sort by",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary
-            )
-
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                BookmarkSortOption.entries.forEach { option ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onSortSelected(option) }
-                            .padding(vertical = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(text = option.displayName, style = MaterialTheme.typography.bodyLarge)
-                        RadioButton(
-                            selected = currentSort == option,
-                            onClick = { onSortSelected(option) }
-                        )
-                    }
-                }
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.BookmarkBorder,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = collection.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
             }
 
-            Text(
-                text = "Columns",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary
-            )
-
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(2, 3, 4).forEach { cols ->
-                    FilterChip(
-                        selected = currentGrid == cols,
-                        onClick = { onGridSelected(cols) },
-                        label = { Text("${cols}x") }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(
+                    onClick = onMoveUp,
+                    enabled = canMoveUp
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.KeyboardArrowUp,
+                        contentDescription = "Move Up"
                     )
                 }
-            }
 
-            Spacer(modifier = Modifier.height(16.dp))
+                IconButton(
+                    onClick = onMoveDown,
+                    enabled = canMoveDown
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.KeyboardArrowDown,
+                        contentDescription = "Move Down"
+                    )
+                }
+
+                IconButton(onClick = onRename) {
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = "Rename Collection"
+                    )
+                }
+
+                IconButton(onClick = onDelete) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Delete Collection",
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                }
+
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+                    contentDescription = "Open Collection",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 4.dp)
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun CreateCollectionDialog(
+fun CreateBookmarkCollectionDialog(
     onConfirm: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -470,133 +351,73 @@ private fun CreateCollectionDialog(
     )
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun BookmarkComicGridCard(
-    comic: ComicEntity,
-    isSelected: Boolean,
-    isSelectionMode: Boolean,
-    viewModel: BookmarkViewModel,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
+fun RenameBookmarkCollectionDialog(
+    collection: BookmarkEntity,
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit
 ) {
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .combinedClickable(
-                onClick = {
-                    if (isSelectionMode) {
-                        viewModel.toggleComicSelection(comic.id)
-                    } else {
-                        onClick()
-                    }
-                },
-                onLongClick = {
-                    viewModel.toggleComicSelection(comic.id)
-                }
-            ),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Box {
+    var nameText by remember { mutableStateOf(collection.name) }
+    var isError by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Rename Collection") },
+        text = {
             Column {
-                BookmarkCoverImage(
-                    comic = comic,
-                    viewModel = viewModel
+                OutlinedTextField(
+                    value = nameText,
+                    onValueChange = {
+                        nameText = it
+                        if (it.isNotBlank()) isError = false
+                    },
+                    label = { Text("New Name") },
+                    isError = isError,
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
                 )
-                Column(modifier = Modifier.padding(8.dp)) {
+                if (isError) {
                     Text(
-                        text = comic.title,
-                        style = MaterialTheme.typography.titleSmall,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
+                        text = "Collection name cannot be empty",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.padding(top = 4.dp)
                     )
                 }
             }
-            if (isSelected) {
-                Icon(
-                    imageVector = Icons.Default.CheckCircle,
-                    contentDescription = "Selected",
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(8.dp)
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun BookmarkSelectionActionBar(
-    selectedCount: Int,
-    allCount: Int,
-    onSelectAll: () -> Unit,
-    onClear: () -> Unit,
-    onRemoveFromCollection: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer
-        )
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "$selectedCount / $allCount Selected",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onPrimaryContainer
-            )
-
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (nameText.isBlank()) {
+                        isError = true
+                    } else {
+                        onConfirm(nameText.trim())
+                    }
+                }
             ) {
-                androidx.compose.material3.TextButton(onClick = onSelectAll) {
-                    Text("Select All")
-                }
-                Button(
-                    onClick = onRemoveFromCollection,
-                    enabled = selectedCount > 0,
-                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error
-                    )
-                ) {
-                    Text("Remove from Collection")
-                }
-                IconButton(onClick = onClear) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Clear Selection",
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                }
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
             }
         }
-    }
+    )
 }
 
 @Composable
-private fun RemoveFromBookmarkConfirmationDialog(
-    count: Int,
-    collectionName: String,
+fun DeleteBookmarkCollectionConfirmationDialog(
+    collection: BookmarkEntity,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Remove from Collection") },
+        title = { Text("Delete Collection") },
         text = {
-            Text("Are you sure you want to remove $count selected comic(s) from collection '$collectionName'? Comics will NOT be deleted from your device storage.")
+            Text("Are you sure you want to delete collection '${collection.name}'? Manga in this collection will NOT be deleted from device storage.")
         },
         confirmButton = {
             Button(
@@ -605,116 +426,15 @@ private fun RemoveFromBookmarkConfirmationDialog(
                     containerColor = MaterialTheme.colorScheme.error
                 )
             ) {
-                Text("Remove")
+                Text("Delete")
             }
         },
         dismissButton = {
-            androidx.compose.material3.TextButton(onClick = onDismiss) {
+            TextButton(onClick = onDismiss) {
                 Text("Cancel")
             }
         }
     )
-}
-
-@Composable
-private fun BookmarkCoverImage(
-    comic: ComicEntity,
-    viewModel: BookmarkViewModel,
-    modifier: Modifier = Modifier
-) {
-    val context = LocalContext.current
-    val coverState by produceState<CoverUiState>(
-        initialValue = CoverUiState.Loading,
-        key1 = comic.id,
-        key2 = comic.coverEntryPath,
-        key3 = comic.lastScannedAt
-    ) {
-        var acquiredFile: File? = null
-        try {
-            val cacheResult = viewModel.getCoverFile(comic.id)
-            val file = when (cacheResult) {
-                is CoverCacheResult.Hit -> cacheResult.file
-                is CoverCacheResult.Success -> cacheResult.file
-                else -> null
-            }
-
-            if (file == null || !file.isFile || !file.exists()) {
-                value = CoverUiState.Unavailable
-                return@produceState
-            }
-
-            acquiredFile = file
-
-            val request = ImageRequest.Builder(context)
-                .data(file)
-                .size(300, 420)
-                .build()
-
-            val imageLoader = context.imageLoader
-            val result = imageLoader.execute(request)
-
-            if (result is SuccessResult) {
-                val drawable = result.drawable
-                val bitmap = when (drawable) {
-                    is BitmapDrawable -> drawable.bitmap
-                    else -> {
-                        val width = drawable.intrinsicWidth.coerceAtLeast(1)
-                        val height = drawable.intrinsicHeight.coerceAtLeast(1)
-                        val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-                        val canvas = Canvas(bmp)
-                        drawable.setBounds(0, 0, width, height)
-                        drawable.draw(canvas)
-                        bmp
-                    }
-                }
-                value = CoverUiState.Loaded(bitmap.asImageBitmap())
-            } else {
-                value = CoverUiState.Error
-            }
-        } catch (ce: CancellationException) {
-            throw ce
-        } catch (_: Exception) {
-            value = CoverUiState.Error
-        } finally {
-            acquiredFile?.let { file ->
-                withContext(NonCancellable) {
-                    viewModel.releaseCoverFile(file)
-                }
-            }
-        }
-    }
-
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .aspectRatio(0.7f),
-        contentAlignment = Alignment.Center
-    ) {
-        when (val state = coverState) {
-            is CoverUiState.Loaded -> {
-                Image(
-                    painter = BitmapPainter(state.imageBitmap),
-                    contentDescription = "Cover for ${comic.title}",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
-            else -> {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.surfaceVariant
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.MenuBook,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-        }
-    }
 }
 
 @Composable

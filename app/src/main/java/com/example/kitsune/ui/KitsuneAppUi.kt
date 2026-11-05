@@ -153,11 +153,40 @@ fun KitsuneApp(
                 )
                 com.example.kitsune.ui.screens.bookmark.BookmarkScreen(
                     viewModel = bookmarkViewModel,
-                    onComicClick = { comicId ->
-                        navController.navigate(KitsuneDestinations.comicDetailRoute(comicId))
+                    onCollectionClick = { collectionId ->
+                        navController.navigate(KitsuneDestinations.bookmarkDetailRoute(collectionId))
                     },
                     onNavigateToSettings = {
                         navController.navigate(KitsuneDestinations.SETTINGS_ROUTE)
+                    }
+                )
+            }
+            composable(
+                route = KitsuneDestinations.BOOKMARK_DETAIL_ROUTE,
+                arguments = listOf(
+                    navArgument("collectionId") { type = NavType.LongType }
+                )
+            ) { backStackEntry ->
+                val collectionId = backStackEntry.arguments?.getLong("collectionId") ?: 0L
+                val detailViewModel: com.example.kitsune.ui.screens.bookmark.CollectionDetailViewModel = viewModel(
+                    key = "collection_detail_$collectionId",
+                    factory = com.example.kitsune.ui.screens.bookmark.CollectionDetailViewModel.Factory(
+                        collectionId = collectionId,
+                        libraryRepository = appContainer.libraryRepository,
+                        rootFolderPreferences = appContainer.rootFolderPreferences,
+                        settingsRepository = appContainer.settingsRepository
+                    )
+                )
+                com.example.kitsune.ui.screens.bookmark.CollectionDetailScreen(
+                    viewModel = detailViewModel,
+                    onComicClick = { comicId ->
+                        navController.navigate(KitsuneDestinations.comicDetailRoute(comicId))
+                    },
+                    onBackClick = {
+                        navController.popBackStack()
+                    },
+                    onOpenLibraryClick = {
+                        navController.navigate(KitsuneDestinations.LIBRARY_ROUTE)
                     }
                 )
             }

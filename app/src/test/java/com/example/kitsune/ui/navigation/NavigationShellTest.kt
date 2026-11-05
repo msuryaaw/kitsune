@@ -42,6 +42,15 @@ class NavigationShellTest {
 
         assertEquals("comic_detail/123", KitsuneDestinations.comicDetailRoute(123L))
         assertEquals("reader/456", KitsuneDestinations.readerRoute(456L))
+        assertEquals("bookmark_detail/{collectionId}", KitsuneDestinations.BOOKMARK_DETAIL_ROUTE)
+        assertEquals("bookmark_detail/789", KitsuneDestinations.bookmarkDetailRoute(789L))
+    }
+
+    @Test
+    fun topLevelDestination_fromRoute_mapsBookmarkDetailToBookmarksTab() {
+        // Ensures that navigating to child Collection Detail keeps Bookmarks bottom navigation tab highlighted
+        val detailDest = TopLevelDestination.fromRoute("bookmark_detail/42")
+        assertEquals(TopLevelDestination.BOOKMARKS, detailDest)
     }
 
     @Test

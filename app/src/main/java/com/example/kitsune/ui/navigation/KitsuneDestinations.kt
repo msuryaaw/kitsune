@@ -22,7 +22,11 @@ enum class TopLevelDestination(
 
     companion object {
         fun fromRoute(route: String?): TopLevelDestination =
-            entries.firstOrNull { it.route == route } ?: HOME
+            when {
+                route == null -> HOME
+                route == BOOKMARKS.route || route.startsWith("bookmark_detail/") -> BOOKMARKS
+                else -> entries.firstOrNull { it.route == route } ?: HOME
+            }
     }
 }
 
@@ -35,9 +39,11 @@ object KitsuneDestinations {
     const val SETTINGS_ROUTE = "settings"
     const val LIBRARY_ROUTE = "library"
     const val HISTORY_ROUTE = "history"
+    const val BOOKMARK_DETAIL_ROUTE = "bookmark_detail/{collectionId}"
     const val COMIC_DETAIL_ROUTE = "comic_detail/{comicId}"
     const val READER_ROUTE = "reader/{chapterId}"
 
+    fun bookmarkDetailRoute(collectionId: Long): String = "bookmark_detail/$collectionId"
     fun comicDetailRoute(comicId: Long): String = "comic_detail/$comicId"
     fun readerRoute(chapterId: Long): String = "reader/$chapterId"
 }

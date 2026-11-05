@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.DeleteOutline
@@ -49,6 +50,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.layout.ContentScale
@@ -62,6 +65,8 @@ import coil.request.SuccessResult
 import com.example.kitsune.data.CoverCacheResult
 import com.example.kitsune.data.entity.ComicEntity
 import com.example.kitsune.data.model.ComicWithProgress
+import com.example.kitsune.ui.components.KitsuneEmptyState
+import com.example.kitsune.ui.components.KitsunePrimaryButton
 import com.example.kitsune.ui.screens.library.CoverUiState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
@@ -182,10 +187,18 @@ private fun HistorySuccessView(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
-            Text(
-                text = "History",
-                style = MaterialTheme.typography.displayLarge
-            )
+            Column {
+                Text(
+                    text = "History",
+                    style = MaterialTheme.typography.displayLarge
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "Right where you left off.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
 
         groups.forEach { group ->
@@ -229,87 +242,86 @@ private fun HistoryItemCard(
             .clickable(onClick = onClick),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        )
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Box(
-                modifier = Modifier
-                    .width(72.dp)
-                    .aspectRatio(0.7f)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.Top
             ) {
-                HistoryCoverImage(
-                    comic = item.comic,
-                    viewModel = viewModel
-                )
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
-                Text(
-                    text = item.comic.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                Spacer(modifier = Modifier.height(2.dp))
-
-                val timestamp = item.comic.lastReadAt ?: item.progress?.updatedAt
-                if (timestamp != null && timestamp > 0L) {
-                    val timeFormat = DateFormat.getTimeInstance(DateFormat.SHORT)
-                    Text(
-                        text = timeFormat.format(Date(timestamp)),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                Box(
+                    modifier = Modifier
+                        .width(104.dp)
+                        .aspectRatio(0.70f)
+                ) {
+                    HistoryCoverImage(
+                        comic = item.comic,
+                        viewModel = viewModel
                     )
                 }
 
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.width(14.dp))
 
-                item.progress?.let { progress ->
-                    val pageNumber = progress.pageIndex + 1
-                    Text(
-                        text = "Chapter ${progress.lastReadChapterNumber} • Page $pageNumber",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = item.comic.title,
+                            style = MaterialTheme.typography.titleMedium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                        IconButton(onClick = onDeleteClick) {
+                            Icon(
+                                imageVector = Icons.Default.DeleteOutline,
+                                contentDescription = "Delete Comic History",
+                                tint = MaterialTheme.colorScheme.outline
+                            )
+                        }
+                    }
+
+                    val timestamp = item.comic.lastReadAt ?: item.progress?.updatedAt
+                    if (timestamp != null && timestamp > 0L) {
+                        val timeFormat = DateFormat.getTimeInstance(DateFormat.SHORT)
+                        Text(
+                            text = timeFormat.format(Date(timestamp)),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+
+                    item.progress?.let { progress ->
+                        val chapterName = "Chapter ${progress.lastReadChapterNumber}"
+                        val pageNumber = progress.pageIndex + 1
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "$chapterName • Page $pageNumber",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.width(6.dp))
-
-            IconButton(onClick = onDeleteClick) {
-                Icon(
-                    imageVector = Icons.Default.DeleteOutline,
-                    contentDescription = "Delete Comic History",
-                    tint = MaterialTheme.colorScheme.outline
-                )
-            }
-
-            Button(
+            KitsunePrimaryButton(
+                text = "Continue Reading",
                 onClick = onContinueClick,
-                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.PlayArrow,
-                    contentDescription = null,
-                    modifier = Modifier.padding(end = 4.dp)
-                )
-                Text("Continue", style = MaterialTheme.typography.labelMedium)
-            }
+                leadingIcon = Icons.Default.PlayArrow
+            )
         }
     }
 }
@@ -410,7 +422,8 @@ private fun HistoryCoverImage(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .aspectRatio(0.7f),
+            .aspectRatio(0.70f)
+            .clip(RoundedCornerShape(8.dp)),
         contentAlignment = Alignment.Center
     ) {
         when (val state = coverState) {
@@ -448,35 +461,17 @@ private fun HistoryEmptyView(
     Card(
         modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
+            containerColor = MaterialTheme.colorScheme.surface
         )
     ) {
-        Column(
-            modifier = Modifier.padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Icon(
-                imageVector = Icons.Default.History,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.height(40.dp)
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(
-                text = "Your reading history is clean",
-                style = MaterialTheme.typography.titleMedium
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "Explore your Library to start reading your favorite manga.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Button(onClick = onOpenLibraryClick) {
-                Text("Open Library")
-            }
-        }
+        KitsuneEmptyState(
+            icon = Icons.AutoMirrored.Filled.MenuBook,
+            title = "Every story starts somewhere",
+            message = "The manga you read will appear here, with your last page saved. Start a chapter from your library.",
+            actionText = "Open Library",
+            onAction = onOpenLibraryClick,
+            modifier = Modifier.padding(16.dp)
+        )
     }
 }
 

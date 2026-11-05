@@ -31,6 +31,7 @@ import com.example.kitsune.reader.PageIndexResult
 import com.example.kitsune.reader.PageMetadata
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -697,5 +698,18 @@ class HistoryViewModelTest {
 
         eventJob.cancel()
         collectJob.cancel()
+    }
+
+    @Test
+    fun getCoverFile_andReleaseCoverFile_executeWithoutError() = runTest {
+        val rootUri = "content://root"
+        fakeRootPrefs.rootUriFlow.value = rootUri
+        viewModel = HistoryViewModel(fakeRepo, fakeRootPrefs)
+
+        val cacheResult = viewModel.getCoverFile(1L)
+        assertNotNull(cacheResult)
+
+        val tempFile = tempFolder.newFile("test_history_cover.tmp")
+        viewModel.releaseCoverFile(tempFile)
     }
 }

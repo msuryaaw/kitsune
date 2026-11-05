@@ -61,6 +61,8 @@ import com.example.kitsune.data.LibraryRepository
 import com.example.kitsune.data.SettingsRepository
 import com.example.kitsune.ui.components.KitsuneSectionHeading
 import com.example.kitsune.ui.components.KitsuneSegmentedControl
+import com.example.kitsune.ui.theme.ComponentShapes
+import com.example.kitsune.ui.theme.Spacing
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 
@@ -149,8 +151,11 @@ fun SettingsScreen(
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp, vertical = 18.dp),
-        verticalArrangement = Arrangement.spacedBy(22.dp)
+            .padding(
+                horizontal = Spacing.screenHorizontalPadding,
+                vertical = Spacing.screenVerticalPadding
+            ),
+        verticalArrangement = Arrangement.spacedBy(Spacing.extraLarge)
     ) {
         Text(
             text = "Settings",
@@ -158,16 +163,17 @@ fun SettingsScreen(
         )
 
         // Section 1 — Storage Management
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.medium)) {
             KitsuneSectionHeading(title = "Storage Management")
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
+                shape = ComponentShapes.card,
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surface
                 )
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Column(modifier = Modifier.padding(Spacing.large)) {
                     when (val state = folderState) {
                         is RootFolderState.NotConfigured -> {
                             Text(
@@ -327,21 +333,22 @@ fun SettingsScreen(
         }
 
         // Section 2 — Reader Preferences
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.medium)) {
             KitsuneSectionHeading(title = "Reader Preferences")
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
+                shape = ComponentShapes.card,
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surface
                 )
             ) {
                 Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                    modifier = Modifier.padding(Spacing.large),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.large)
                 ) {
                     // Reading Mode
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(Spacing.extraSmall)) {
                         Text(
                             text = "Reading mode",
                             style = MaterialTheme.typography.titleSmall,
@@ -352,7 +359,7 @@ fun SettingsScreen(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        Spacer(modifier = Modifier.height(2.dp))
+                        Spacer(modifier = Modifier.height(Spacing.extraSmall))
                         KitsuneSegmentedControl(
                             options = listOf(
                                 "single_page" to "Single Page",
@@ -366,7 +373,7 @@ fun SettingsScreen(
                     }
 
                     // Reading Direction
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(Spacing.extraSmall)) {
                         Text(
                             text = "Reading direction",
                             style = MaterialTheme.typography.titleSmall,
@@ -377,7 +384,7 @@ fun SettingsScreen(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        Spacer(modifier = Modifier.height(2.dp))
+                        Spacer(modifier = Modifier.height(Spacing.extraSmall))
                         KitsuneSegmentedControl(
                             options = listOf("ltr" to "LTR", "rtl" to "RTL"),
                             selected = settingsState.readingDirection,
@@ -388,7 +395,7 @@ fun SettingsScreen(
                     }
 
                     // Page Fit
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(Spacing.extraSmall)) {
                         Text(
                             text = "Page fit",
                             style = MaterialTheme.typography.titleSmall,
@@ -399,7 +406,7 @@ fun SettingsScreen(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        Spacer(modifier = Modifier.height(2.dp))
+                        Spacer(modifier = Modifier.height(Spacing.extraSmall))
                         KitsuneSegmentedControl(
                             options = listOf(
                                 "fit_screen" to "Fit Screen",
@@ -443,21 +450,22 @@ fun SettingsScreen(
         }
 
         // Section 3 — Display & Grid
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.medium)) {
             KitsuneSectionHeading(title = "Display & Grid")
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
+                shape = ComponentShapes.card,
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surface
                 )
             ) {
                 Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                    modifier = Modifier.padding(Spacing.large),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.large)
                 ) {
                     // App Theme (Dark & System ONLY per locked specs)
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(Spacing.extraSmall)) {
                         Text(
                             text = "Theme",
                             style = MaterialTheme.typography.titleSmall,
@@ -468,7 +476,7 @@ fun SettingsScreen(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        Spacer(modifier = Modifier.height(2.dp))
+                        Spacer(modifier = Modifier.height(Spacing.extraSmall))
                         KitsuneSegmentedControl(
                             options = listOf("dark" to "Dark", "system" to "System"),
                             selected = if (settingsState.theme == "light") "system" else settingsState.theme,
@@ -479,7 +487,7 @@ fun SettingsScreen(
                     }
 
                     // Library Grid Columns
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(Spacing.extraSmall)) {
                         Text(
                             text = "Library grid",
                             style = MaterialTheme.typography.titleSmall,
@@ -490,7 +498,7 @@ fun SettingsScreen(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        Spacer(modifier = Modifier.height(2.dp))
+                        Spacer(modifier = Modifier.height(Spacing.extraSmall))
                         KitsuneSegmentedControl(
                             options = listOf(2 to "2 columns", 3 to "3 columns", 4 to "4 columns"),
                             selected = settingsState.gridColumns,
@@ -504,27 +512,28 @@ fun SettingsScreen(
         }
 
         // Section 4 — Bookmark Manager
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.medium)) {
             KitsuneSectionHeading(title = "Bookmark Manager")
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
+                shape = ComponentShapes.card,
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surface
                 )
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Column(modifier = Modifier.padding(Spacing.large)) {
                     Text(
                         text = "Collection Management",
                         style = MaterialTheme.typography.titleMedium
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(Spacing.extraSmall))
                     Text(
                         text = "Manage, create, rename, and reorder your Bookmark collections.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(Spacing.medium))
                     Button(
                         onClick = { showBookmarkManagerDialog = true }
                     ) {
@@ -666,6 +675,7 @@ private fun BookmarkManagerDialog(
                         itemsIndexed(collections, key = { _, col -> col.id }) { index, col ->
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
+                                shape = ComponentShapes.card,
                                 colors = CardDefaults.cardColors(
                                     containerColor = MaterialTheme.colorScheme.surfaceVariant
                                 )

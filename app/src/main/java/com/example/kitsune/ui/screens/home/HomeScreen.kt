@@ -58,6 +58,8 @@ import com.example.kitsune.ui.components.KitsuneEmptyState
 import com.example.kitsune.ui.components.KitsunePrimaryButton
 import com.example.kitsune.ui.components.KitsuneSectionHeading
 import com.example.kitsune.ui.screens.library.CoverUiState
+import com.example.kitsune.ui.theme.ComponentShapes
+import com.example.kitsune.ui.theme.Spacing
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
@@ -117,16 +119,18 @@ private fun HomeSuccessContent(
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 24.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
+            .padding(
+                horizontal = Spacing.screenHorizontalPadding,
+                vertical = Spacing.screenVerticalPadding
+            ),
+        verticalArrangement = Arrangement.spacedBy(Spacing.extraLarge)
     ) {
         // App Header
-        Column {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.extraSmall)) {
             Text(
                 text = "Kitsune",
-                style = MaterialTheme.typography.displayLarge
+                style = MaterialTheme.typography.headlineMedium
             )
-            Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = "Your offline manga library",
                 style = MaterialTheme.typography.bodyMedium,
@@ -135,47 +139,51 @@ private fun HomeSuccessContent(
         }
 
         // Last Read Section
-        KitsuneSectionHeading(title = "Last Read")
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.medium)) {
+            KitsuneSectionHeading(title = "Last Read")
 
-        val lastRead = state.lastReadItem
-        if (lastRead == null) {
-            HomeLastReadEmptyCard(onOpenLibraryClick = onOpenLibraryClick)
-        } else {
-            HomeLastReadPopulatedCard(
-                lastRead = lastRead,
-                viewModel = viewModel,
-                onContinueReadingClick = onContinueReadingClick
-            )
+            val lastRead = state.lastReadItem
+            if (lastRead == null) {
+                HomeLastReadEmptyCard(onOpenLibraryClick = onOpenLibraryClick)
+            } else {
+                HomeLastReadPopulatedCard(
+                    lastRead = lastRead,
+                    viewModel = viewModel,
+                    onContinueReadingClick = onContinueReadingClick
+                )
+            }
         }
 
         // Shortcuts Section
-        KitsuneSectionHeading(title = "Shortcuts")
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.medium)) {
+            KitsuneSectionHeading(title = "Shortcuts")
 
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            ShortcutRow(
-                title = "Library",
-                subtitle = "Your local comics",
-                trailingInfo = "${state.libraryCount} local manga",
-                icon = Icons.AutoMirrored.Filled.MenuBook,
-                onClick = onOpenLibraryClick
-            )
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(Spacing.medium)
+            ) {
+                ShortcutRow(
+                    title = "Library",
+                    subtitle = "Your local comics",
+                    trailingInfo = "${state.libraryCount} local manga",
+                    icon = Icons.AutoMirrored.Filled.MenuBook,
+                    onClick = onOpenLibraryClick
+                )
 
-            val historyInfo = if (state.historyCount > 0) {
-                "${state.historyCount} recently read manga"
-            } else {
-                "No chapters read yet"
+                val historyInfo = if (state.historyCount > 0) {
+                    "${state.historyCount} recently read manga"
+                } else {
+                    "No chapters read yet"
+                }
+
+                ShortcutRow(
+                    title = "History",
+                    subtitle = "Your reading history",
+                    trailingInfo = historyInfo,
+                    icon = Icons.Default.History,
+                    onClick = onOpenHistoryClick
+                )
             }
-
-            ShortcutRow(
-                title = "History",
-                subtitle = "Your reading history",
-                trailingInfo = historyInfo,
-                icon = Icons.Default.History,
-                onClick = onOpenHistoryClick
-            )
         }
     }
 }
@@ -187,6 +195,7 @@ private fun HomeLastReadEmptyCard(
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
+        shape = ComponentShapes.cardLarge,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         )
@@ -197,7 +206,7 @@ private fun HomeLastReadEmptyCard(
             message = "Explore your Library to start reading your favorite manga.",
             actionText = "Open Library",
             onAction = onOpenLibraryClick,
-            modifier = Modifier.padding(16.dp)
+            modifier = Modifier.padding(Spacing.large)
         )
     }
 }
@@ -216,16 +225,17 @@ private fun HomeLastReadPopulatedCard(
 
     Card(
         modifier = modifier.fillMaxWidth(),
+        shape = ComponentShapes.cardLarge,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         )
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            modifier = Modifier.padding(Spacing.large),
+            verticalArrangement = Arrangement.spacedBy(Spacing.large)
         ) {
             Row(
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.large),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 // Cover Image
@@ -243,7 +253,7 @@ private fun HomeLastReadPopulatedCard(
                 // Metadata Column
                 Column(
                     modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                    verticalArrangement = Arrangement.spacedBy(Spacing.extraSmall)
                 ) {
                     Text(
                         text = "PICK UP YOUR STORY",
@@ -324,6 +334,7 @@ private fun ShortcutRow(
         modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
+        shape = ComponentShapes.card,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         )
@@ -331,17 +342,17 @@ private fun ShortcutRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(Spacing.large),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.medium),
                 modifier = Modifier.weight(1f)
             ) {
                 Surface(
-                    shape = RoundedCornerShape(12.dp),
+                    shape = ComponentShapes.card,
                     color = MaterialTheme.colorScheme.primaryContainer,
                     modifier = Modifier.size(40.dp)
                 ) {
@@ -455,7 +466,7 @@ private fun ComicCoverHomeImage(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .clip(RoundedCornerShape(8.dp)),
+            .clip(ComponentShapes.coverTile),
         contentAlignment = Alignment.Center
     ) {
         when (val state = coverState) {
@@ -492,12 +503,13 @@ private fun HomeErrorView(
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
+        shape = ComponentShapes.card,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.errorContainer
         )
     ) {
         Column(
-            modifier = Modifier.padding(24.dp),
+            modifier = Modifier.padding(Spacing.extraLarge),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Icon(
@@ -505,13 +517,13 @@ private fun HomeErrorView(
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onErrorContainer
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(Spacing.small))
             Text(
                 text = "Failed to load Home data",
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onErrorContainer
             )
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(Spacing.extraSmall))
             Text(
                 text = message,
                 style = MaterialTheme.typography.bodySmall,

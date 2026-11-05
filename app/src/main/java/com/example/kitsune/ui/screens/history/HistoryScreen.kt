@@ -77,7 +77,8 @@ fun HistoryScreen(
     onContinueReadingClick: (Long) -> Unit,
     onNavigateToSettings: () -> Unit,
     onOpenLibraryClick: () -> Unit = {},
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onBackClick: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -98,47 +99,57 @@ fun HistoryScreen(
         }
     }
 
-    Box(
+    Column(
         modifier = modifier
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        when (val state = uiState) {
-            is HistoryUiState.Loading -> {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-            }
-            is HistoryUiState.RootNotConfigured -> {
-                HistoryRootNotConfiguredView(
-                    onNavigateToSettings = onNavigateToSettings,
-                    modifier = Modifier.align(Alignment.Center)
-                )
-            }
-            is HistoryUiState.PermissionDenied -> {
-                HistoryPermissionDeniedView(
-                    message = state.message,
-                    onNavigateToSettings = onNavigateToSettings,
-                    modifier = Modifier.align(Alignment.Center)
-                )
-            }
-            is HistoryUiState.Empty -> {
-                HistoryEmptyView(
-                    onOpenLibraryClick = onOpenLibraryClick,
-                    modifier = Modifier.align(Alignment.Center)
-                )
-            }
-            is HistoryUiState.Success -> {
-                HistorySuccessView(
-                    groups = state.groups,
-                    viewModel = viewModel,
-                    onItemClick = { item -> viewModel.onComicClicked(item.comic.id) },
-                    onContinueClick = { item -> viewModel.onContinueReadingClicked(item) }
-                )
-            }
-            is HistoryUiState.Error -> {
-                HistoryErrorView(
-                    message = state.message,
-                    modifier = Modifier.align(Alignment.Center)
-                )
+        if (onBackClick != null) {
+            com.example.kitsune.ui.components.KitsuneBackToolbar(
+                title = "History",
+                onBack = onBackClick
+            )
+        }
+        Box(
+            modifier = Modifier.weight(1f).fillMaxWidth()
+        ) {
+            when (val state = uiState) {
+                is HistoryUiState.Loading -> {
+                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                }
+                is HistoryUiState.RootNotConfigured -> {
+                    HistoryRootNotConfiguredView(
+                        onNavigateToSettings = onNavigateToSettings,
+                        modifier = Modifier.align(Alignment.Center)
+                    )
+                }
+                is HistoryUiState.PermissionDenied -> {
+                    HistoryPermissionDeniedView(
+                        message = state.message,
+                        onNavigateToSettings = onNavigateToSettings,
+                        modifier = Modifier.align(Alignment.Center)
+                    )
+                }
+                is HistoryUiState.Empty -> {
+                    HistoryEmptyView(
+                        onOpenLibraryClick = onOpenLibraryClick,
+                        modifier = Modifier.align(Alignment.Center)
+                    )
+                }
+                is HistoryUiState.Success -> {
+                    HistorySuccessView(
+                        groups = state.groups,
+                        viewModel = viewModel,
+                        onItemClick = { item -> viewModel.onComicClicked(item.comic.id) },
+                        onContinueClick = { item -> viewModel.onContinueReadingClicked(item) }
+                    )
+                }
+                is HistoryUiState.Error -> {
+                    HistoryErrorView(
+                        message = state.message,
+                        modifier = Modifier.align(Alignment.Center)
+                    )
+                }
             }
         }
     }

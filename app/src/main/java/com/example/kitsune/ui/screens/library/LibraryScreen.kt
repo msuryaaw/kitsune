@@ -117,14 +117,24 @@ fun LibraryScreen(
     onComicClick: (Long) -> Unit,
     onNavigateToSettings: () -> Unit,
     modifier: Modifier = Modifier,
+    onBackClick: (() -> Unit)? = null
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    Box(
+    Column(
         modifier = modifier
             .fillMaxSize()
             .padding(16.dp),
     ) {
+        if (onBackClick != null) {
+            com.example.kitsune.ui.components.KitsuneBackToolbar(
+                title = "Library",
+                onBack = onBackClick
+            )
+        }
+        Box(
+            modifier = Modifier.weight(1f).fillMaxWidth()
+        ) {
         when (val state = uiState) {
             is LibraryUiState.Loading -> {
                 CircularProgressIndicator(
@@ -199,6 +209,7 @@ fun LibraryScreen(
             }
         }
     }
+}
 }
 
 @Composable

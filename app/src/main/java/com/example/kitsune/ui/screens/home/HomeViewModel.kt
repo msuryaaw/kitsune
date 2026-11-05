@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.kitsune.core.RootFolderPreferences
 import com.example.kitsune.data.CoverCacheResult
 import com.example.kitsune.data.LibraryRepository
+import java.io.File
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -80,6 +81,10 @@ class HomeViewModel(
 
     suspend fun getCoverFile(comicId: Long): CoverCacheResult =
         libraryRepository.getCoverFile(comicId)
+
+    suspend fun releaseCoverFile(file: File) {
+        libraryRepository.releaseCoverFile(file)
+    }
 
     class Factory(
         private val libraryRepository: LibraryRepository,

@@ -1,38 +1,74 @@
 package com.example.kitsune.ui.screens.home
 
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.drawable.BitmapDrawable
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.painter.BitmapPainter
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil.imageLoader
+import coil.request.ImageRequest
+import coil.request.SuccessResult
+import com.example.kitsune.data.CoverCacheResult
+import com.example.kitsune.data.entity.ComicEntity
+import com.example.kitsune.ui.components.KitsuneEmptyState
+import com.example.kitsune.ui.components.KitsunePrimaryButton
+import com.example.kitsune.ui.components.KitsuneSectionHeading
+import com.example.kitsune.ui.screens.library.CoverUiState
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
+import java.io.File
+
+sealed interface CoverDetailUiState {
+    object Loading : CoverDetailUiState
+    data class Loaded(val imageBitmap: ImageBitmap) : CoverDetailUiState
+    object Unavailable : CoverDetailUiState
+    object Error : CoverDetailUiState
+}
 
 @Composable
 fun HomeScreen(
@@ -58,6 +94,7 @@ fun HomeScreen(
             is HomeUiState.Success -> {
                 HomeSuccessContent(
                     state = state,
+                    viewModel = viewModel,
                     onOpenLibraryClick = onOpenLibraryClick,
                     onOpenHistoryClick = onOpenHistoryClick,
                     onContinueReadingClick = onContinueReadingClick
@@ -70,6 +107,7 @@ fun HomeScreen(
 @Composable
 private fun HomeSuccessContent(
     state: HomeUiState.Success,
+    viewModel: HomeViewModel,
     onOpenLibraryClick: () -> Unit,
     onOpenHistoryClick: () -> Unit,
     onContinueReadingClick: (Long) -> Unit,
@@ -79,8 +117,8 @@ private fun HomeSuccessContent(
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+            .padding(horizontal = 24.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         // App Header
         Column {
@@ -97,10 +135,7 @@ private fun HomeSuccessContent(
         }
 
         // Last Read Section
-        Text(
-            text = "Last Read",
-            style = MaterialTheme.typography.titleLarge
-        )
+        KitsuneSectionHeading(title = "Last Read")
 
         val lastRead = state.lastReadItem
         if (lastRead == null) {
@@ -108,36 +143,38 @@ private fun HomeSuccessContent(
         } else {
             HomeLastReadPopulatedCard(
                 lastRead = lastRead,
+                viewModel = viewModel,
                 onContinueReadingClick = onContinueReadingClick
             )
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
-
         // Shortcuts Section
-        Text(
-            text = "Shortcuts",
-            style = MaterialTheme.typography.titleLarge
-        )
+        KitsuneSectionHeading(title = "Shortcuts")
 
-        Row(
+        Column(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            HomeShortcutCard(
+            ShortcutRow(
                 title = "Library",
-                subtitle = "Browse ${state.libraryCount} local manga",
+                subtitle = "Your local comics",
+                trailingInfo = "${state.libraryCount} local manga",
                 icon = Icons.AutoMirrored.Filled.MenuBook,
-                onClick = onOpenLibraryClick,
-                modifier = Modifier.weight(1f)
+                onClick = onOpenLibraryClick
             )
 
-            HomeShortcutCard(
+            val historyInfo = if (state.historyCount > 0) {
+                "${state.historyCount} recently read manga"
+            } else {
+                "No chapters read yet"
+            }
+
+            ShortcutRow(
                 title = "History",
-                subtitle = "View ${state.historyCount} recent items",
+                subtitle = "Your reading history",
+                trailingInfo = historyInfo,
                 icon = Icons.Default.History,
-                onClick = onOpenHistoryClick,
-                modifier = Modifier.weight(1f)
+                onClick = onOpenHistoryClick
             )
         }
     }
@@ -151,41 +188,24 @@ private fun HomeLastReadEmptyCard(
     Card(
         modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
+            containerColor = MaterialTheme.colorScheme.surface
         )
     ) {
-        Column(
-            modifier = Modifier.padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.MenuBook,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.height(40.dp)
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(
-                text = "Your first chapter awaits",
-                style = MaterialTheme.typography.titleMedium
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "Explore your Library to start reading your favorite manga.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Button(onClick = onOpenLibraryClick) {
-                Text("Open Library")
-            }
-        }
+        KitsuneEmptyState(
+            icon = Icons.AutoMirrored.Filled.MenuBook,
+            title = "Your first chapter awaits",
+            message = "Explore your Library to start reading your favorite manga.",
+            actionText = "Open Library",
+            onAction = onOpenLibraryClick,
+            modifier = Modifier.padding(16.dp)
+        )
     }
 }
 
 @Composable
 private fun HomeLastReadPopulatedCard(
     lastRead: LastReadInfo,
+    viewModel: HomeViewModel,
     onContinueReadingClick: (Long) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -197,111 +217,270 @@ private fun HomeLastReadPopulatedCard(
     Card(
         modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
+            containerColor = MaterialTheme.colorScheme.surface
         )
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = "PICK UP YOUR STORY",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = lastRead.comic.title,
-                style = MaterialTheme.typography.titleLarge
-            )
-            if (!lastRead.comic.author.isNullOrBlank()) {
-                Text(
-                    text = lastRead.comic.author ?: "",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                // Cover Image
+                Box(
+                    modifier = Modifier
+                        .width(104.dp)
+                        .aspectRatio(0.70f)
+                ) {
+                    ComicCoverHomeImage(
+                        comic = lastRead.comic,
+                        viewModel = viewModel
+                    )
+                }
+
+                // Metadata Column
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = "PICK UP YOUR STORY",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = lastRead.comic.title,
+                        style = MaterialTheme.typography.titleLarge,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (!lastRead.comic.author.isNullOrBlank()) {
+                        Text(
+                            text = lastRead.comic.author ?: "",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+
+                    val chapterName = lastRead.chapter?.displayName?.removeSuffix(".cbz")
+                        ?: "Chapter ${progress.lastReadChapterNumber}"
+
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = chapterName,
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    if (totalPages > 0) {
+                        val progressFloat = (pageDisplay.toFloat() / totalPages.toFloat()).coerceIn(0f, 1f)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        LinearProgressIndicator(
+                            progress = { progressFloat },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(6.dp),
+                            color = MaterialTheme.colorScheme.primary,
+                            trackColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "Page $pageDisplay / $totalPages (${(progressFloat * 100).toInt()}%)",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
             }
-            Spacer(modifier = Modifier.height(12.dp))
 
-            val chapterName = lastRead.chapter?.displayName?.removeSuffix(".cbz")
-                ?: "Chapter ${progress.lastReadChapterNumber}"
-
-            Text(
-                text = chapterName,
-                style = MaterialTheme.typography.bodyMedium
-            )
-
-            if (totalPages > 0) {
-                Spacer(modifier = Modifier.height(6.dp))
-                val progressFloat = (pageDisplay.toFloat() / totalPages.toFloat()).coerceIn(0f, 1f)
-                LinearProgressIndicator(
-                    progress = { progressFloat },
-                    modifier = Modifier.fillMaxWidth().height(6.dp)
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "Page $pageDisplay / $totalPages (${(progressFloat * 100).toInt()}%)",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-            Button(
+            KitsunePrimaryButton(
+                text = "Continue Reading",
                 onClick = {
                     if (chapterId > 0L) {
                         onContinueReadingClick(chapterId)
                     }
                 },
-                modifier = Modifier.fillMaxWidth()
+                leadingIcon = Icons.Default.PlayArrow
+            )
+        }
+    }
+}
+
+@Composable
+private fun ShortcutRow(
+    title: String,
+    subtitle: String,
+    trailingInfo: String,
+    icon: ImageVector,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.weight(1f)
             ) {
-                Icon(imageVector = Icons.Default.PlayArrow, contentDescription = null)
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("Continue Reading")
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+                Column {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(
+                    text = trailingInfo,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Icon(
+                    imageVector = Icons.Default.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.outline
+                )
             }
         }
     }
 }
 
 @Composable
-private fun HomeShortcutCard(
-    title: String,
-    subtitle: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    onClick: () -> Unit,
+private fun ComicCoverHomeImage(
+    comic: ComicEntity,
+    viewModel: HomeViewModel,
     modifier: Modifier = Modifier
 ) {
-    Card(
-        modifier = modifier.clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        )
+    val context = LocalContext.current
+    val coverState by produceState<CoverDetailUiState>(
+        initialValue = CoverDetailUiState.Loading,
+        key1 = comic.id,
+        key2 = comic.coverEntryPath,
+        key3 = comic.lastScannedAt
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Icon(
-                imageVector = icon,
-                contentDescription = title,
-                tint = MaterialTheme.colorScheme.primary
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium
-                )
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.outline
+        var acquiredFile: File? = null
+        try {
+            val cacheResult = viewModel.getCoverFile(comic.id)
+            val file = when (cacheResult) {
+                is CoverCacheResult.Hit -> cacheResult.file
+                is CoverCacheResult.Success -> cacheResult.file
+                else -> null
+            }
+
+            if (file == null || !file.isFile || !file.exists()) {
+                value = CoverDetailUiState.Unavailable
+                return@produceState
+            }
+
+            acquiredFile = file
+
+            val request = ImageRequest.Builder(context)
+                .data(file)
+                .size(300, 420)
+                .build()
+
+            val imageLoader = context.imageLoader
+            val result = imageLoader.execute(request)
+
+            if (result is SuccessResult) {
+                val drawable = result.drawable
+                val bitmap = when (drawable) {
+                    is BitmapDrawable -> drawable.bitmap
+                    else -> {
+                        val width = drawable.intrinsicWidth.coerceAtLeast(1)
+                        val height = drawable.intrinsicHeight.coerceAtLeast(1)
+                        val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                        val canvas = Canvas(bmp)
+                        drawable.setBounds(0, 0, width, height)
+                        drawable.draw(canvas)
+                        bmp
+                    }
+                }
+                value = CoverDetailUiState.Loaded(bitmap.asImageBitmap())
+            } else {
+                value = CoverDetailUiState.Error
+            }
+        } catch (ce: CancellationException) {
+            throw ce
+        } catch (_: Exception) {
+            value = CoverDetailUiState.Error
+        } finally {
+            acquiredFile?.let { file ->
+                withContext(NonCancellable) {
+                    viewModel.releaseCoverFile(file)
+                }
+            }
+        }
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .clip(RoundedCornerShape(8.dp)),
+        contentAlignment = Alignment.Center
+    ) {
+        when (val state = coverState) {
+            is CoverDetailUiState.Loaded -> {
+                Image(
+                    painter = BitmapPainter(state.imageBitmap),
+                    contentDescription = "Cover for ${comic.title}",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
                 )
             }
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            else -> {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.surfaceVariant
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.MenuBook,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
         }
     }
 }

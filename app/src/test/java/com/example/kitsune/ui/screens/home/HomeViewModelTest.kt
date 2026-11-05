@@ -44,6 +44,9 @@ import java.io.File
 @Config(sdk = [34])
 class HomeViewModelTest {
 
+    @get:org.junit.Rule
+    val tempFolder = org.junit.rules.TemporaryFolder()
+
     private val testDispatcher = UnconfinedTestDispatcher()
     private lateinit var db: KitsuneDatabase
     private lateinit var repository: LibraryRepository
@@ -130,6 +133,19 @@ class HomeViewModelTest {
         assertEquals(20, state.lastReadItem?.totalPages)
         assertEquals(1, state.libraryCount)
         assertEquals(1, state.historyCount)
+    }
+
+    @Test
+    fun getCoverFile_andReleaseCoverFile_executeWithoutError() = runTest {
+        val comicDao = db.comicDao()
+        val comic = ComicEntity(rootUriString = rootUri, relativePath = "Comics/OnePiece", title = "One Piece")
+        val comicId = comicDao.insert(comic)
+
+        val cacheResult = viewModel.getCoverFile(comicId)
+        assertNotNull(cacheResult)
+
+        val tempFile = tempFolder.newFile("test_cover.tmp")
+        viewModel.releaseCoverFile(tempFile)
     }
 
     private class FakeHomeLibraryScanner : LibraryScanner {

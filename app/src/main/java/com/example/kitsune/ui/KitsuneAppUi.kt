@@ -1,5 +1,8 @@
 package com.example.kitsune.ui
 
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
@@ -44,6 +47,7 @@ fun KitsuneApp(
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
+        containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
             if (isTopLevelDestination) {
                 NavigationBar(
@@ -88,7 +92,14 @@ fun KitsuneApp(
         NavHost(
             navController = navController,
             startDestination = KitsuneDestinations.HOME_ROUTE,
-            modifier = Modifier.padding(innerPadding)
+            modifier = Modifier
+                .padding(innerPadding)
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background),
+            enterTransition = { EnterTransition.None },
+            exitTransition = { ExitTransition.None },
+            popEnterTransition = { EnterTransition.None },
+            popExitTransition = { ExitTransition.None }
         ) {
             composable(KitsuneDestinations.HOME_ROUTE) {
                 val homeViewModel: HomeViewModel = viewModel(

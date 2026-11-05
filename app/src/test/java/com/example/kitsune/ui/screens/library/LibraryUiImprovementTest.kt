@@ -77,4 +77,30 @@ class LibraryUiImprovementTest {
         assertFalse(viewModel.isBookmarkedOnly.value)
         assertEquals(SortOption.TITLE_ASC, viewModel.sortOption.value)
     }
+
+    @Test
+    fun library_searchQuery_filtersComicsAndSearchNoResultsView() = runTest {
+        val fakeRepo = FakeLibraryRepository()
+        val fakePrefs = FakeRootFolderPreferences(rootUri)
+        val fakeSettingsRepo = FakeSettingsRepository()
+        val fakeDetector = FakeComicsDirectoryDetector()
+
+        val comic1 = ComicEntity(id = 1L, rootUriString = rootUri, relativePath = "Comics/Bleach", title = "Bleach")
+        val comic2 = ComicEntity(id = 2L, rootUriString = rootUri, relativePath = "Comics/Naruto", title = "Naruto")
+
+        fakeRepo.comicsByRoot.value = mapOf(rootUri to listOf(comic1, comic2))
+
+        val viewModel = LibraryViewModel(fakeRepo, fakePrefs, fakeSettingsRepo, fakeDetector)
+
+        viewModel.onSearchQueryChanged("Bleach")
+
+        val state = viewModel.uiState.first { it is LibraryUiState.Success } as LibraryUiState.Success
+        assertEquals(1, state.comics.size)
+        assertEquals("Bleach", state.comics.first().title)
+
+        viewModel.onSearchQueryChanged("NonExistent")
+
+        val searchState = viewModel.uiState.first { it is LibraryUiState.SearchNoResults } as LibraryUiState.SearchNoResults
+        assertEquals("NonExistent", searchState.searchQuery)
+    }
 }

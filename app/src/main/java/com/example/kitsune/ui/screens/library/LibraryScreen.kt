@@ -344,33 +344,28 @@ private fun EmptyComicsDirectoryView(
     modifier: Modifier = Modifier,
 ) {
     Column(
-        modifier = modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Icon(
-            imageVector = Icons.Default.Folder,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.outline,
-            modifier = Modifier.padding(bottom = 12.dp),
+        StorageRootCard(itemCount = 0)
+        LibrarySearchBar(
+            searchQuery = "",
+            onSearchQueryChange = {}
         )
-        Text(
-            text = "No Comics Found",
-            style = MaterialTheme.typography.titleLarge,
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = "The 'Comics' directory exists but contains no comic folders yet. Place comic folders inside 'Comics/'.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.outline,
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = onRefresh) {
-                Text("Scan Library")
-            }
-            OutlinedButton(onClick = onNavigateToSettings) {
-                Text("Check Root")
-            }
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            )
+        ) {
+            com.example.kitsune.ui.components.KitsuneEmptyState(
+                icon = Icons.AutoMirrored.Filled.MenuBook,
+                title = "A home for your manga",
+                message = "No comics in this folder yet. Add your manga files to Kitsune Library, or choose another folder.",
+                actionText = "Change Root Folder",
+                onAction = onNavigateToSettings,
+                modifier = Modifier.padding(16.dp)
+            )
         }
     }
 }
@@ -632,30 +627,11 @@ private fun LibrarySearchBar(
     onSearchQueryChange: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    OutlinedTextField(
+    com.example.kitsune.ui.components.KitsuneSearchField(
         value = searchQuery,
         onValueChange = onSearchQueryChange,
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(bottom = 8.dp),
-        placeholder = { Text("Search local manga") },
-        leadingIcon = {
-            Icon(
-                imageVector = Icons.Default.Search,
-                contentDescription = "Search"
-            )
-        },
-        trailingIcon = {
-            if (searchQuery.isNotEmpty()) {
-                IconButton(onClick = { onSearchQueryChange("") }) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Clear Search"
-                    )
-                }
-            }
-        },
-        singleLine = true
+        placeholder = "Search local manga",
+        modifier = modifier.padding(bottom = 8.dp)
     )
 }
 

@@ -28,6 +28,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -218,5 +219,18 @@ class BookmarkViewModelTest {
         assertEquals(4, currentState.gridColumns)
 
         collectJob.cancel()
+    }
+
+    @Test
+    fun getCoverFile_andReleaseCoverFile_executeWithoutError() = runTest {
+        val rootUri = "content://root"
+        fakeRootPrefs.rootUriFlow.value = rootUri
+        viewModel = BookmarkViewModel(fakeRepo, fakeRootPrefs, fakeSettingsRepo)
+
+        val cacheResult = viewModel.getCoverFile(1L)
+        assertNotNull(cacheResult)
+
+        val tempFile = File(System.getProperty("java.io.tmpdir"), "test_bookmark_cover.tmp")
+        viewModel.releaseCoverFile(tempFile)
     }
 }

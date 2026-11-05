@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -34,7 +33,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FolderOff
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -74,6 +72,10 @@ import coil.request.ImageRequest
 import coil.request.SuccessResult
 import com.example.kitsune.data.CoverCacheResult
 import com.example.kitsune.data.entity.ComicEntity
+import com.example.kitsune.ui.components.KitsuneEmptyState
+import com.example.kitsune.ui.components.KitsunePrimaryButton
+import com.example.kitsune.ui.components.KitsuneSearchField
+import com.example.kitsune.ui.components.KitsuneSectionHeading
 import com.example.kitsune.ui.screens.library.CoverUiState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
@@ -85,6 +87,7 @@ fun BookmarkScreen(
     viewModel: BookmarkViewModel,
     onComicClick: (Long) -> Unit,
     onNavigateToSettings: () -> Unit,
+    onOpenLibraryClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -134,6 +137,7 @@ fun BookmarkScreen(
                     viewModel = viewModel,
                     onComicClick = onComicClick,
                     onCreateCollectionClick = { showCreateDialog = true },
+                    onOpenLibraryClick = onOpenLibraryClick,
                     onGridColumnsChange = { columns -> viewModel.setGridColumns(columns) }
                 )
             }
@@ -154,6 +158,7 @@ private fun BookmarkSuccessView(
     viewModel: BookmarkViewModel,
     onComicClick: (Long) -> Unit,
     onCreateCollectionClick: () -> Unit,
+    onOpenLibraryClick: () -> Unit,
     onGridColumnsChange: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -200,45 +205,25 @@ private fun BookmarkSuccessView(
             Spacer(modifier = Modifier.height(8.dp))
         } else {
             // Header Row with Title & Create Collection Action
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Bookmarks",
-                    style = MaterialTheme.typography.displayLarge
-                )
-
-                IconButton(onClick = onCreateCollectionClick) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "Create Collection"
-                    )
+            KitsuneSectionHeading(
+                title = "Bookmarks",
+                modifier = Modifier.padding(bottom = 8.dp),
+                action = {
+                    IconButton(onClick = onCreateCollectionClick) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Create Collection"
+                        )
+                    }
                 }
-            }
+            )
 
             // Search Bar
-            OutlinedTextField(
+            KitsuneSearchField(
                 value = state.searchQuery,
                 onValueChange = { viewModel.onSearchQueryChanged(it) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 8.dp),
-                placeholder = { Text("Search titles or authors") },
-                leadingIcon = {
-                    Icon(imageVector = Icons.Default.Search, contentDescription = "Search")
-                },
-                trailingIcon = {
-                    if (state.searchQuery.isNotEmpty()) {
-                        IconButton(onClick = { viewModel.onSearchQueryChanged("") }) {
-                            Icon(imageVector = Icons.Default.Close, contentDescription = "Clear")
-                        }
-                    }
-                },
-                singleLine = true
+                placeholder = "Search titles or authors",
+                modifier = Modifier.padding(bottom = 8.dp)
             )
 
             // User Collections Selector Row (LazyRow)
@@ -304,23 +289,39 @@ private fun BookmarkSuccessView(
         }
 
         if (state.bookmarkedComics.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = if (state.searchQuery.isNotBlank()) {
-                        "No manga matching \"${state.searchQuery}\""
-                    } else if (state.statusFilter != BookmarkStatusFilter.ALL) {
-                        "No ${state.statusFilter.displayName.lowercase()} manga in ${state.selectedCollection?.name ?: "collection"}"
-                    } else {
-                        "No manga in ${state.selectedCollection?.name ?: "collection"} yet"
-                    },
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.outline
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
                 )
+            ) {
+                if (state.searchQuery.isNotBlank() || state.statusFilter != BookmarkStatusFilter.ALL) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = if (state.searchQuery.isNotBlank()) {
+                                "No manga matching \"${state.searchQuery}\""
+                            } else {
+                                "No ${state.statusFilter.displayName.lowercase()} manga in ${state.selectedCollection?.name ?: "collection"}"
+                            },
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                } else {
+                    KitsuneEmptyState(
+                        icon = Icons.AutoMirrored.Filled.MenuBook,
+                        title = "Collection is empty",
+                        message = "This collection does not contain any manga yet. Add manga to '${state.selectedCollection?.name ?: "Collection"}' from your Library or Comic Detail.",
+                        actionText = "Open Library",
+                        onAction = onOpenLibraryClick,
+                        modifier = Modifier.padding(16.dp)
+                    )
+                }
             }
         } else {
             LazyVerticalGrid(
@@ -364,12 +365,12 @@ private fun SortAndGridBottomSheet(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(
-                text = "Sort & Grid Settings",
+                text = "Sort & grid",
                 style = MaterialTheme.typography.titleLarge
             )
 
             Text(
-                text = "Sort By",
+                text = "Sort by",
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.primary
             )
@@ -394,7 +395,7 @@ private fun SortAndGridBottomSheet(
             }
 
             Text(
-                text = "Grid Columns",
+                text = "Columns",
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.primary
             )
@@ -727,32 +728,14 @@ private fun BookmarkEmptyNoCollectionsView(
             containerColor = MaterialTheme.colorScheme.surfaceVariant
         )
     ) {
-        Column(
-            modifier = Modifier.padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Icon(
-                imageVector = Icons.Default.BookmarkBorder,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.height(40.dp)
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(
-                text = "Keep your next story close",
-                style = MaterialTheme.typography.titleMedium
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "Create your first collection to organize your favorite manga.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Button(onClick = onCreateCollectionClick) {
-                Text("Create Collection")
-            }
-        }
+        KitsuneEmptyState(
+            icon = Icons.Default.BookmarkBorder,
+            title = "Keep your next story close",
+            message = "Bookmark manga from your library. Your saved stories will appear here.",
+            actionText = "Create Collection",
+            onAction = onCreateCollectionClick,
+            modifier = Modifier.padding(16.dp)
+        )
     }
 }
 

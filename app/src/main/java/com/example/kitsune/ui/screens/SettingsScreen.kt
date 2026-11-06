@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -53,6 +54,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.kitsune.core.RootFolderPreferences
@@ -64,8 +66,10 @@ import com.example.kitsune.ui.components.KitsuneSectionHeading
 import com.example.kitsune.ui.components.KitsuneSegmentedControl
 import com.example.kitsune.ui.theme.ComponentShapes
 import com.example.kitsune.ui.theme.Spacing
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun SettingsScreen(
@@ -76,16 +80,19 @@ fun SettingsScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var folderState by remember { mutableStateOf<RootFolderState>(RootFolderState.NotConfigured) }
+    // null = initial "Checking" state before SAF access check completes
+    var folderState by remember { mutableStateOf<RootFolderState?>(null) }
     var operationError by remember { mutableStateOf<String?>(null) }
     var isVerifying by remember { mutableStateOf(false) }
     var showReleaseRootDialog by remember { mutableStateOf(false) }
     var showBookmarkManagerDialog by remember { mutableStateOf(false) }
 
+    // null = not yet loaded from Room; prevents showing wrong default values on first frame
     val settingsState by (settingsRepository?.observeSettings() ?: flowOf(com.example.kitsune.data.entity.SettingsEntity()))
-        .collectAsStateWithLifecycle(initialValue = com.example.kitsune.data.entity.SettingsEntity())
+        .collectAsStateWithLifecycle(initialValue = null)
+    val settingsLoaded = settingsState != null
 
-    fun refreshStatus() {
+    suspend fun refreshStatus() {
         val uriStr = rootFolderPreferences.getRootUriString()
         if (uriStr == null) {
             folderState = RootFolderState.NotConfigured
@@ -99,7 +106,10 @@ fun SettingsScreen(
             if (parsedUri == null) {
                 folderState = RootFolderState.Inaccessible(uriStr, "Invalid URI format.")
             } else {
-                folderState = SafStorageHelper.checkRootAccess(context, parsedUri)
+                val result = withContext(Dispatchers.IO) {
+                    SafStorageHelper.checkRootAccess(context, parsedUri)
+                }
+                folderState = result
             }
         }
     }
@@ -128,19 +138,21 @@ fun SettingsScreen(
             )
 
             takeResult.onSuccess {
-                val verifiedAccess = SafStorageHelper.checkRootAccess(context, pickedUri)
-                if (verifiedAccess is RootFolderState.Ready) {
-                    rootFolderPreferences.setRootUriString(pickedUri.toString())
-                    folderState = verifiedAccess
-                    scope.launch {
+                scope.launch {
+                    val verifiedAccess = withContext(Dispatchers.IO) {
+                        SafStorageHelper.checkRootAccess(context, pickedUri)
+                    }
+                    if (verifiedAccess is RootFolderState.Ready) {
+                        rootFolderPreferences.setRootUriString(pickedUri.toString())
+                        folderState = verifiedAccess
                         try {
                             libraryRepository?.ensureComicsDirectory()
                             libraryRepository?.syncLibrary(pickedUri.toString())
                         } catch (_: Exception) {}
+                    } else {
+                        operationError = "Permission granted but folder remains inaccessible."
+                        folderState = verifiedAccess
                     }
-                } else {
-                    operationError = "Permission granted but folder remains inaccessible."
-                    folderState = verifiedAccess
                 }
             }.onFailure { err ->
                 operationError = "Failed to acquire folder read permission: ${err.localizedMessage ?: "Access denied"}. Active folder unchanged."
@@ -176,72 +188,92 @@ fun SettingsScreen(
                 )
             ) {
                 Column(modifier = Modifier.padding(Spacing.large)) {
-                    when (val state = folderState) {
-                        is RootFolderState.NotConfigured -> {
-                            Text(
-                                text = "Status: Root folder not selected.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = "Select a 'Kitsune' folder containing a 'Comics' subfolder.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.outline
-                            )
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 68.dp),
+                        verticalArrangement = Arrangement.Top
+                    ) {
+                        when (val state = folderState) {
+                            null -> {
+                                Text(
+                                    text = "Status: Verifying storage access…",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = "Checking folder permission and availability.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+                            }
+                            is RootFolderState.NotConfigured -> {
+                                Text(
+                                    text = "Status: Root folder not selected.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = "Select a 'Kitsune' folder containing a 'Comics' subfolder.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+                            }
+                            is RootFolderState.PermissionLost -> {
+                                Text(
+                                    text = "Status: Read permission lost or revoked.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                                Text(
+                                    text = state.reason,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            is RootFolderState.Inaccessible -> {
+                                Text(
+                                    text = "Status: Folder access error.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                                Text(
+                                    text = state.error,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            is RootFolderState.Ready -> {
+                                Text(
+                                    text = "Status: Ready (Active access verified)",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    text = "Folder configured in device storage",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+                            }
                         }
-                        is RootFolderState.PermissionLost -> {
+
+                        if (operationError != null) {
+                            Spacer(modifier = Modifier.height(Spacing.extraSmall))
                             Text(
-                                text = "Status: Read permission lost or revoked.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.error
-                            )
-                            Text(
-                                text = "Reason: ${state.reason}",
+                                text = operationError ?: "",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.error
-                            )
-                            Text(
-                                text = "Please select the folder again to update permission.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.outline
-                            )
-                        }
-                        is RootFolderState.Inaccessible -> {
-                            Text(
-                                text = "Status: Folder access error.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.error
-                            )
-                            Text(
-                                text = "Reason: ${state.error}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.error
-                            )
-                        }
-                        is RootFolderState.Ready -> {
-                            Text(
-                                text = "Status: Ready (Active access verified)",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            Text(
-                                text = "Folder configured in device storage",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.outline
+                                color = MaterialTheme.colorScheme.error,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
 
-                    if (operationError != null) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = operationError ?: "",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(Spacing.medium))
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -271,25 +303,25 @@ fun SettingsScreen(
                             )
                         }
 
-                        if (folderState !is RootFolderState.NotConfigured) {
-                            OutlinedButton(
-                                onClick = {
-                                    operationError = null
-                                    isVerifying = true
+                        OutlinedButton(
+                            onClick = {
+                                operationError = null
+                                isVerifying = true
+                                scope.launch {
                                     refreshStatus()
                                     isVerifying = false
-                                },
-                                enabled = !isVerifying
-                            ) {
-                                if (isVerifying) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(16.dp),
-                                        strokeWidth = 2.dp
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
                                 }
-                                Text("Recheck Access")
+                            },
+                            enabled = !isVerifying && folderState != null && folderState !is RootFolderState.NotConfigured
+                        ) {
+                            if (isVerifying) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
                             }
+                            Text("Recheck Access")
                         }
                     }
 
@@ -315,20 +347,19 @@ fun SettingsScreen(
 
                                 if (!releaseFailed) {
                                     rootFolderPreferences.setRootUriString(null)
-                                    refreshStatus()
+                                    scope.launch { refreshStatus() }
                                 }
                             },
                             onDismiss = { showReleaseRootDialog = false }
                         )
                     }
 
-                    if (folderState !is RootFolderState.NotConfigured) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        OutlinedButton(
-                            onClick = { showReleaseRootDialog = true }
-                        ) {
-                            Text("Release Root Folder")
-                        }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = { showReleaseRootDialog = true },
+                        enabled = folderState != null && folderState !is RootFolderState.NotConfigured
+                    ) {
+                        Text("Release Root Folder")
                     }
                 }
             }
@@ -367,9 +398,10 @@ fun SettingsScreen(
                                 "single_page" to "Single Page",
                                 "vertical_continuous" to "Vertical Continuous"
                             ),
-                            selected = settingsState.readerMode,
+                            selected = settingsState?.readerMode,
+                            enabled = settingsLoaded,
                             onSelected = { mode ->
-                                scope.launch { settingsRepository?.setReaderMode(mode) }
+                                if (settingsLoaded) scope.launch { settingsRepository?.setReaderMode(mode) }
                             }
                         )
                     }
@@ -389,9 +421,10 @@ fun SettingsScreen(
                         Spacer(modifier = Modifier.height(Spacing.extraSmall))
                         KitsuneSegmentedControl(
                             options = listOf("ltr" to "LTR", "rtl" to "RTL"),
-                            selected = settingsState.readingDirection,
+                            selected = settingsState?.readingDirection,
+                            enabled = settingsLoaded,
                             onSelected = { dir ->
-                                scope.launch { settingsRepository?.setReadingDirection(dir) }
+                                if (settingsLoaded) scope.launch { settingsRepository?.setReadingDirection(dir) }
                             }
                         )
                     }
@@ -415,9 +448,10 @@ fun SettingsScreen(
                                 "fit_width" to "Fit Width",
                                 "fit_height" to "Fit Height"
                             ),
-                            selected = settingsState.pageFit,
+                            selected = settingsState?.pageFit,
+                            enabled = settingsLoaded,
                             onSelected = { fit ->
-                                scope.launch { settingsRepository?.setPageFit(fit) }
+                                if (settingsLoaded) scope.launch { settingsRepository?.setPageFit(fit) }
                             }
                         )
                     }
@@ -441,9 +475,10 @@ fun SettingsScreen(
                             )
                         }
                         Switch(
-                            checked = settingsState.keepScreenAwake,
+                            checked = settingsState?.keepScreenAwake ?: false,
+                            enabled = settingsLoaded,
                             onCheckedChange = { checked ->
-                                scope.launch { settingsRepository?.setKeepScreenAwake(checked) }
+                                if (settingsLoaded) scope.launch { settingsRepository?.setKeepScreenAwake(checked) }
                             }
                         )
                     }
@@ -479,11 +514,18 @@ fun SettingsScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Spacer(modifier = Modifier.height(Spacing.extraSmall))
+                        val currentTheme = settingsState?.theme
+                        val selectedTheme = when (currentTheme) {
+                            null -> null
+                            "light" -> "system"
+                            else -> currentTheme
+                        }
                         KitsuneSegmentedControl(
                             options = listOf("dark" to "Dark", "system" to "System"),
-                            selected = if (settingsState.theme == "light") "system" else settingsState.theme,
+                            selected = selectedTheme,
+                            enabled = settingsLoaded,
                             onSelected = { theme ->
-                                scope.launch { settingsRepository?.setTheme(theme) }
+                                if (settingsLoaded) scope.launch { settingsRepository?.setTheme(theme) }
                             }
                         )
                     }
@@ -503,9 +545,10 @@ fun SettingsScreen(
                         Spacer(modifier = Modifier.height(Spacing.extraSmall))
                         KitsuneSegmentedControl(
                             options = listOf(2 to "2 columns", 3 to "3 columns", 4 to "4 columns"),
-                            selected = settingsState.gridColumns,
+                            selected = settingsState?.gridColumns,
+                            enabled = settingsLoaded,
                             onSelected = { cols ->
-                                scope.launch { settingsRepository?.setGridColumns(cols) }
+                                if (settingsLoaded) scope.launch { settingsRepository?.setGridColumns(cols) }
                             }
                         )
                     }

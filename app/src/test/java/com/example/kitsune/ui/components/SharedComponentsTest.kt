@@ -103,6 +103,24 @@ class SharedComponentsTest {
     }
 
     @Test
+    fun segmentedControl_supportsNullableSelectionAndDisabledState() {
+        val options = listOf("ltr" to "LTR", "rtl" to "RTL")
+        assertNotNull(
+            @Composable {
+                KitsuneTheme {
+                    // Verifies nullable selected (placeholder mode during initial room loading)
+                    KitsuneSegmentedControl(
+                        options = options,
+                        selected = null as String?,
+                        enabled = false,
+                        onSelected = {}
+                    )
+                }
+            }
+        )
+    }
+
+    @Test
     fun emptyState_instantiatesWithIconAndAction() {
         assertNotNull(
             @Composable {

@@ -27,9 +27,10 @@ import com.example.kitsune.ui.theme.Spacing
 @Composable
 fun <T> KitsuneSegmentedControl(
     options: List<Pair<T, String>>,
-    selected: T,
+    selected: T?,
     onSelected: (T) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true
 ) {
     Row(
         modifier = modifier
@@ -39,16 +40,17 @@ fun <T> KitsuneSegmentedControl(
         horizontalArrangement = Arrangement.spacedBy(Spacing.extraSmall)
     ) {
         options.forEach { (value, label) ->
-            val isSelected = value == selected
+            val isSelected = selected != null && value == selected
             Surface(
                 modifier = Modifier
                     .weight(1f)
                     .heightIn(min = Spacing.controlMinHeight)
                     .clip(ComponentShapes.segmentedItem)
-                    .clickable { onSelected(value) },
+                    .clickable(enabled = enabled) { onSelected(value) },
                 color = if (isSelected) MaterialTheme.colorScheme.primaryContainer
                 else Color.Transparent,
                 contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer
+                else if (!enabled) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                 else MaterialTheme.colorScheme.onSurfaceVariant
             ) {
                 Box(contentAlignment = Alignment.Center) {
